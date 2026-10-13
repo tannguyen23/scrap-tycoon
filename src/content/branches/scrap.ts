@@ -20,6 +20,7 @@ export const SCRAP_BRANCH: BranchDef = {
       baseCost: new Decimal(10),
       costGrowth: COST_GROWTH,
       output: { item: SCRAP_ITEM, ratePerUnit: new Decimal(1) },
+      visual: { zone: 'alley', action: 'pick' },
     },
     {
       id: 'cart',
@@ -27,6 +28,7 @@ export const SCRAP_BRANCH: BranchDef = {
       baseCost: new Decimal(115),
       costGrowth: COST_GROWTH,
       output: { item: SCRAP_ITEM, ratePerUnit: new Decimal(8) },
+      visual: { zone: 'route', action: 'drive' },
     },
     {
       id: 'depot',
@@ -34,6 +36,7 @@ export const SCRAP_BRANCH: BranchDef = {
       baseCost: new Decimal(1300),
       costGrowth: COST_GROWTH,
       output: { item: SCRAP_ITEM, ratePerUnit: new Decimal(60) },
+      visual: { zone: 'depot', action: 'work' },
     },
     {
       id: 'truck',
@@ -41,6 +44,7 @@ export const SCRAP_BRANCH: BranchDef = {
       baseCost: new Decimal(15000),
       costGrowth: COST_GROWTH,
       output: { item: SCRAP_ITEM, ratePerUnit: new Decimal(400) },
+      visual: { zone: 'gate', action: 'haul' },
     },
   ],
   recipes: [

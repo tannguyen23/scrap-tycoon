@@ -68,6 +68,13 @@ module.exports = {
         path: '^(react|react-dom|pixi\\.js)',
       },
     },
+    {
+      name: 'studio-imports-ui',
+      severity: 'error',
+      comment: 'the asset studio is a viewer: it may only read ui/domain/core/i18n',
+      from: { path: '^src/studio/' },
+      to: { pathNot: '^src/(studio|ui|core|domain|i18n)/' },
+    },
   ],
   options: {
     doNotFollow: { path: 'node_modules' },

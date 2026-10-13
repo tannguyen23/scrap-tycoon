@@ -1,12 +1,27 @@
-import { createContext, useContext, useSyncExternalStore } from 'react'
+import type { Decimal } from '@core/num'
 import type { EngineApi } from '@domain/engine-api'
 import type { GameContent, GameState } from '@domain/types'
 import type { LocaleStore } from '@i18n/locale'
 import { t, type L10n, type Locale } from '@i18n/types'
+import { createContext, useContext, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import type { ThemeMode, ThemeStore } from './theme'
 
 export const EngineContext = createContext<EngineApi | null>(null)
 export const ContentContext = createContext<GameContent | null>(null)
 export const LocaleContext = createContext<LocaleStore | null>(null)
+export const ThemeContext = createContext<ThemeStore | null>(null)
+
+export interface SceneBridge {
+  /** Outline a zone on the map while its HUD card is hovered. */
+  highlight: (zoneId: string | null) => void
+  /** Move the camera to a zone (HUD card click). */
+  panTo: (zoneId: string) => void
+}
+
+export const SceneBridgeContext = createContext<SceneBridge>({
+  highlight: () => {},
+  panTo: () => {},
+})
 
 export type TranslateFn = (text: L10n, params?: Record<string, string>) => string
 
@@ -42,4 +57,50 @@ export function useGameState(): GameState {
 export function useText(): TranslateFn {
   const locale = useLocale()
   return (text: L10n, params?: Record<string, string>) => t(text, locale, params)
+}
+
+export function useSceneBridge(): SceneBridge {
+  return useContext(SceneBridgeContext)
+}
+
+export function useThemeStore(): ThemeStore {
+  const themeStore = useContext(ThemeContext)
+  if (!themeStore) throw new Error('ThemeContext is missing')
+  return themeStore
+}
+
+export function useThemeMode(): ThemeMode {
+  const themeStore = useThemeStore()
+  return useSyncExternalStore(themeStore.subscribe, themeStore.get)
+}
+
+/**
+ * Chases a Decimal with a short ease-out tween so numbers "run" instead of
+ * jumping. Re-targets whenever the value changes (the store ticks at 10 Hz,
+ * which reads as a continuous count-up).
+ */
+export function useAnimatedDecimal(target: Decimal, durationMs = 320): Decimal {
+  const [displayed, setDisplayed] = useState<Decimal>(target)
+  const displayedRef = useRef<Decimal>(target)
+  const frameRef = useRef<number | null>(null)
+
+  useEffect(() => {
+    const from = displayedRef.current
+    if (from.eq(target)) return
+    const start = performance.now()
+    const tick = (now: number): void => {
+      const progress = Math.min(1, (now - start) / durationMs)
+      const eased = 1 - Math.pow(1 - progress, 3)
+      const next = progress >= 1 ? target : from.add(target.sub(from).mul(eased))
+      displayedRef.current = next
+      setDisplayed(next)
+      if (progress < 1) frameRef.current = requestAnimationFrame(tick)
+    }
+    frameRef.current = requestAnimationFrame(tick)
+    return () => {
+      if (frameRef.current !== null) cancelAnimationFrame(frameRef.current)
+    }
+  }, [target, durationMs])
+
+  return displayed
 }

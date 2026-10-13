@@ -10,45 +10,60 @@ import { LocaleStore, detectLocale } from '@i18n/locale'
 import { isLocale, type Locale } from '@i18n/types'
 import { LocalStorageAdapter } from '@platform/storage'
 import { App } from '@ui/hud/App'
-import { ContentContext, EngineContext, LocaleContext } from '@ui/hooks'
+import { ContentContext, EngineContext, LocaleContext, ThemeContext } from '@ui/hooks'
+import { ThemeStore, isThemeMode, type ThemeMode } from '@ui/theme'
 import { ObservableStore } from '@core/store'
 import { SaveManager } from '@core/save/saveManager'
 import { Engine } from './engine'
 import { startLoop } from './loop'
 
 const SETTINGS_KEY = 'settings'
+const DEFAULT_THEME: ThemeMode = 'light'
 
 interface StoredSettings {
   locale?: string
+  theme?: string
 }
 
-function loadLocaleStore(storage: LocalStorageAdapter): LocaleStore {
-  let initial: Locale = detectLocale(navigator.language)
+interface AppStores {
+  localeStore: LocaleStore
+  themeStore: ThemeStore
+}
+
+function loadStores(storage: LocalStorageAdapter): AppStores {
+  let locale: Locale = detectLocale(navigator.language)
+  let theme: ThemeMode = DEFAULT_THEME
   const raw = storage.get(SETTINGS_KEY)
   if (raw !== null) {
     try {
       const parsed = JSON.parse(raw) as StoredSettings
       if (typeof parsed.locale === 'string' && isLocale(parsed.locale)) {
-        initial = parsed.locale
+        locale = parsed.locale
+      }
+      if (typeof parsed.theme === 'string' && isThemeMode(parsed.theme)) {
+        theme = parsed.theme
       }
     } catch {
-      // fall back to the detected locale
+      // fall back to the defaults
     }
   }
 
-  const localeStore = new LocaleStore(initial)
-  const apply = (locale: Locale): void => {
-    document.documentElement.lang = locale
-    storage.set(SETTINGS_KEY, JSON.stringify({ locale }))
+  const localeStore = new LocaleStore(locale)
+  const themeStore = new ThemeStore(theme)
+  const persist = (): void => {
+    document.documentElement.lang = localeStore.get()
+    document.documentElement.dataset.theme = themeStore.get()
+    storage.set(SETTINGS_KEY, JSON.stringify({ locale: localeStore.get(), theme: themeStore.get() }))
   }
-  apply(initial)
-  localeStore.subscribe(() => apply(localeStore.get()))
-  return localeStore
+  persist()
+  localeStore.subscribe(persist)
+  themeStore.subscribe(persist)
+  return { localeStore, themeStore }
 }
 
 export function bootstrap(): void {
   const storage = new LocalStorageAdapter()
-  const localeStore = loadLocaleStore(storage)
+  const { localeStore, themeStore } = loadStores(storage)
 
   if (import.meta.env.DEV) {
     for (const error of validateContent(GAME_CONTENT)) {
@@ -101,7 +116,9 @@ export function bootstrap(): void {
       <EngineContext.Provider value={engine}>
         <ContentContext.Provider value={GAME_CONTENT}>
           <LocaleContext.Provider value={localeStore}>
-            <App initialOfflineReport={initialOfflineReport} />
+            <ThemeContext.Provider value={themeStore}>
+              <App initialOfflineReport={initialOfflineReport} />
+            </ThemeContext.Provider>
           </LocaleContext.Provider>
         </ContentContext.Provider>
       </EngineContext.Provider>

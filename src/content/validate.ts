@@ -14,6 +14,12 @@ export function validateContent(content: GameContent): string[] {
     }
   }
 
+  for (const [key, zone] of Object.entries(content.zones)) {
+    if (zone.id !== key) {
+      errors.push(`zone key "${key}" does not match id "${zone.id}"`)
+    }
+  }
+
   for (const [key, branch] of Object.entries(content.branches)) {
     if (branch.id !== key) {
       errors.push(`branch key "${key}" does not match id "${branch.id}"`)
@@ -37,6 +43,9 @@ function validateBranch(branch: BranchDef, content: GameContent, errors: string[
     unique('worker', worker.id)
     if (!(worker.output.item in content.items)) {
       errors.push(`${where}: worker "${worker.id}" outputs unknown item "${worker.output.item}"`)
+    }
+    if (!(worker.visual.zone in content.zones)) {
+      errors.push(`${where}: worker "${worker.id}" lives in unknown zone "${worker.visual.zone}"`)
     }
     if (worker.baseCost.lte(0)) errors.push(`${where}: worker "${worker.id}" baseCost must be > 0`)
     if (worker.costGrowth.lt(1)) errors.push(`${where}: worker "${worker.id}" costGrowth must be >= 1`)

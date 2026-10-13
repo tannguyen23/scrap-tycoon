@@ -6,12 +6,16 @@ export const UI = {
   buyMax: { vi: 'Tối đa', en: 'Max' },
   incomePerSecond: { vi: 'Thu nhập/s', en: 'Income/s' },
   workers: { vi: 'Nhân công', en: 'Workers' },
-  upgrades: { vi: 'Nâng cấp', en: 'Upgrades' },
+  upgrades: { vi: 'Nâng cấp chung', en: 'Shared upgrades' },
   owned: { vi: 'Đang có', en: 'Owned' },
   nextCost: { vi: 'Giá kế tiếp', en: 'Next cost' },
+  costProgress: { vi: 'Tiến độ tới giá kế tiếp', en: 'Progress toward next cost' },
   purchased: { vi: 'Đã mua', en: 'Purchased' },
   settings: { vi: 'Cài đặt', en: 'Settings' },
   language: { vi: 'Ngôn ngữ', en: 'Language' },
+  theme: { vi: 'Giao diện', en: 'Theme' },
+  themeLight: { vi: 'Sáng', en: 'Light' },
+  themeDark: { vi: 'Tối', en: 'Dark' },
   close: { vi: 'Đóng', en: 'Close' },
   resetSave: { vi: 'Xoá save', en: 'Reset save' },
   resetSaveConfirm: {
@@ -27,6 +31,10 @@ export const UI = {
     vi: 'Chỉ tính tối đa {time} mỗi lần vắng.',
     en: 'Only up to {time} counts per absence.',
   },
+  zoomFar: { vi: 'Xa · ít chi tiết', en: 'Far · less detail' },
+  zoomMid: { vi: 'Vừa', en: 'Medium' },
+  zoomNear: { vi: 'Gần · chi tiết nhất', en: 'Close · most detail' },
+  zoneJump: { vi: 'Bấm để di chuyển camera tới khu này', en: 'Click to move the camera to this zone' },
   ok: { vi: 'OK', en: 'OK' },
 } satisfies Record<string, L10n>
 

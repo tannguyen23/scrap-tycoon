@@ -17,6 +17,7 @@ describe('content validation', () => {
       items: {
         ore: { id: 'ore-not-the-key', name: { vi: 'x', en: 'x' } },
       },
+      zones: {},
       branches: {
         b: {
           id: 'not-b',
@@ -28,6 +29,7 @@ describe('content validation', () => {
               baseCost: new Decimal(1),
               costGrowth: new Decimal(1),
               output: { item: 'ghost', ratePerUnit: new Decimal(1) },
+              visual: { zone: 'ghost-zone', action: 'pick' },
             },
             {
               id: 'w',
@@ -35,6 +37,7 @@ describe('content validation', () => {
               baseCost: new Decimal(1),
               costGrowth: new Decimal(1),
               output: { item: 'ghost', ratePerUnit: new Decimal(1) },
+              visual: { zone: 'ghost-zone', action: 'pick' },
             },
           ],
           recipes: [],
@@ -55,6 +58,7 @@ describe('content validation', () => {
     expect(errors.length).toBeGreaterThanOrEqual(6)
     expect(errors.some((error) => error.includes('currencyItemId'))).toBe(true)
     expect(errors.some((error) => error.includes('ghost'))).toBe(true)
+    expect(errors.some((error) => error.includes('zone'))).toBe(true)
     expect(errors.some((error) => error.includes('duplicate'))).toBe(true)
   })
 })

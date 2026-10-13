@@ -23,9 +23,17 @@ export function UpgradeCard({ branchId, upgrade, state }: UpgradeCardProps) {
       <span className="upgrade-name">{text(upgrade.name)}</span>
       <span className="upgrade-desc">{text(upgrade.desc)}</span>
       {purchased ? (
-        <span className="upgrade-state">{text(UI.purchased)}</span>
+        <span className="stamp">{text(UI.purchased)}</span>
       ) : (
-        <button type="button" disabled={!affordable} onClick={() => engine.buyUpgrade(branchId, upgrade.id)}>
+        <button
+          type="button"
+          className="buy"
+          disabled={!affordable}
+          onClick={(event) => {
+            event.stopPropagation()
+            engine.buyUpgrade(branchId, upgrade.id)
+          }}
+        >
           {text(UI.buy)} · {formatShort(upgrade.cost)}
         </button>
       )}

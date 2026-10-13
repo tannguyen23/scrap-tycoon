@@ -1,8 +1,8 @@
-import type { BranchDef, GameState } from '@domain/types'
+import type { BranchDef, GameState, WorkerDef } from '@domain/types'
 import { UI } from '@i18n/text'
 import { useText } from '@ui/hooks'
 import { UpgradeCard } from './UpgradeCard'
-import { WorkerRow } from './WorkerRow'
+import { ZoneCard } from './ZoneCard'
 
 export interface BranchPanelProps {
   branch: BranchDef
@@ -12,16 +12,28 @@ export interface BranchPanelProps {
 export function BranchPanel({ branch, state }: BranchPanelProps) {
   const text = useText()
 
+  const workersByZone = new Map<string, WorkerDef[]>()
+  for (const worker of branch.workers) {
+    const list = workersByZone.get(worker.visual.zone)
+    if (list) list.push(worker)
+    else workersByZone.set(worker.visual.zone, [worker])
+  }
+
   return (
     <section className="panel">
       <h2>{text(branch.name)}</h2>
 
-      <h3>{text(UI.workers)}</h3>
-      <ul className="worker-list">
-        {branch.workers.map((worker) => (
-          <WorkerRow key={worker.id} branchId={branch.id} worker={worker} state={state} />
+      <div className="zone-grid">
+        {[...workersByZone.entries()].map(([zoneId, workers]) => (
+          <ZoneCard
+            key={zoneId}
+            zoneId={zoneId}
+            branchId={branch.id}
+            workers={workers}
+            state={state}
+          />
         ))}
-      </ul>
+      </div>
 
       <h3>{text(UI.upgrades)}</h3>
       <div className="upgrade-grid">

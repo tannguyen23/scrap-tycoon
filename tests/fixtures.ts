@@ -10,6 +10,13 @@ export const TEST_CONTENT: GameContent = {
     money: { id: 'money', name: { vi: 'Tiền', en: 'Coins' } },
     ore: { id: 'ore', name: { vi: 'Quặng', en: 'Ore' }, unit: { vi: 'kg', en: 'kg' } },
   },
+  zones: {
+    mine: {
+      id: 'mine',
+      name: { vi: 'Mỏ', en: 'Mine' },
+      actionDesc: { vi: 'Thợ đào quặng.', en: 'Diggers mine ore.' },
+    },
+  },
   branches: {
     mine: {
       id: 'mine',
@@ -21,6 +28,7 @@ export const TEST_CONTENT: GameContent = {
           baseCost: new Decimal(10),
           costGrowth: new Decimal(2),
           output: { item: 'ore', ratePerUnit: new Decimal(1) },
+          visual: { zone: 'mine', action: 'pick' },
         },
         {
           id: 'drill',
@@ -28,6 +36,7 @@ export const TEST_CONTENT: GameContent = {
           baseCost: new Decimal(100),
           costGrowth: new Decimal(2),
           output: { item: 'ore', ratePerUnit: new Decimal(5) },
+          visual: { zone: 'mine', action: 'work' },
         },
       ],
       recipes: [

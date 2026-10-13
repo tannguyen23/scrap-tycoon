@@ -1,0 +1,232 @@
+/* Scrap Tycoon — dev asset studio (localhost:5174). Reuses ui/theme.css tokens. */
+
+#studio-root {
+  min-height: 100%;
+}
+
+.studio {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.studio-head {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  padding: 10px 16px;
+  border-bottom: 2px dashed var(--divider);
+  background: linear-gradient(var(--sidebar-top), var(--sidebar-bottom));
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+}
+
+.studio-title {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  color: var(--text);
+}
+
+.studio-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.studio-note {
+  margin: 0;
+  color: var(--text);
+  opacity: 0.72;
+  font-size: 11px;
+}
+
+.studio-head .studio-note {
+  margin-left: auto;
+}
+
+.studio-body {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 16px;
+}
+
+.studio-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.studio-panel h3 {
+  margin: 0;
+  font-size: 11px;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  color: var(--text);
+}
+
+.studio-panel h3::after {
+  content: '';
+  display: block;
+  margin-top: 5px;
+  border-bottom: 2px dashed var(--divider);
+}
+
+/* ---- stage: tờ giấy chứa canvas pixel -------------------------------------- */
+
+.stage-wrap {
+  position: relative;
+  align-self: flex-start;
+  max-width: 100%;
+  padding: 10px;
+  overflow-x: auto;
+  background:
+    radial-gradient(140% 120% at 30% 0%, rgba(255, 250, 235, 0.5), transparent 55%),
+    repeating-linear-gradient(0deg, rgba(120, 90, 40, 0.05) 0 1px, transparent 1px 4px),
+    linear-gradient(#e6d8b2, #d9c79c);
+  border: 1px solid var(--paper-edge);
+  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.4), inset 0 0 26px rgba(122, 92, 42, 0.16);
+}
+
+.stage-canvas {
+  display: block;
+}
+
+.stage-label {
+  position: absolute;
+  z-index: 1;
+  overflow: hidden;
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #4a3d28;
+  text-shadow: 0 1px 0 rgba(255, 250, 235, 0.7);
+  pointer-events: none;
+}
+
+/* Section heading over a preview (e.g. a contour family). */
+.stage-label.caption {
+  font-weight: 700;
+  letter-spacing: 1.4px;
+  text-overflow: clip;
+  color: #6b5231;
+}
+
+/* Chip pinned to a single tile so numbers can be matched to the sheet. */
+.stage-label.tile {
+  font-size: 9px;
+  text-align: center;
+  letter-spacing: 0.5px;
+  text-overflow: clip;
+  color: #fff7e6;
+  text-shadow: none;
+  background: rgba(40, 28, 14, 0.45);
+}
+
+/* 2×2 corner-mask diagram (TL TR / BL BR). */
+.mask-grid {
+  display: inline-grid;
+  grid-template-columns: repeat(2, 5px);
+  gap: 1px;
+  margin-right: 5px;
+  vertical-align: -1px;
+}
+
+.mask-grid i {
+  width: 5px;
+  height: 5px;
+  background: rgba(90, 70, 48, 0.18);
+  border: 1px solid rgba(90, 70, 48, 0.45);
+}
+
+.mask-grid i.on {
+  background: #7f6a4a;
+}
+
+/* ---- pair switcher (one transition set at a time) --------------------------- */
+
+.studio-switcher {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.studio-switcher select {
+  min-width: 220px;
+  padding: 5px 8px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink);
+  background: linear-gradient(var(--btn-top), var(--btn-bottom));
+  border: 2px solid var(--btn-border);
+  box-shadow: 0 2px 0 var(--btn-border);
+}
+
+.studio-switcher button {
+  min-width: 34px;
+}
+
+.studio-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.studio-check input {
+  accent-color: var(--accent);
+}
+
+/* ---- lighting controls ------------------------------------------------------ */
+
+.studio-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+}
+
+.studio-slider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 11.5px;
+  color: var(--text);
+}
+
+.studio-slider input {
+  width: 240px;
+  accent-color: var(--accent);
+}
+
+.studio-swatches {
+  display: flex;
+  gap: 10px;
+}
+
+.studio-swatch {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--text);
+}
+
+.studio-swatch i {
+  display: block;
+  width: 26px;
+  height: 14px;
+  border: 1px solid var(--btn-border);
+  background: #ffffff;
+}

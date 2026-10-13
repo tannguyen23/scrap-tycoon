@@ -1,6 +1,6 @@
 import { LANGUAGE_NAMES, UI } from '@i18n/text'
 import { LOCALES } from '@i18n/types'
-import { useEngine, useLocale, useLocaleStore, useText } from '@ui/hooks'
+import { useEngine, useLocale, useLocaleStore, useText, useThemeMode, useThemeStore } from '@ui/hooks'
 
 export interface SettingsModalProps {
   onClose: () => void
@@ -10,6 +10,8 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
   const engine = useEngine()
   const locale = useLocale()
   const localeStore = useLocaleStore()
+  const theme = useThemeMode()
+  const themeStore = useThemeStore()
   const text = useText()
 
   const resetSave = (): void => {
@@ -36,6 +38,26 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                 {LANGUAGE_NAMES[code]}
               </button>
             ))}
+          </div>
+        </div>
+
+        <div className="settings-row">
+          <span>{text(UI.theme)}</span>
+          <div className="language-options">
+            <button
+              type="button"
+              className={theme === 'light' ? 'chip active' : 'chip'}
+              onClick={() => themeStore.set('light')}
+            >
+              {text(UI.themeLight)}
+            </button>
+            <button
+              type="button"
+              className={theme === 'dark' ? 'chip active' : 'chip'}
+              onClick={() => themeStore.set('dark')}
+            >
+              {text(UI.themeDark)}
+            </button>
           </div>
         </div>
 
