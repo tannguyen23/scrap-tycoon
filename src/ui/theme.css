@@ -1,0 +1,274 @@
+:root {
+  --bg: #0d0f17;
+  --panel: #161a26;
+  --panel-2: #1d2233;
+  --border: #2c3348;
+  --text: #e8e6e3;
+  --muted: #8b93a7;
+  --accent: #ffb454;
+  --danger: #ff6b6b;
+  --mono: 'Courier New', 'Lucida Console', ui-monospace, monospace;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.game {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.scene-host {
+  flex: 0 0 auto;
+  height: min(42vh, 360px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-bottom: 2px solid var(--border);
+  background: #0a0c14;
+}
+
+.pixel-canvas {
+  image-rendering: pixelated;
+  display: block;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 16px;
+  border-bottom: 2px solid var(--border);
+  background: var(--panel);
+}
+
+.money {
+  display: flex;
+  flex-direction: column;
+}
+
+.currency-name {
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.money-value {
+  color: var(--accent);
+  font-size: 24px;
+}
+
+.income {
+  color: var(--muted);
+}
+
+.topbar-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+}
+
+button {
+  font-family: inherit;
+  font-size: inherit;
+  color: var(--text);
+  background: var(--panel-2);
+  border: 2px solid var(--border);
+  padding: 4px 10px;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+button.chip.active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+button.danger {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.panels {
+  flex: 1 1 auto;
+  overflow: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 860px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.panel {
+  background: var(--panel);
+  border: 2px solid var(--border);
+  padding: 12px 16px;
+}
+
+.panel h2 {
+  margin: 0 0 8px;
+  color: var(--accent);
+  font-size: 18px;
+}
+
+.panel h3 {
+  margin: 14px 0 6px;
+  color: var(--muted);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.worker-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.worker-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  justify-content: space-between;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  padding: 8px 10px;
+}
+
+.worker-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.worker-meta {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.worker-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.upgrade-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 8px;
+}
+
+.upgrade-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  padding: 8px 10px;
+}
+
+.upgrade-card.purchased {
+  opacity: 0.7;
+}
+
+.upgrade-desc {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.upgrade-state {
+  color: var(--accent);
+  font-size: 12px;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(4, 6, 12, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.modal {
+  background: var(--panel);
+  border: 2px solid var(--border);
+  padding: 20px 24px;
+  max-width: 420px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.modal h2 {
+  margin: 0;
+  color: var(--accent);
+  font-size: 18px;
+}
+
+.modal p {
+  margin: 0;
+}
+
+.modal-note {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.language-options {
+  display: flex;
+  gap: 6px;
+}
+
+@media (max-width: 520px) {
+  .worker-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .worker-actions {
+    justify-content: flex-end;
+  }
+}
