@@ -144,6 +144,22 @@ export class Particles {
   }
 }
 
+/**
+ * Vẽ theo chiều sâu: vật ở y LỚN hơn (gần người xem hơn) vẽ sau. Gọi SAU khi đã
+ * cập nhật vị trí actor trong frame — thứ tự layer tĩnh không che đúng khi hai
+ * diễn viên chồng nhau (luật hình #4 trong AGENTS). Số actor mỗi khu nhỏ (≤ 10)
+ * nên sort mỗi frame vô hại.
+ */
+export function sortByDepth(container: Container): void {
+  const children = container.children
+  if (children.length < 2) return
+  const sorted = [...children].sort((a, b) => a.y - b.y)
+  for (let i = 0; i < sorted.length; i++) {
+    const child = sorted[i]
+    if (child && children[i] !== child) container.setChildIndex(child, i)
+  }
+}
+
 export function dustPuff(): Graphics {
   return new Graphics().rect(0, 0, 2, 2).fill({ color: 0xd8d2c2, alpha: 0.7 })
 }

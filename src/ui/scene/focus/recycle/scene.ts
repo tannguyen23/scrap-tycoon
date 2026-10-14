@@ -11,7 +11,7 @@ import {
 import { CALM_WIND, type Wind } from '../../weather'
 import { drawJunkHeap, drawDrum, drawWeedTuft } from '../alley/sprites'
 import { drawZoneFence } from '../fence'
-import { Particles, SHADOW } from '../parts'
+import { Particles, SHADOW, sortByDepth } from '../parts'
 import { createPopups } from '../popups'
 import type { DetailScene, DetailSceneState, Spot } from '../types'
 import { createSmith, type SmithActor } from './actors'
@@ -118,6 +118,7 @@ export function createRecycleDetail(rect: ZoneRect, tiles: TilePainter): DetailS
   root.addChild(life.container)
 
   const actors = new Container()
+  actors.label = 'actors'
   const particles = new Particles()
   const popups = createPopups()
   root.addChild(actors, particles.container, popups.container)
@@ -160,6 +161,8 @@ export function createRecycleDetail(rect: ZoneRect, tiles: TilePainter): DetailS
     for (let i = 0; i < desired; i++) {
       smiths[i]?.update(dt, particles, popups)
     }
+    // Vẽ theo chiều sâu: ai ở y lớn hơn (gần người xem) vẽ sau.
+    sortByDepth(actors)
     life.update(dt, elapsed, ambient)
     particles.update(dt)
     popups.update(dt)

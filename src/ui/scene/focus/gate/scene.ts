@@ -5,7 +5,7 @@ import { paintFootprints, paintPuddle, paintStain } from '@ground/packs/scrapYar
 import { playSound } from '@ui/sound/player'
 import { CALM_WIND, type Wind } from '../../weather'
 import { drawZoneFence } from '../fence'
-import { Particles, SHADOW } from '../parts'
+import { Particles, SHADOW, sortByDepth } from '../parts'
 import { createPopups } from '../popups'
 import type { DetailScene, DetailSceneState } from '../types'
 import { LANE_Y, createTruck, type TruckActor } from './actors'
@@ -115,6 +115,7 @@ export function createGateDetail(rect: ZoneRect, tiles: TilePainter): DetailScen
   drawBarrier(false)
 
   const actors = new Container()
+  actors.label = 'actors'
   const particles = new Particles()
   const popups = createPopups()
   root.addChild(actors, particles.container, popups.container)
@@ -187,6 +188,8 @@ export function createGateDetail(rect: ZoneRect, tiles: TilePainter): DetailScen
     if (holder && holder.getPhase() === 'wait') turn = (turn + 1) % Math.max(1, desired)
     if (turn >= desired) turn = 0
     drawBarrier(anyDeparting)
+    // Vẽ theo chiều sâu: xe ở y lớn hơn (gần người xem) vẽ sau.
+    sortByDepth(actors)
     particles.update(dt)
     popups.update(dt)
   }

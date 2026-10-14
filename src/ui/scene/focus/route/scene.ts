@@ -1,7 +1,7 @@
 import type { ZoneRect } from '../../zoneLayout'
 import { Container, Graphics } from 'pixi.js'
 import type { TilePainter } from '@ground/core/painter'
-import { Particles, SHADOW } from '../parts'
+import { Particles, SHADOW, sortByDepth } from '../parts'
 import type { DetailScene, DetailSceneState } from '../types'
 import { createRouteVehicle, type VehicleActor } from './actors'
 import { drawBilletStack } from './sprites'
@@ -67,6 +67,7 @@ export function createRouteDetail(rect: ZoneRect, tiles: TilePainter): DetailSce
   root.addChild(props)
 
   const actors = new Container()
+  actors.label = 'actors'
   const particles = new Particles()
   root.addChild(actors, particles.container)
 
@@ -122,6 +123,8 @@ export function createRouteDetail(rect: ZoneRect, tiles: TilePainter): DetailSce
     for (let i = 0; i < desired; i++) {
       vehicles[i]?.update(dt, particles)
     }
+    // Vẽ theo chiều sâu: xe ở làn nam (y lớn hơn) vẽ sau.
+    sortByDepth(actors)
     particles.update(dt)
   }
 

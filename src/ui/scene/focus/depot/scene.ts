@@ -9,7 +9,7 @@ import {
   paintWearPath,
 } from '@ground/packs/scrapYard/decals'
 import { drawZoneFence } from '../fence'
-import { Particles, SHADOW, createSack } from '../parts'
+import { Particles, SHADOW, createSack, sortByDepth } from '../parts'
 import type { DetailScene, DetailSceneState, Spot } from '../types'
 import { createHauler, type HaulerActor } from './actors'
 import { createDepotLife } from './life'
@@ -91,6 +91,7 @@ export function createDepotDetail(rect: ZoneRect, tiles: TilePainter): DetailSce
   root.addChild(life.container)
 
   const actors = new Container()
+  actors.label = 'actors'
   const particles = new Particles()
   root.addChild(actors, particles.container)
 
@@ -131,6 +132,8 @@ export function createDepotDetail(rect: ZoneRect, tiles: TilePainter): DetailSce
     for (let i = 0; i < desired; i++) {
       haulers[i]?.update(dt, particles)
     }
+    // Vẽ theo chiều sâu: ai ở y lớn hơn (gần người xem) vẽ sau.
+    sortByDepth(actors)
     life.update(dt, elapsed)
     particles.update(dt)
   }

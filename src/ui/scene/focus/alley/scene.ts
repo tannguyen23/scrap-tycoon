@@ -10,7 +10,7 @@ import {
   paintWearPath,
 } from '@ground/packs/scrapYard/decals'
 import { drawZoneFence } from '../fence'
-import { Particles } from '../parts'
+import { Particles, sortByDepth } from '../parts'
 import { createPopups } from '../popups'
 import type { DetailScene, DetailSceneState, Spot } from '../types'
 import { CALM_WIND, type Wind } from '../../weather'
@@ -170,6 +170,7 @@ export function createAlleyDetail(rect: ZoneRect, tiles: TilePainter): DetailSce
   root.addChild(life.container)
 
   const actors = new Container()
+  actors.label = 'actors'
   const particles = new Particles()
   const popups = createPopups()
   root.addChild(actors, particles.container, popups.container)
@@ -227,6 +228,8 @@ export function createAlleyDetail(rect: ZoneRect, tiles: TilePainter): DetailSce
     for (let i = 0; i < desiredPorters; i++) {
       porters[i]?.update(dt, particles)
     }
+    // Vẽ theo chiều sâu: ai ở y lớn hơn (gần người xem) vẽ sau.
+    sortByDepth(actors)
     life.update(dt, elapsed, ambient)
     particles.update(dt)
     popups.update(dt)
