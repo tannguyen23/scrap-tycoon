@@ -160,6 +160,33 @@ export function sortByDepth(container: Container): void {
   }
 }
 
+/**
+ * Đưa prop TĨNH (chòi gác, lò rèn, chồng kho...) vào lớp depth — thường là container
+ * actor — để nó che/được che theo y như mọi diễn viên. Art vẫn viết bằng **toạ độ
+ * tuyệt đối của khu** (không phải sửa drawer): node bọc đặt ở ĐƯỜNG CHÂN prop, còn
+ * Graphics trả về bị dịch ngược lại đúng chỗ cũ.
+ */
+export function depthArt(parent: Container, groundY: number): Graphics {
+  const art = new Graphics()
+  art.position.set(0, -groundY)
+  const node = new Container()
+  node.position.set(0, groundY)
+  node.addChild(art)
+  parent.addChild(node)
+  return art
+}
+
+/** Như `depthArt` nhưng trả container cho thứ bị vẽ lại nhiều lần (chồng kho, chồng pallet). */
+export function depthSlot(parent: Container, groundY: number): Container {
+  const slot = new Container()
+  slot.position.set(0, -groundY)
+  const node = new Container()
+  node.position.set(0, groundY)
+  node.addChild(slot)
+  parent.addChild(node)
+  return slot
+}
+
 export function dustPuff(): Graphics {
   return new Graphics().rect(0, 0, 2, 2).fill({ color: 0xd8d2c2, alpha: 0.7 })
 }

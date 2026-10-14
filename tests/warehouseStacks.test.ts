@@ -18,6 +18,17 @@ const painter = {
 
 const DRAWERS = [drawBilletStack, drawPalletStack, drawCrateStack]
 
+/** Depth-first search for a labelled container (warehouse stacks live in a depth layer). */
+function findLabelled(container: Container, label: string): Container | null {
+  for (const child of container.children) {
+    if (!(child instanceof Container)) continue
+    if (child.label === label) return child
+    const nested = findLabelled(child, label)
+    if (nested) return nested
+  }
+  return null
+}
+
 describe('warehouse stacks', () => {
   it('draw nothing at an empty bin and pile upward as it fills', () => {
     for (const draw of DRAWERS) {
@@ -61,9 +72,11 @@ describe('zone warehouse readouts', () => {
       labels: { produced: 'Phôi tái chế', money: 'Tiền' },
     }
 
+    // Kho nằm trong LỚP DEPTH của khu (cùng chỗ actor để che nhau theo y), nên tìm
+    // theo cây chứ không chỉ children của root.
     const warehouseOf = (scene: DetailScene): Container => {
-      const found = scene.root.children.find((child) => child.label === 'warehouse')
-      if (!(found instanceof Container)) throw new Error('scene has no warehouse container')
+      const found = findLabelled(scene.root, 'warehouse')
+      if (!found) throw new Error('scene has no warehouse container')
       return found
     }
 

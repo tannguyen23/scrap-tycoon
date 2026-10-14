@@ -5,7 +5,7 @@ import { paintFootprints, paintPuddle, paintStain } from '@ground/packs/scrapYar
 import { playSound } from '@ui/sound/player'
 import { CALM_WIND, type Wind } from '../../weather'
 import { drawZoneFence } from '../fence'
-import { Particles, SHADOW, sortByDepth } from '../parts'
+import { Particles, SHADOW, depthArt, depthSlot, sortByDepth } from '../parts'
 import { createPopups } from '../popups'
 import type { DetailScene, DetailSceneState } from '../types'
 import { LANE_Y, createTruck, type TruckActor } from './actors'
@@ -54,29 +54,36 @@ export function createGateDetail(rect: ZoneRect, tiles: TilePainter): DetailScen
   props.ellipse(140, 54, 8, 3).fill({ color: 0x1f2126, alpha: 0.2 })
   props.rect(240, 64, 2, 2).fill({ color: 0xa3804f, alpha: 0.8 })
   props.rect(104, 26, 2, 1).fill({ color: 0xa3804f, alpha: 0.8 })
-  // chòi gác — tường nam nhìn thấy + mái nhô lên (chiều cao giả)
-  props.rect(16, 24, 32, 18).fill(0x5c6672)
-  props.rect(16, 41, 32, 1).fill(0x454d59)
-  props.rect(20, 27, 10, 8).fill({ color: 0xcfe0ef, alpha: 0.85 })
-  props.rect(34, 27, 1, 12).fill({ color: 0x000000, alpha: 0.15 })
-  props.rect(48, 16, 10, 26).fill(0x4d5560)
-  props.rect(48, 16, 1, 26).fill({ color: 0x000000, alpha: 0.2 })
-  props.rect(16, 4, 32, 22).fill(0x6f7a88)
-  props.rect(16, 4, 32, 2).fill(0x8b95a3)
-  props.rect(16, 25, 32, 1).fill({ color: 0x000000, alpha: 0.2 })
-  // trụ cổng
-  props.rect(204, 18, 6, 14).fill(0xa4aab6)
-  props.rect(204, 58, 6, 14).fill(0xa4aab6)
-  props.rect(203, 16, 8, 3).fill(0xb4bac8)
-  props.rect(203, 56, 8, 3).fill(0xb4bac8)
-  // biển cổng
-  props.rect(198, 12, 22, 7).fill(0xf08a6a)
-  props.rect(200, 14, 8, 1.6).fill({ color: 0xf5ecd6, alpha: 0.9 })
-  props.rect(210, 14, 6, 1.6).fill({ color: 0xf5ecd6, alpha: 0.9 })
   // cọc tiêu chỉ làn
   drawCone(props, 168, 72)
   drawCone(props, 176, 24)
   root.addChild(props)
+
+  // Lớp depth của khu: actor + prop cao cùng xếp theo y (nhân vật đi RA SAU chòi gác).
+  const actors = new Container()
+  actors.label = 'actors'
+
+  // chòi gác — tường nam nhìn thấy + mái nhô lên (chiều cao giả)
+  const booth = depthArt(actors, 42)
+  booth.rect(16, 24, 32, 18).fill(0x5c6672)
+  booth.rect(16, 41, 32, 1).fill(0x454d59)
+  booth.rect(20, 27, 10, 8).fill({ color: 0xcfe0ef, alpha: 0.85 })
+  booth.rect(34, 27, 1, 12).fill({ color: 0x000000, alpha: 0.15 })
+  booth.rect(48, 16, 10, 26).fill(0x4d5560)
+  booth.rect(48, 16, 1, 26).fill({ color: 0x000000, alpha: 0.2 })
+  booth.rect(16, 4, 32, 22).fill(0x6f7a88)
+  booth.rect(16, 4, 32, 2).fill(0x8b95a3)
+  booth.rect(16, 25, 32, 1).fill({ color: 0x000000, alpha: 0.2 })
+
+  // trụ cổng + biển (đứng cùng lớp depth với chòi)
+  const portal = depthArt(actors, 72)
+  portal.rect(204, 18, 6, 14).fill(0xa4aab6)
+  portal.rect(204, 58, 6, 14).fill(0xa4aab6)
+  portal.rect(203, 16, 8, 3).fill(0xb4bac8)
+  portal.rect(203, 56, 8, 3).fill(0xb4bac8)
+  portal.rect(198, 12, 22, 7).fill(0xf08a6a)
+  portal.rect(200, 14, 8, 1.6).fill({ color: 0xf5ecd6, alpha: 0.9 })
+  portal.rect(210, 14, 6, 1.6).fill({ color: 0xf5ecd6, alpha: 0.9 })
 
   // Hàng rào bao sân: cổng bắc cho làn nhựa vào, cổng đông cho làn xuất hàng.
   const fence = new Graphics()
@@ -114,17 +121,15 @@ export function createGateDetail(rect: ZoneRect, tiles: TilePainter): DetailScen
   }
   drawBarrier(false)
 
-  const actors = new Container()
-  actors.label = 'actors'
   const particles = new Particles()
   const popups = createPopups()
   root.addChild(actors, particles.container, popups.container)
 
   // Kho của khu: chồng kiện bên cổng bắc, lớn dần theo tồn `crate` thật; dấu đỏ
-  // nhấp nháy khi bin đầy (chặng đóng hàng phía trước bị nghẽn).
-  const warehouse = new Container()
+  // nhấp nháy khi bin đầy (chặng đóng hàng phía trước bị nghẽn). Nằm trong lớp depth
+  // nên xe/người đi ngang sẽ che/được che đúng theo y.
+  const warehouse = depthSlot(actors, CRATE_STACK.y)
   warehouse.label = 'warehouse'
-  root.addChild(warehouse)
   const crateFullMark = new Graphics().rect(CRATE_STACK.x - 2, CRATE_STACK.y - 46, 4, 4).fill(0xd9534f)
   crateFullMark.visible = false
   root.addChild(crateFullMark)
