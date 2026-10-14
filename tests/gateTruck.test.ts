@@ -105,6 +105,11 @@ describe('gate truck actor', () => {
       if (phase === 'road') expect(dx).toBeLessThanOrEqual(0)
       if (phase === 'driveway') expect(dy).toBeGreaterThanOrEqual(0)
       if (phase === 'yard' || phase === 'depart') expect(dx).toBeGreaterThanOrEqual(0)
+      // Mặt xe khớp chiều đi: về tây thì hông xe lật (-1), về đông thì không lật.
+      if (view === 'road') expect(truck.sprite.container.scale.x).toBe(-1)
+      if (view === 'yard' || view === 'depart' || view === 'load') {
+        expect(truck.sprite.container.scale.x).toBe(1)
+      }
       // Xuống driveway thì phải nhìn thẳng (view trước), không nhìn hông.
       if (view === 'driveway') {
         expect(truck.front.container.visible).toBe(true)

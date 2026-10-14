@@ -164,7 +164,22 @@ export function createTruckSprite(variant: number): TruckSprite {
 
 export interface TruckFrontSprite {
   container: Container
-  wheels: SpokeWheel[]
+}
+
+/**
+ * Bánh nhìn thẳng: thấy MẶT LỐP (gai dọc) chứ không phải vành nan hoa — nên view
+ * này không dùng `createSpokeWheel` và không quay. Hốc bánh tối phía trên do thân
+ * xe vẽ đè lên.
+ */
+function drawFrontTyre(g: Graphics, x: number, groundY: number, far: boolean): void {
+  const tone = far ? 0x171a1f : 0x1f2126
+  const face = far ? 0x23272e : 0x2b3038
+  g.roundRect(x - 2.6, groundY - 9, 5.2, 9, 1.4).fill(tone)
+  g.roundRect(x - 2.1, groundY - 8.3, 4.2, 7.6, 1.1).fill(face)
+  for (const y of [groundY - 7.1, groundY - 5.3, groundY - 3.5]) {
+    g.rect(x - 1.9, y, 3.8, 0.7).fill({ color: 0x15181d, alpha: 0.85 })
+  }
+  g.roundRect(x - 2.4, groundY - 9.2, 4.8, 1.5, 0.8).fill({ color: 0x000000, alpha: 0.3 })
 }
 
 /**
@@ -181,18 +196,10 @@ export function createTruckFrontSprite(variant: number): TruckFrontSprite {
   const container = new Container()
   const shadow = new Graphics().ellipse(0, 0.8, 17, 5.4).fill(SHADOW)
 
-  const wheels: SpokeWheel[] = []
-  // Rear axle first: further away, so it sits higher and wider on screen.
-  for (const [x, y] of [
-    [-18, -7.4],
-    [18, -7.4],
-    [-14, -4.4],
-    [14, -4.4],
-  ] as const) {
-    const wheel = createSpokeWheel(4.4)
-    wheel.container.position.set(x, y)
-    wheels.push(wheel)
-  }
+  const wheels = new Graphics()
+  // Trục xa vẽ trước (nhô lên cao hơn = ở xa hơn), rồi tới trục gần.
+  for (const x of [-17.5, 17.5]) drawFrontTyre(wheels, x, -3, true)
+  for (const x of [-14, 14]) drawFrontTyre(wheels, x, 0, false)
 
   const body = new Graphics()
   // thùng container sau lưng ca-bin: mặt nam + gân tôn + nóc nhô + trụ góc
@@ -246,6 +253,6 @@ export function createTruckFrontSprite(variant: number): TruckFrontSprite {
   const glassShine = new Graphics()
   glassShine.rect(-10.5, -20.4, 7, 7.4).fill({ color: 0xffffff, alpha: 0.13 })
 
-  container.addChild(shadow, ...wheels.map((wheel) => wheel.container), body, driver, glassShine)
-  return { container, wheels }
+  container.addChild(shadow, wheels, body, driver, glassShine)
+  return { container }
 }

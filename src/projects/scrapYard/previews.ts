@@ -253,16 +253,30 @@ export function buildProps(): StageScene {
   routeTruck.container.position.set(430, 340)
   for (const routeWheel of routeTruck.wheels) spins.push({ wheel: routeWheel, speed: 60 })
 
-  // Xe xuất nhìn thẳng (hướng nam): view dùng khi nó chạy xuống driveway.
+  // Xe xuất nhìn thẳng (hướng nam): view dùng khi nó chạy xuống driveway. Bánh
+  // trong view này là MẶT LỐP (gai dọc) nên không có nan hoa để quay.
   const truckFront = createTruckFrontSprite(0)
   truckFront.container.scale.set(2)
   truckFront.container.position.set(300, 250)
-  for (const frontWheel of truckFront.wheels) spins.push({ wheel: frontWheel, speed: 52 })
 
-  root.addChild(cart.container, truck.container, pickup.container, routeTruck.container, truckFront.container)
+  // Biến thể hướng tây: chính art hông xe lật `scale.x` — bản dùng khi xe chạy về
+  // tây trên đường lớn, y như mọi nhân vật/xe khác quay mặt.
+  const truckWest = createTruckSprite(0)
+  truckWest.container.scale.set(-2, 2)
+  truckWest.container.position.set(560, 250)
+
+  root.addChild(
+    cart.container,
+    truck.container,
+    pickup.container,
+    routeTruck.container,
+    truckFront.container,
+    truckWest.container,
+  )
   cells.push({ label: 'xe ba gác', x: 40, y: 196, width: 220, height: 14 })
   cells.push({ label: 'xe tải (cổng xuất)', x: 330, y: 196, width: 220, height: 14 })
   cells.push({ label: 'xe tải (nhìn thẳng)', x: 240, y: 256, width: 130, height: 14 })
+  cells.push({ label: 'xe tải (hướng tây)', x: 470, y: 256, width: 130, height: 14 })
   cells.push({ label: 'xe bán tải', x: 40, y: 326, width: 220, height: 14 })
   cells.push({ label: 'xe tải thùng (route)', x: 330, y: 346, width: 220, height: 14 })
 

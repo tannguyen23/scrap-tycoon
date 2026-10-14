@@ -30,6 +30,9 @@ const TURN_SECONDS = 0.55
 
 export type TruckPhase = 'road' | 'turn' | 'driveway' | 'yard' | 'load' | 'depart' | 'wait'
 
+/** Which body the truck shows: side art heading west (mirrored) / east, or the front view. */
+type ViewKind = 'west' | 'south' | 'east'
+
 export interface TruckActor {
   getPhase(): TruckPhase
   getX(): number
@@ -78,8 +81,11 @@ export function createTruck(variant: number, width: number): TruckActor {
   let sacksToLoad = 2
   let billed = false
 
-  const setView = (value: boolean): void => {
-    south = value
+  const setView = (kind: ViewKind): void => {
+    // Art hông xe vẽ hướng đông: đi về tây thì lật `scale.x` — đúng cách mọi nhân
+    // vật/xe trong game quay mặt. View nhìn thẳng (nam) không lật.
+    side.container.scale.x = kind === 'west' ? -1 : 1
+    south = kind === 'south'
     applyVisibility()
   }
 
@@ -88,18 +94,19 @@ export function createTruck(variant: number, width: number): TruckActor {
     active = value
     applyVisibility()
   }
-  applyVisibility()
+  // Vào map bằng đường lớn, chạy về tây: hông xe lật sẵn từ đầu.
+  setView('west')
 
   const setDoor = (open: boolean): void => {
     side.doorOpen.visible = open
     side.doorClosed.visible = !open
   }
 
-  const startTurn = (next: TruckPhase, south: boolean): void => {
+  const startTurn = (next: TruckPhase, view: ViewKind): void => {
     phase = 'turn'
     pending = next
     timer = TURN_SECONDS
-    setView(south)
+    setView(view)
     playSound('vehicle-turn')
   }
 
@@ -115,7 +122,7 @@ export function createTruck(variant: number, width: number): TruckActor {
         x -= ROAD_SPEED * dt
         if (x <= DRIVEWAY_X) {
           x = DRIVEWAY_X
-          startTurn('driveway', true)
+          startTurn('driveway', 'south')
         }
         break
       }
@@ -136,7 +143,7 @@ export function createTruck(variant: number, width: number): TruckActor {
         y += DRIVEWAY_SPEED * dt
         if (y >= GROUND_Y) {
           y = GROUND_Y
-          startTurn('yard', false)
+          startTurn('yard', 'east')
         }
         break
       }
@@ -144,7 +151,7 @@ export function createTruck(variant: number, width: number): TruckActor {
         x += YARD_SPEED * dt
         if (x >= DOCK_X) {
           x = DOCK_X
-          startTurn('load', false)
+          startTurn('load', 'east')
         }
         break
       }
@@ -197,17 +204,17 @@ export function createTruck(variant: number, width: number): TruckActor {
           phase = 'road'
           setDoor(false)
           setActive(true)
-          setView(false)
+          setView('west')
         }
         break
       }
     }
 
-    // Bánh chỉ quay khi xe thật sự nhích: xe chờ lượt đứng yên ngoài bìa map.
+    // Bánh chỉ quay khi xe thật sự nhích: xe chờ lượt đứng yên ngoài bìa map. View
+    // nhìn thẳng không có nan hoa nên không quay.
     const moving = x !== startX || y !== startY
     const spin = phase === 'road' ? ROAD_SPEED : phase === 'driveway' ? DRIVEWAY_SPEED : speed
-    for (const wheel of side.wheels) wheel.spin(moving ? spin : 0, dt)
-    for (const wheel of front.wheels) wheel.spin(moving ? spin : 0, dt)
+    for (const wheel of side.wheels) wheel.spin(moving && !south ? spin : 0, dt)
 
     const bump = moving ? Math.sin(clock * 10) * 0.8 : 0
     for (const view of [side.container, front.container]) {
