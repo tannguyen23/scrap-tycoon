@@ -71,7 +71,7 @@ Các pattern trục chính:
 ## Thêm nội dung mới (Phase 2+)
 
 1. Tạo `src/content/branches/<tên>.ts` theo `BranchDef` (workers, recipes, upgrades).
-2. Khai báo khu vực trong `src/content/zones.ts` (tên + mô tả hành động) và thêm layout tương ứng vào `src/ui/scene/zoneLayout.ts` — mỗi worker trỏ tới 1 zone qua `visual.zone` + hành vi qua `visual.action` (`pick` | `drive` | `work` | `haul`). Khu mới cần thêm: entry `ZONE_FLOORS` + (nếu có lối vào) `CONNECTORS`/`paintPath` trong `src/ground/packs/scrapYard/worldGrounds.ts`, danh sách LOD trong `microDetails.ts`/`nanoDetails.ts`, và một dòng trong `ZONE_PREVIEWS` của studio; sàn khu dùng `paintBlob`/`paintPath` với `outside` đúng nền thật.
+2. Khai báo khu vực trong `src/content/zones.ts` (tên + mô tả hành động) và thêm layout tương ứng vào `src/ui/scene/zoneLayout.ts` — mỗi worker trỏ tới 1 zone qua `visual.zone` + hành vi qua `visual.action` (`pick` | `drive` | `work` | `haul`). Khu mới cần thêm: entry `ZONE_FLOORS` + (nếu có lối vào) `CONNECTORS`/`paintPath` trong `src/ground/packs/scrapYard/worldGrounds.ts`, danh sách LOD trong `src/scenery/packs/scrapYard/pack.ts`, và một dòng trong `ZONE_PREVIEWS` ở `src/projects/scrapYard/tabs.tsx`; sàn khu dùng `paintBlob`/`paintPath` với `outside` đúng nền thật.
 3. Đăng ký vào `src/content/index.ts`.
 4. Unlock nhánh mới → thêm `Condition` + unlock system trong `domain/` (chưa có ở Phase 1).
 5. Chạy `npm run check` — golden balance test (`tests/golden.balance.test.ts`) sẽ nhắc nếu economy lệch khỏi baseline đã khóa (re-lock phải có chủ đích + ghi lý do).

@@ -1,4 +1,5 @@
 import '@ui/theme.css'
+import { createElement } from 'react'
 import type { StudioProject, StudioTab } from '@studio/types'
 import { installCursor } from '@ui/cursor'
 import { installAudioUnlock } from '@ui/sound/player'
@@ -15,14 +16,14 @@ import {
 
 /** Tabs this project adds on top of the kit's own tabs. */
 const ZONE_TABS: readonly StudioTab[] = [
-  { id: 'decor', label: 'Decor', render: () => <DecorTab /> },
-  { id: 'characters', label: 'Nhân vật', render: () => <CharactersTab /> },
-  { id: 'props', label: 'Props & xe', render: () => <PropsTab /> },
-  { id: 'zones', label: 'Khu', render: () => <ZonesTab /> },
-  { id: 'layout', label: 'Sơ đồ & nối khu', render: () => <LayoutTab /> },
-  { id: 'lighting', label: 'Ánh sáng', render: () => <LightingTab /> },
-  { id: 'weather', label: 'Thời tiết', render: () => <WeatherTab /> },
-  { id: 'sounds', label: 'Âm thanh', render: () => <SoundsTab /> },
+  { id: 'decor', label: 'Decor', render: () => createElement(DecorTab) },
+  { id: 'characters', label: 'Nhân vật', render: () => createElement(CharactersTab) },
+  { id: 'props', label: 'Props & xe', render: () => createElement(PropsTab) },
+  { id: 'zones', label: 'Khu', render: () => createElement(ZonesTab) },
+  { id: 'layout', label: 'Sơ đồ & nối khu', render: () => createElement(LayoutTab) },
+  { id: 'lighting', label: 'Ánh sáng', render: () => createElement(LightingTab) },
+  { id: 'weather', label: 'Thời tiết', render: () => createElement(WeatherTab) },
+  { id: 'sounds', label: 'Âm thanh', render: () => createElement(SoundsTab) },
 ]
 
 /**
