@@ -5,6 +5,7 @@ import type { LocaleStore } from '@i18n/locale'
 import { t, type Locale } from '@i18n/types'
 import { Application, Container, Graphics, TextureSource } from 'pixi.js'
 import { createAmbience } from './ambience'
+import { createCouriers, courierLegsFor } from './couriers'
 import { detailSceneFor } from './focus'
 import type { DetailScene } from './focus/types'
 import { createLighting } from './lighting'
@@ -113,6 +114,7 @@ export async function mountScene(
   paintWorldGrounds(painter, groundLayer, decorArt)
 
   const detailLayer = new Container()
+  const couriers = createCouriers(courierLegsFor(content))
   const microLayer = createMicroDetails()
   microLayer.visible = false
   const nanoLayer = createNanoDetails()
@@ -121,7 +123,9 @@ export async function mountScene(
   const lighting = createLighting()
   const weather = content.weather ? createWeather({ profile: content.weather }) : null
   const outline = new Graphics()
-  world.addChild(groundLayer, decorArt, detailLayer, microLayer, nanoLayer, ambience.container)
+  // Couriers walk the connectors between zones — they sit right above the zone
+  // scenes and shade/tint with the weather + lighting layers like every actor.
+  world.addChild(groundLayer, decorArt, detailLayer, couriers.root, microLayer, nanoLayer, ambience.container)
   if (weather) {
     // Mây/mưa đứng TRƯỚC grade ngày-đêm nên tự ăn tint; chớp sét đứng SAU grade
     // để không bị multiply làm tối.
@@ -166,6 +170,7 @@ export async function mountScene(
     const zoneCounts = new Map<ZoneId, number>()
     const zoneItems = new Map<ZoneId, string>()
     const zoneActions = new Map<ZoneId, Partial<Record<WorkerAction, number>>>()
+    const workerCounts = new Map<string, number>()
 
     for (const branch of Object.values(content.branches)) {
       const branchState = state.branches[branch.id]
@@ -173,6 +178,7 @@ export async function mountScene(
       for (const worker of branch.workers) {
         const count = branchState.workers[worker.id] ?? 0
         if (count <= 0) continue
+        workerCounts.set(worker.id, count)
         const zone = worker.visual.zone
         zoneCounts.set(zone, (zoneCounts.get(zone) ?? 0) + count)
         const action = worker.visual.action
@@ -188,6 +194,7 @@ export async function mountScene(
     const totalEarned = state.stats.totalEarned
     const earnedLog10 = totalEarned.gte(10) ? totalEarned.log10().toNumber() : 0
     const tiers = zoneTiers(content, state)
+    couriers.setCounts({ workers: workerCounts, tiers })
 
     // Popup wording: the item each zone produces + the currency, both localized.
     const moneyName = content.items[content.currencyItemId]?.name
@@ -374,6 +381,7 @@ export async function mountScene(
       if (!layout || !intersects(view, layout.rect)) continue
       detail.update(dt, elapsed)
     }
+    couriers.update(dt, view)
     ambience.update(dt, wind)
     lighting.update(dt)
   })

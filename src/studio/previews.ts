@@ -1,6 +1,7 @@
 import type { WeatherKindDef, WeatherProfile, ZoneId } from '@domain/types'
 import { Application, Container, Graphics, Sprite } from 'pixi.js'
 import { createAmbience } from '@ui/scene/ambience'
+import { COURIER_RUNS, createCouriers, type CourierLeg } from '@ui/scene/couriers'
 import { createHaulerSprite } from '@ui/scene/focus/depot/sprites'
 import { createTruckSprite } from '@ui/scene/focus/gate/sprites'
 import { equipItems, type HeldItem } from '@ui/scene/focus/heldItems'
@@ -803,9 +804,20 @@ export function buildWeatherWorld(initialTime: number): StageBuilder {
     }
 
     const ambience = createAmbience()
+    // Cross-zone couriers: one per declared run, derived from the runs table so
+    // the preview never drifts from the game's route set.
+    const courierLegs: CourierLeg[] = Object.keys(COURIER_RUNS).map((key) => {
+      const [from = '', to = ''] = key.split('>')
+      return { workerId: key, from, to }
+    })
+    const couriers = createCouriers(courierLegs)
+    couriers.setCounts({
+      workers: new Map(courierLegs.map((leg) => [leg.workerId, 1])),
+      tiers: new Map(),
+    })
     const weather = createWeather({ profile: STUDIO_WEATHER_PROFILE })
     const lighting = createLighting({ auto: false, time: initialTime })
-    root.addChild(ambience.container, weather.container, lighting.container, weather.flash)
+    root.addChild(couriers.root, ambience.container, weather.container, lighting.container, weather.flash)
 
     return {
       root,
@@ -819,6 +831,7 @@ export function buildWeatherWorld(initialTime: number): StageBuilder {
       },
       update: (dt, elapsed) => {
         for (const detail of details) detail.update(dt, elapsed)
+        couriers.update(dt, { x: 0, y: 0, width: WORLD_WIDTH, height: WORLD_HEIGHT })
         ambience.update(dt, weather.wind())
         weather.update(dt, elapsed * STUDIO_SCHEDULE_SPEED)
         lighting.update(dt)

@@ -14,6 +14,39 @@ export function createSack(scale = 1): Container {
   return sack
 }
 
+/** Shipping crate, block-recipe shaded (origin = top-left of the south face). */
+export function createCrateBox(scale = 1): Container {
+  const crate = new Container()
+  const box = new Graphics().rect(0, 0, 11, 8.5).fill(0x9c7448)
+  box.rect(0, 0, 11, 1.3).fill(0xb98d52)
+  box.rect(0, 7.5, 11, 1).fill(0x5c4426)
+  box.rect(5, 0, 1, 8.5).fill(0x5c4426)
+  box.rect(0, 3.3, 11, 0.8).fill(0x5c4426)
+  box.rect(0, 0, 11, 8.5).stroke({ width: 0.5, color: 0x5c4426, alpha: 0.55 })
+  crate.addChild(box)
+  crate.scale.set(scale)
+  return crate
+}
+
+/** Billet bars strapped on a pallet — the cart load (origin = bottom-left). */
+export function createPalletLoad(scale = 1): Container {
+  const load = new Container()
+  const deck = new Graphics()
+  deck.rect(0, -2.4, 18, 2.4).fill(0x9c7448)
+  deck.rect(0, -2.4, 18, 0.8).fill(0xb98d52)
+  deck.rect(2, 0, 3, 1.2).fill(0x8b939c)
+  deck.rect(8, 0, 3, 1.2).fill(0x8b939c)
+  deck.rect(14, 0, 3, 1.2).fill(0x8b939c)
+  const bars = new Graphics()
+  bars.rect(1, -6.4, 16, 4).fill(0x8b939c)
+  bars.rect(1, -6.4, 16, 1.4).fill(0xdfe6ec)
+  bars.rect(1, -4, 16, 0.7).fill({ color: 0x000000, alpha: 0.18 })
+  const hotEnd = new Graphics().rect(14.4, -6.6, 2.4, 4.4).fill({ color: 0xffb45a, alpha: 0.85 })
+  load.addChild(deck, bars, hotEnd)
+  load.scale.set(scale)
+  return load
+}
+
 /** Fine-grained scrap bit: bolts, plates, wire clippings. */
 export function createScrapBit(kind: number): Graphics {
   const colors = [0x9aa8b6, 0x8492a0, 0xb08a55, 0x8a97a6]
