@@ -329,10 +329,12 @@ export function drawBrokenTv(g: Graphics, x: number, y: number): void {
   g.rect(x + 3, y + 1, 2, 1).fill({ color: 0x1f2126, alpha: 0.4 })
 }
 
-/** Cỏ dại mọc ở mép bãi — mặt đất bị xới nên cỏ chỉ còn ở rìa. */
+/** Cỏ dại mọc ở mép bãi — mặt đất bị xới nên cỏ chỉ còn ở rìa (có bóng tiếp xúc). */
 export function drawWeedTuft(g: Graphics, x: number, y: number): void {
-  g.rect(x, y, 1, 4).fill({ color: 0x74a05f, alpha: 0.85 })
-  g.rect(x + 2, y + 1, 1, 3).fill({ color: 0x74a05f, alpha: 0.6 })
+  g.ellipse(x + 1, y + 0.6, 3.4, 1.4).fill({ color: 0x000000, alpha: 0.12 })
+  g.rect(x, y - 4, 1, 4).fill({ color: 0x74a05f, alpha: 0.85 })
+  g.rect(x + 2, y - 3, 1, 3).fill({ color: 0x74a05f, alpha: 0.6 })
+  g.rect(x + 1, y - 1.4, 1, 1.4).fill({ color: 0x8ac070, alpha: 0.7 })
 }
 
 const BIN_BODY = 0x46964a

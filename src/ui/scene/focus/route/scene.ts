@@ -43,27 +43,27 @@ export function createRouteDetail(rect: ZoneRect, tiles: TilePainter): DetailSce
   props.circle(360, 44, 6).fill({ color: 0x565c66, alpha: 0.9 })
   props.circle(360, 44, 6).stroke({ width: 1, color: 0x3f4650 })
   props.rect(356, 43, 8, 1).fill({ color: 0x6f7681, alpha: 0.9 })
-  // trụ cứu hỏa
+  // trụ cứu hỏa: bóng tiếp xúc → chân tối → thân đỏ → nắp trên sáng
+  props.ellipse(121.6, 16.6, 5.8, 2.4).fill(SHADOW)
   props.circle(120, 13, 4.4).fill(0xd94b3a)
-  props.rect(117, 9, 6, 2).fill(0xb83a2c)
+  props.rect(117, 9, 6, 2.4).fill(0xb83a2c)
+  props.rect(117, 9, 6, 0.9).fill({ color: 0xf08a6a, alpha: 0.9 })
   props.circle(120, 13, 4.4).stroke({ width: 0.5, color: 0x8f2a1f })
-  // biển bến đỗ
+  props.ellipse(120, 16.8, 4.6, 1.5).fill({ color: 0x000000, alpha: 0.2 })
+  // biển bến đỗ: bóng chân cột + gờ sáng trên mặt biển + viền chân tối
+  props.ellipse(537, 18.6, 4.6, 1.8).fill(SHADOW)
   props.rect(536, 8, 1.2, 10).fill(0x9aa8b6)
   props.rect(531, 6, 12, 6).fill(0x6f7681)
+  props.rect(531, 6, 12, 1.2).fill(0x848c9b)
+  props.rect(531, 11, 12, 1).fill({ color: 0x000000, alpha: 0.25 })
   props.rect(533, 8, 8, 2).fill(0xcfe0ef)
-  // ổ gà + túi rác bên lề
+  // ổ gà + túi rác bên lề (ổ gà là mặt phẳng NỀN — đúng ngoại lệ luật hình, giữ phẳng)
   props.ellipse(192, 36, 7, 4.4).fill(0x3a4048)
   props.ellipse(192, 35, 4.4, 2.4).fill({ color: 0x4a5058, alpha: 0.9 })
   drawTrashBags(props, 456, 14)
   // cột đèn đường (quầng sáng do tầng lighting vẽ)
-  props.rect(929, 6, 2, 22).fill(0x59616d)
-  props.rect(928, 5, 1, 23).fill({ color: 0x000000, alpha: 0.18 })
-  props.rect(925, 2, 10, 3).fill(0x6f7681)
-  props.rect(927, 5, 6, 2).fill({ color: 0xffe9b8, alpha: 0.9 })
-  props.rect(239, 6, 2, 22).fill(0x59616d)
-  props.rect(238, 5, 1, 23).fill({ color: 0x000000, alpha: 0.18 })
-  props.rect(235, 2, 10, 3).fill(0x6f7681)
-  props.rect(237, 5, 6, 2).fill({ color: 0xffe9b8, alpha: 0.9 })
+  drawStreetLamp(props, 929)
+  drawStreetLamp(props, 239)
   root.addChild(props)
 
   const actors = new Container()
@@ -126,6 +126,17 @@ export function createRouteDetail(rect: ZoneRect, tiles: TilePainter): DetailSce
   }
 
   return { root, setState, update }
+}
+
+/** Cột đèn đường: bóng tiếp xúc ở chân cột → cột → hộp đèn có gờ sáng trên + chân tối. */
+function drawStreetLamp(g: Graphics, x: number): void {
+  g.ellipse(x + 1, 28.6, 5, 1.6).fill(SHADOW)
+  g.rect(x, 6, 2, 22).fill(0x59616d)
+  g.rect(x - 1, 5, 1, 23).fill({ color: 0x000000, alpha: 0.18 })
+  g.rect(x - 4, 2, 10, 3).fill(0x6f7681)
+  g.rect(x - 4, 2, 10, 1.2).fill(0x8b95a3)
+  g.rect(x - 2, 5, 6, 2).fill({ color: 0xffe9b8, alpha: 0.9 })
+  g.rect(x - 1, 27.2, 4, 1.2).fill({ color: 0x000000, alpha: 0.28 })
 }
 
 function drawTrashBags(g: Graphics, x: number, y: number): void {

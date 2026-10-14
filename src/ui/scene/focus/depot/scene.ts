@@ -178,20 +178,28 @@ function drawWarehouse(g: Graphics): void {
 }
 
 function drawScale(g: Graphics): void {
+  // bóng tiếp xúc dưới sàn cân → sàn có mặt SÁNG → chân sàn tối → hộp hiển thị
+  g.ellipse(134, 68.6, 16, 3.4).fill(SHADOW)
   g.rect(120, 54, 28, 12).fill(0x75808d)
   g.rect(120, 53, 28, 3).fill(0xcfe0ef)
+  g.rect(120, 53, 28, 1).fill({ color: 0xffffff, alpha: 0.5 })
   g.rect(120, 66, 28, 2).fill(0x4d5560)
   g.rect(133, 42, 3, 12).fill(0x75808d)
   g.rect(124, 35, 22, 8).fill(0x3d444e)
+  g.rect(124, 35, 22, 1.2).fill(0x5b6472)
   g.rect(126, 37, 16, 5).fill(0x24422c)
   g.rect(127, 38, 8, 1.4).fill({ color: 0x9ad46f, alpha: 0.8 })
 }
 
 function drawCrates(g: Graphics, x: number, y: number): void {
+  // hai thùng gỗ: bóng tiếp xúc ở chân, mỗi thùng có dải mặt trên sáng hơn thân
+  g.ellipse(x + 8, y + 12.8, 11, 3).fill(SHADOW)
   g.rect(x, y, 16, 12).fill(0x9c7448)
+  g.rect(x, y, 16, 2).fill(0xb98d52)
   g.rect(x + 1, y + 1, 14, 10).stroke({ width: 1, color: 0x5c4426 })
   g.rect(x + 7, y, 1, 12).fill(0x5c4426)
   g.rect(x + 4, y - 8, 12, 8).fill(0xa8814f)
+  g.rect(x + 4, y - 8, 12, 2).fill(0xc0975c)
   g.rect(x + 5, y - 7, 10, 6).stroke({ width: 1, color: 0x5c4426 })
 }
 
@@ -206,9 +214,13 @@ function drawWheelbarrow(g: Graphics, x: number, y: number): void {
 }
 
 function drawNoticeboard(g: Graphics, x: number, y: number): void {
-  g.rect(x + 1, y + 2, 18, 14).fill(SHADOW)
+  // bóng tiếp xúc ở chân bảng → khung gỗ có gờ sáng trên → mặt giấy sáng → chân tối
+  g.ellipse(x + 9, y + 15.2, 11, 3).fill(SHADOW)
   g.rect(x, y, 18, 14).fill(0x96744c)
+  g.rect(x, y, 18, 1.4).fill(0xa8814f)
+  g.rect(x, y + 13, 18, 1).fill({ color: 0x000000, alpha: 0.28 })
   g.rect(x + 1, y + 1, 16, 12).fill(0xf5ecd6)
+  g.rect(x + 1, y + 1, 16, 1.2).fill({ color: 0xffffff, alpha: 0.55 })
   g.rect(x + 3, y + 3, 6, 5).fill(0xe2d4b2)
   g.rect(x + 10, y + 4, 6, 4).fill(0xfaf2de)
   g.rect(x + 4, y + 9, 10, 1).fill(0xc9bd9c)

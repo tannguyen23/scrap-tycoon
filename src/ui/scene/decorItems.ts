@@ -223,6 +223,9 @@ export function drawSign(g: GroundCanvas, x: number, y: number): void {
   g.rect(x - 1.5, y - 22, 1.5, 22).fill(0x7d6344)
   g.rect(x - 9, y - 30, 18, 10).fill(0x96744c)
   g.rect(x - 9, y - 30, 18, 2.5).fill(0xa8814f)
+  // gờ sáng mặt trên + hông đông tối: tấm biển đọc ra một khối, không phải mặt dán
+  g.rect(x - 9, y - 30, 18, 1).fill({ color: 0xffffff, alpha: 0.22 })
+  g.rect(x + 8, y - 30, 1, 10).fill({ color: 0x000000, alpha: 0.18 })
   g.rect(x - 9, y - 22.5, 18, 1).fill({ color: 0x000000, alpha: 0.25 })
   g.rect(x - 7, y - 27, 9, 1.5).fill({ color: 0xf5ecd6, alpha: 0.9 })
   g.rect(x - 7, y - 24.5, 12, 1).fill({ color: 0xf5ecd6, alpha: 0.6 })
