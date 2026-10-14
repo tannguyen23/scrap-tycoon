@@ -1,5 +1,4 @@
 import { Container, Graphics } from 'pixi.js'
-import { WORLD_HEIGHT, WORLD_WIDTH } from './zoneLayout'
 
 /** Real seconds for one full day. */
 export const DAY_LENGTH_SECONDS = 480
@@ -28,25 +27,15 @@ const AMBIENT: readonly AmbientKey[] = [
 
 const NIGHT_ALPHA = 0.5
 
-interface LightSource {
+/** One warm light pool of the map (a lamp, a window, a fire). Pack data. */
+export interface LightSource {
   x: number
   y: number
   radius: number
   color: number
+  /** 0..1 — how much the pool breathes, for fires. */
   flicker?: number
 }
-
-/** Warm light pools: burning barrel, depot lamp + window, gate booth, street lamps, forge mouth. */
-const LIGHTS: readonly LightSource[] = [
-  { x: 280, y: 94, radius: 46, color: 0xffa54d, flicker: 0.16 },
-  { x: 196, y: 576, radius: 42, color: 0xffd88a },
-  { x: 187, y: 597, radius: 34, color: 0xffd27f },
-  { x: 882, y: 579, radius: 34, color: 0xffe0a0 },
-  { x: 240, y: 386, radius: 48, color: 0xffd9a0 },
-  { x: 930, y: 386, radius: 48, color: 0xffd9a0 },
-  // Cửa lò xưởng tái chế (world = zone rect 608,8 + local 150,56) — nhấp nháy mạnh.
-  { x: 758, y: 64, radius: 54, color: 0xffb45a, flicker: 0.22 },
-]
 
 export interface AmbientSample {
   color: number
@@ -87,21 +76,26 @@ export interface Lighting {
 }
 
 /**
- * Day/night lighting: a multiply colour grade over the whole world plus stepped
- * additive light pools around lamps, windows and the burning barrel. Purely
- * visual — driven by the scene clock, never by game state.
+ * Day/night lighting: a multiply colour grade over the whole map plus stepped
+ * additive light pools around lamps, windows and fires. The grade curve is kit
+ * behaviour; the pools come from the project's `SceneryPack`. Purely visual —
+ * driven by the scene clock, never by game state.
  */
-export function createLighting(options: LightingOptions = {}): Lighting {
+export function createLighting(
+  world: { width: number; height: number },
+  lights: readonly LightSource[] = [],
+  options: LightingOptions = {},
+): Lighting {
   const auto = options.auto ?? true
   let time = options.time ?? START_TIME
   let clock = 0
 
   const container = new Container()
-  const ambient = new Graphics().rect(0, 0, WORLD_WIDTH, WORLD_HEIGHT).fill(0xffffff)
+  const ambient = new Graphics().rect(0, 0, world.width, world.height).fill(0xffffff)
   ambient.blendMode = 'multiply'
   container.addChild(ambient)
 
-  const lightNodes = LIGHTS.map((light) => {
+  const lightNodes = lights.map((light) => {
     const node = new Container()
     const g = new Graphics()
       .circle(0, 0, light.radius)

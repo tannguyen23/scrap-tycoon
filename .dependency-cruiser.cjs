@@ -65,14 +65,28 @@ module.exports = {
       severity: 'error',
       comment: 'a pack may use the kit and its own project, nothing else',
       from: { path: '^src/ground/packs/' },
-      to: { pathNot: '^src/(ground|ui|core|domain|i18n)/' },
+      to: { pathNot: '^src/(ground|scenery|ui|core|domain|i18n)/' },
+    },
+    {
+      name: 'scenery-core-is-self-contained',
+      severity: 'error',
+      comment: 'the scenery kit engine must not import a pack, the game or any other layer',
+      from: { path: '^src/scenery/core/' },
+      to: { pathNot: '^src/scenery/core/' },
+    },
+    {
+      name: 'scenery-packs-bind-core-to-a-project',
+      severity: 'error',
+      comment: 'a scenery pack may use the kits and its own project, nothing else',
+      from: { path: '^src/scenery/packs/' },
+      to: { pathNot: '^src/(scenery|ground|ui|core|domain|i18n)/' },
     },
     {
       name: 'ui-does-not-import-content-or-app',
       severity: 'error',
       comment: 'content is injected via context from app; ui must stay a pure consumer',
       from: { path: '^src/ui/' },
-      to: { pathNot: '^src/(ui|ground|core|domain|i18n)/' },
+      to: { pathNot: '^src/(ui|ground|scenery|core|domain|i18n)/' },
     },
     {
       name: 'no-ui-deps-in-pure-layers',
@@ -87,9 +101,9 @@ module.exports = {
     {
       name: 'studio-imports-ui',
       severity: 'error',
-      comment: 'the asset studio is a viewer: it may only read ui/ground/domain/core/i18n',
+      comment: 'the asset studio is a viewer: it may only read ui/ground/scenery/domain/core/i18n',
       from: { path: '^src/studio/' },
-      to: { pathNot: '^src/(studio|ui|ground|core|domain|i18n)/' },
+      to: { pathNot: '^src/(studio|ui|ground|scenery|core|domain|i18n)/' },
     },
   ],
   options: {

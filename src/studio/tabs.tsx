@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { validateGroundMap } from '@ground/core/grounds'
 import { validateGroundPack } from '@ground/core/pack'
-import { sampleAmbient } from '@ui/scene/lighting'
+import { sampleAmbient } from '@scenery/core/lighting'
 import { PRIMARY_TERRAINS, type TileKind } from '@ground/packs/scrapYard/terrains'
 import { SOUND_GROUPS, SOUND_GROUP_LABELS, SOUND_IDS, SOUND_LIBRARY } from '@ui/sound/library'
 import { sound } from '@ui/sound/player'

@@ -4,13 +4,13 @@ import type { GameContent, GameState, WorkerAction, ZoneId } from '@domain/types
 import type { LocaleStore } from '@i18n/locale'
 import { t, type Locale } from '@i18n/types'
 import { Application, Container, Graphics, TextureSource } from 'pixi.js'
-import { createAmbience } from './ambience'
+import { createAmbience } from '@scenery/core/ambience'
+import { createDetailLayer } from '@scenery/core/details'
 import { createCouriers, courierLegsFor } from './couriers'
 import { detailSceneFor } from './focus'
 import type { DetailScene } from './focus/types'
-import { createLighting } from './lighting'
-import { createMicroDetails } from './microDetails'
-import { createNanoDetails } from './nanoDetails'
+import { createLighting } from '@scenery/core/lighting'
+import { SCRAP_SCENERY } from '@scenery/packs/scrapYard/pack'
 import { TilePainter } from '@ground/core/painter'
 import { SCRAP_YARD_PACK } from '@ground/packs/scrapYard/pack'
 import { CALM_WIND, createWeather } from './weather'
@@ -116,12 +116,12 @@ export async function mountScene(
 
   const detailLayer = new Container()
   const couriers = createCouriers(courierLegsFor(content))
-  const microLayer = createMicroDetails()
+  const microLayer = createDetailLayer(SCRAP_SCENERY.microProps, SCRAP_SCENERY.drawMicro)
   microLayer.visible = false
-  const nanoLayer = createNanoDetails()
+  const nanoLayer = createDetailLayer(SCRAP_SCENERY.nanoProps, SCRAP_SCENERY.drawNano)
   nanoLayer.visible = false
-  const ambience = createAmbience()
-  const lighting = createLighting()
+  const ambience = createAmbience(SCRAP_SCENERY.ambience)
+  const lighting = createLighting({ width: WORLD_WIDTH, height: WORLD_HEIGHT }, SCRAP_SCENERY.lights)
   const weather = content.weather ? createWeather({ profile: content.weather }) : null
   const outline = new Graphics()
   // Couriers walk the connectors between zones — they sit right above the zone

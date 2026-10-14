@@ -20,6 +20,7 @@
     "paths": {
       "@core/*": ["./src/core/*"],
       "@ground/*": ["./src/ground/*"],
+      "@scenery/*": ["./src/scenery/*"],
       "@domain/*": ["./src/domain/*"],
       "@content/*": ["./src/content/*"],
       "@ui/*": ["./src/ui/*"],

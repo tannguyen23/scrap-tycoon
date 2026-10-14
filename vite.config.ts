@@ -11,6 +11,7 @@ export default defineConfig({
     alias: {
       '@core': layer('./src/core'),
       '@ground': layer('./src/ground'),
+      '@scenery': layer('./src/scenery'),
       '@domain': layer('./src/domain'),
       '@content': layer('./src/content'),
       '@ui': layer('./src/ui'),

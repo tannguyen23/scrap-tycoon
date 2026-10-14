@@ -1,6 +1,6 @@
 import type { WeatherKindDef, WeatherProfile, ZoneId } from '@domain/types'
 import { Application, Container, Graphics, Sprite } from 'pixi.js'
-import { createAmbience } from '@ui/scene/ambience'
+import { createAmbience } from '@scenery/core/ambience'
 import { COURIER_RUNS, createCouriers, type CourierLeg } from '@ui/scene/couriers'
 import { createHaulerSprite } from '@ui/scene/focus/depot/sprites'
 import { createTruckSprite } from '@ui/scene/focus/gate/sprites'
@@ -18,7 +18,8 @@ import {
 import { createCartSprite, createPickupSprite, createRouteTruckSprite } from '@ui/scene/focus/route/sprites'
 import { detailSceneFor } from '@ui/scene/focus'
 import type { DetailScene } from '@ui/scene/focus/types'
-import { createLighting } from '@ui/scene/lighting'
+import { createLighting } from '@scenery/core/lighting'
+import { SCRAP_SCENERY } from '@scenery/packs/scrapYard/pack'
 import { makeRandom } from '@ui/scene/random'
 import { createWeather } from '@ui/scene/weather'
 import { DECOR_SPECIMENS, drawBush, drawStump, drawTree } from '@ui/scene/decorItems'
@@ -797,7 +798,7 @@ export function buildLightingWorld(initialTime: number): StageBuilder {
       details.push(detail)
     }
 
-    const lighting = createLighting({ auto: false, time: initialTime })
+    const lighting = createLighting({ width: WORLD_WIDTH, height: WORLD_HEIGHT }, SCRAP_SCENERY.lights, { auto: false, time: initialTime })
     root.addChild(lighting.container)
 
     return {
@@ -892,7 +893,7 @@ export function buildWeatherWorld(initialTime: number): StageBuilder {
       details.push(detail)
     }
 
-    const ambience = createAmbience()
+    const ambience = createAmbience(SCRAP_SCENERY.ambience)
     // Cross-zone couriers: one per declared run, derived from the runs table so
     // the preview never drifts from the game's route set.
     const courierLegs: CourierLeg[] = Object.keys(COURIER_RUNS).map((key) => {
@@ -905,7 +906,7 @@ export function buildWeatherWorld(initialTime: number): StageBuilder {
       tiers: new Map(),
     })
     const weather = createWeather({ profile: STUDIO_WEATHER_PROFILE })
-    const lighting = createLighting({ auto: false, time: initialTime })
+    const lighting = createLighting({ width: WORLD_WIDTH, height: WORLD_HEIGHT }, SCRAP_SCENERY.lights, { auto: false, time: initialTime })
     root.addChild(couriers.root, ambience.container, weather.container, lighting.container, weather.flash)
 
     return {
