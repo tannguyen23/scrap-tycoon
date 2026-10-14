@@ -19,6 +19,16 @@ export const CONTOUR_MIN_AMP = 12
  * be clamped for tiny blobs, or a 70×44 pond would be 30% wobble.
  */
 const CONTOUR_MAX_AMP = 0.22
+/**
+ * Bán kính (px) nơi ngân sách sóng bắt đầu leo từ `CONTOUR_AMP` lên `CONTOUR_MAX_AMP`.
+ *
+ * Một tỉ lệ cố định làm mảng lớn thành quả trứng: 8,5% của bán kính 176px chỉ là
+ * ~15px gợn trải trên 350px chiều ngang, đọc ra là mép trơn. Gợn phải giữ cỡ một ô
+ * bất kể mảng lớn bao nhiêu. Mọi blob khác trên map (ao, bãi, sàn kho/cổng) đều
+ * nằm dưới `CONTOUR_BIG_FROM` nên vẫn giữ đúng dáng đã tune — chỉ mảng thật lớn đổi.
+ */
+const CONTOUR_BIG_FROM = 120
+const CONTOUR_BIG_TO = 210
 
 /**
  * Contour shapes for the 4-corner edge tiles, in tile-local coordinates
@@ -162,19 +172,26 @@ export function blobContour(rect: ZoneRect, pad: number, seed: number): number[]
   const rx = rect.width / 2 + pad
   const ry = rect.height / 2 + pad
 
-  // freq 1–2 push whole sides out (breaks the oval read), freq 3–6 dent the rest.
+  const radius = (rx + ry) / 2
+
+  // freq 1–2 push whole sides out (breaks the oval read), freq 3+ dent the rest.
   const lobes: { freq: number; amp: number; phase: number }[] = [
     { freq: 1, amp: 0.03 + rnd() * 0.02, phase: rnd() * Math.PI * 2 },
     { freq: 2, amp: 0.03 + rnd() * 0.02, phase: rnd() * Math.PI * 2 },
   ]
-  const freqs = [3, 4, 5, 6]
-  const mediumCount = 2 + Math.floor(rnd() * 2)
+  // Số thuỳ theo CHU VI, không theo một con số cố định: vòng 400px mà chỉ có 3–5
+  // thuỳ thì đoạn giữa hai thuỳ vẫn là một cung tròn đều, và mảng vẫn đọc ra quả
+  // trứng dù ngân sách sóng có rộng tới đâu.
+  const extraLobes = Math.min(5, Math.max(0, Math.round(radius / 34) - 3))
+  const freqs = [3, 4, 5, 6, 7, 8]
+  const mediumCount = 2 + Math.floor(rnd() * 2) + extraLobes
   for (let i = 0; i < mediumCount; i++) {
     const freq = freqs.splice(Math.floor(rnd() * freqs.length), 1)[0] ?? 3
     lobes.push({ freq, amp: 0.02 + rnd() * 0.02, phase: rnd() * Math.PI * 2 })
   }
-  const radius = (rx + ry) / 2
-  const budget = Math.min(CONTOUR_MAX_AMP, Math.max(CONTOUR_AMP, CONTOUR_MIN_AMP / radius))
+  const big = Math.min(1, Math.max(0, (radius - CONTOUR_BIG_FROM) / (CONTOUR_BIG_TO - CONTOUR_BIG_FROM)))
+  const ramped = CONTOUR_AMP + (CONTOUR_MAX_AMP - CONTOUR_AMP) * big
+  const budget = Math.min(CONTOUR_MAX_AMP, Math.max(ramped, CONTOUR_MIN_AMP / radius))
   const total = lobes.reduce((sum, lobe) => sum + lobe.amp, 0)
   if (total > budget) {
     const scale = budget / total

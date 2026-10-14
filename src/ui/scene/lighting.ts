@@ -36,7 +36,7 @@ interface LightSource {
   flicker?: number
 }
 
-/** Warm light pools: burning barrel, depot lamp + window, gate booth, street lamps. */
+/** Warm light pools: burning barrel, depot lamp + window, gate booth, street lamps, forge mouth. */
 const LIGHTS: readonly LightSource[] = [
   { x: 280, y: 94, radius: 46, color: 0xffa54d, flicker: 0.16 },
   { x: 196, y: 576, radius: 42, color: 0xffd88a },
@@ -44,6 +44,8 @@ const LIGHTS: readonly LightSource[] = [
   { x: 882, y: 579, radius: 34, color: 0xffe0a0 },
   { x: 240, y: 386, radius: 48, color: 0xffd9a0 },
   { x: 930, y: 386, radius: 48, color: 0xffd9a0 },
+  // Cửa lò xưởng tái chế (world = zone rect 608,8 + local 150,56) — nhấp nháy mạnh.
+  { x: 758, y: 64, radius: 54, color: 0xffb45a, flicker: 0.22 },
 ]
 
 export interface AmbientSample {

@@ -7,7 +7,9 @@ import {
   PropsTab,
   ScatterTab,
   SeamsTab,
+  SoundsTab,
   TilesTab,
+  WeatherTab,
   ZonesTab,
 } from './tabs'
 
@@ -21,6 +23,8 @@ const TABS = [
   { id: 'seams', label: 'Chỗ nối tileset', render: () => <SeamsTab /> },
   { id: 'layout', label: 'Sơ đồ & nối khu', render: () => <LayoutTab /> },
   { id: 'lighting', label: 'Ánh sáng', render: () => <LightingTab /> },
+  { id: 'weather', label: 'Thời tiết', render: () => <WeatherTab /> },
+  { id: 'sounds', label: 'Âm thanh', render: () => <SoundsTab /> },
 ] as const
 
 type TabId = (typeof TABS)[number]['id']

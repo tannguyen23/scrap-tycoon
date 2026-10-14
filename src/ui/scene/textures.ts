@@ -1,117 +1,118 @@
 import type { Graphics } from 'pixi.js'
-import {
-  drawBarrel,
-  drawBush,
-  drawCrateStack,
-  drawLog,
-  drawPallets,
-  drawPipe,
-  drawRock,
-  drawRockCluster,
-  drawScrapPile,
-  drawSign,
-  drawStump,
-  drawTree,
-  drawTire,
-  drawTireStack,
-  drawTuft,
-} from './decorItems'
+import { DECOR_SPECIMENS } from './decorItems'
+
+export interface DecorPlacement {
+  /** Key into `DECOR_SPECIMENS` — a typo is caught by `tests/worldDecor.test.ts`. */
+  key: string
+  x: number
+  y: number
+}
+
+const SPECIMENS = new Map(DECOR_SPECIMENS.map((specimen) => [specimen.key, specimen]))
 
 /**
- * Hand-placed decor across the open ground. Placement only — every item's art
- * lives in `decorItems.ts` (the same catalog the studio lists), so adding a new
- * prop means adding a drawer there plus a call here.
+ * Hand-placed decor across the open ground. Placement is DATA so the tests can
+ * walk it: nothing may stand inside a zone rect — each zone has its own art,
+ * and the props here only dress the open map between them (plus the fence
+ * keeps the two apart anyway). Every item's art lives in `decorItems.ts`, the
+ * same catalog the studio lists.
  */
-export function drawDecor(g: Graphics): void {
+export const DECOR_PLACEMENTS: readonly DecorPlacement[] = [
   // Vành cây quanh map (hai tông xen kẽ cho đỡ đơn điệu).
-  drawTree(g, 170, 30, 0)
-  drawTree(g, 330, 24, 1)
-  drawTree(g, 470, 26, 0)
-  drawTree(g, 640, 22, 1)
-  drawTree(g, 790, 26, 0)
-  drawTree(g, 950, 30, 1)
-  drawTree(g, 1100, 24, 0)
-  drawTree(g, 1230, 34, 1)
-  drawTree(g, 50, 320, 0)
-  drawTree(g, 60, 470, 1)
-  drawTree(g, 48, 620, 0)
-  drawTree(g, 420, 700, 1)
-  drawTree(g, 560, 694, 0)
-  drawTree(g, 700, 704, 1)
-  drawTree(g, 1000, 700, 0)
-  drawTree(g, 1200, 700, 1)
-  drawTree(g, 1240, 300, 0)
-  drawTree(g, 1230, 480, 1)
-  drawTree(g, 560, 320, 0)
-  drawTree(g, 980, 470, 1)
+  { key: 'tree0', x: 170, y: 30 },
+  { key: 'tree1', x: 330, y: 24 },
+  { key: 'tree0', x: 470, y: 26 },
+  { key: 'tree1', x: 560, y: 26 },
+  { key: 'tree0', x: 1030, y: 26 },
+  { key: 'tree1', x: 950, y: 30 },
+  { key: 'tree0', x: 1100, y: 24 },
+  { key: 'tree1', x: 1230, y: 34 },
+  { key: 'tree0', x: 60, y: 366 },
+  { key: 'tree1', x: 60, y: 490 },
+  { key: 'tree0', x: 48, y: 620 },
+  { key: 'tree1', x: 420, y: 700 },
+  { key: 'tree0', x: 560, y: 694 },
+  { key: 'tree1', x: 700, y: 704 },
+  { key: 'tree0', x: 1000, y: 700 },
+  { key: 'tree1', x: 1200, y: 700 },
+  { key: 'tree0', x: 1240, y: 300 },
+  { key: 'tree1', x: 1230, y: 490 },
+  { key: 'tree0', x: 560, y: 320 },
+  { key: 'tree1', x: 980, y: 490 },
 
-  drawBush(g, 340, 240, 0)
-  drawBush(g, 430, 300, 1)
-  drawBush(g, 520, 340, 0)
-  drawBush(g, 660, 180, 1)
-  drawBush(g, 720, 120, 0)
-  drawBush(g, 830, 220, 1)
-  drawBush(g, 960, 240, 0)
-  drawBush(g, 1090, 250, 1)
-  drawBush(g, 1130, 470, 0)
-  drawBush(g, 1180, 240, 1)
-  drawBush(g, 600, 470, 0)
-  drawBush(g, 760, 500, 1)
-  drawBush(g, 900, 470, 0)
-  drawBush(g, 1080, 650, 1)
-  drawBush(g, 360, 520, 0)
-  drawBush(g, 240, 300, 1)
+  { key: 'bush0', x: 430, y: 300 },
+  { key: 'bush1', x: 430, y: 356 },
+  { key: 'bush0', x: 520, y: 340 },
+  { key: 'bush1', x: 556, y: 196 },
+  { key: 'bush0', x: 900, y: 330 },
+  { key: 'bush1', x: 830, y: 220 },
+  { key: 'bush0', x: 960, y: 240 },
+  { key: 'bush1', x: 1090, y: 250 },
+  { key: 'bush0', x: 1130, y: 470 },
+  { key: 'bush1', x: 1180, y: 240 },
+  { key: 'bush0', x: 600, y: 470 },
+  { key: 'bush1', x: 760, y: 500 },
+  { key: 'bush0', x: 900, y: 470 },
+  { key: 'bush1', x: 1080, y: 664 },
+  { key: 'bush0', x: 360, y: 520 },
+  { key: 'bush1', x: 170, y: 360 },
 
-  drawStump(g, 330, 160)
-  drawStump(g, 600, 60)
-  drawStump(g, 760, 240)
-  drawStump(g, 1000, 260)
-  drawStump(g, 1180, 540)
-  drawStump(g, 400, 470)
-  drawStump(g, 660, 620)
-  drawStump(g, 520, 640)
+  { key: 'stump', x: 520, y: 60 },
+  { key: 'stump', x: 760, y: 240 },
+  { key: 'stump', x: 1000, y: 260 },
+  { key: 'stump', x: 1180, y: 540 },
+  { key: 'stump', x: 400, y: 470 },
+  { key: 'stump', x: 660, y: 620 },
+  { key: 'stump', x: 520, y: 640 },
 
-  drawLog(g, 250, 210)
-  drawLog(g, 900, 470)
-  drawLog(g, 660, 300)
-  drawCrateStack(g, 1180, 180)
-  drawCrateStack(g, 200, 360)
+  { key: 'log', x: 400, y: 368 },
+  { key: 'log', x: 900, y: 470 },
+  { key: 'log', x: 660, y: 300 },
+  { key: 'crates', x: 1180, y: 180 },
+  { key: 'crates', x: 200, y: 360 },
 
-  drawRock(g, 390, 240, 1)
-  drawRock(g, 1010, 240, 1.1)
-  drawRock(g, 1130, 200, 0.9)
-  drawRock(g, 760, 660, 1)
-  drawRock(g, 300, 500, 1)
-  drawRockCluster(g, 700, 180)
-  drawRockCluster(g, 480, 300)
-  drawRockCluster(g, 1180, 560)
+  { key: 'rock', x: 420, y: 238 },
+  { key: 'rockBig', x: 1010, y: 240 },
+  { key: 'rockSmall', x: 1130, y: 200 },
+  { key: 'rock', x: 760, y: 660 },
+  { key: 'rock', x: 300, y: 500 },
+  { key: 'rockCluster', x: 460, y: 200 },
+  { key: 'rockCluster', x: 480, y: 300 },
+  { key: 'rockCluster', x: 1180, y: 560 },
 
-  drawBarrel(g, 350, 300)
-  drawBarrel(g, 1120, 470, 0x8a6a52)
-  drawBarrel(g, 560, 600)
+  { key: 'barrel0', x: 300, y: 366 },
+  { key: 'barrel1', x: 1120, y: 470 },
+  { key: 'barrel0', x: 560, y: 600 },
 
-  drawTire(g, 760, 240)
-  drawTire(g, 420, 320)
-  drawTireStack(g, 210, 470)
-  drawTireStack(g, 980, 600)
+  { key: 'tire', x: 760, y: 240 },
+  { key: 'tire', x: 420, y: 320 },
+  { key: 'tireStack', x: 210, y: 470 },
+  { key: 'tireStack', x: 800, y: 600 },
 
-  drawPipe(g, 860, 300)
-  drawPipe(g, 520, 600)
-  drawPallets(g, 1180, 360)
-  drawPallets(g, 660, 660)
+  { key: 'pipe', x: 860, y: 300 },
+  { key: 'pipe', x: 520, y: 600 },
+  { key: 'pallets', x: 1180, y: 360 },
+  { key: 'pallets', x: 660, y: 660 },
 
-  drawSign(g, 300, 200)
-  drawSign(g, 880, 470)
+  { key: 'sign', x: 330, y: 366 },
+  { key: 'sign', x: 880, y: 480 },
 
-  drawTuft(g, 180, 220)
-  drawTuft(g, 700, 90)
-  drawTuft(g, 1150, 620)
-  drawTuft(g, 350, 660)
+  { key: 'tuft', x: 130, y: 366 },
+  { key: 'tuft', x: 620, y: 210 },
+  { key: 'tuft', x: 1150, y: 620 },
+  { key: 'tuft', x: 368, y: 662 },
 
-  drawScrapPile(g, 700, 330)
-  drawScrapPile(g, 1150, 300)
-  drawScrapPile(g, 1180, 470)
-  drawScrapPile(g, 620, 620)
-  drawScrapPile(g, 360, 660)
-  drawScrapPile(g, 900, 660)
+  { key: 'scrap', x: 700, y: 330 },
+  { key: 'scrap', x: 1150, y: 300 },
+  { key: 'scrap', x: 1180, y: 470 },
+  { key: 'scrap', x: 620, y: 620 },
+  { key: 'scrap', x: 390, y: 668 },
+  { key: 'scrap', x: 900, y: 668 },
+]
+
+/** Places every specimen of `DECOR_PLACEMENTS` (map and studio draw from one list). */
+export function drawDecor(g: Graphics): void {
+  for (const placement of DECOR_PLACEMENTS) {
+    SPECIMENS.get(placement.key)?.draw(g, placement.x, placement.y)
+  }
 }

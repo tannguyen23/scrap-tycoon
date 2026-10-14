@@ -230,3 +230,45 @@
   border: 1px solid var(--btn-border);
   background: #ffffff;
 }
+
+/* ---- character clip switcher ------------------------------------------------ */
+
+.studio-clip-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11.5px;
+  color: var(--text);
+}
+
+.studio-clip-label {
+  margin-right: 2px;
+  font-weight: 700;
+}
+
+.studio-clip-group select {
+  min-width: 128px;
+  padding: 4px 6px;
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--ink);
+  background: linear-gradient(var(--btn-top), var(--btn-bottom));
+  border: 2px solid var(--btn-border);
+  box-shadow: 0 2px 0 var(--btn-border);
+}
+
+/* ---- sounds ----------------------------------------------------------------- */
+
+.studio-sound-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 4px;
+}
+
+.studio-sound-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}

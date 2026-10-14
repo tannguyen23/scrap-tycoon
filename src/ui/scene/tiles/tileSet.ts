@@ -117,11 +117,15 @@ export function tileVariantCount(kind: TileKind): number {
   return PALETTES[kind].bases.length
 }
 
-/** Grain tones of one variant — the painter dithers these across patch borders. */
-export function tileSpeckTones(kind: TileKind, variant: number): readonly [number, number] {
+/**
+ * Base tone of one variant. Dithering a patch border has to use *this*, not the
+ * grain tones: the grain pair sits ~30% away from the base, so sprinkling it only
+ * adds light/dark dots (noise) instead of easing one tone into the next, which is
+ * a blend of two bases ~5% apart.
+ */
+export function tileBaseTone(kind: TileKind, variant: number): number {
   const palette = PALETTES[kind]
-  const pair = palette.specks[variant % palette.specks.length] ?? [0x808080, 0x909090]
-  return [pair[0], pair[1]]
+  return palette.bases[variant % palette.bases.length] ?? 0x808080
 }
 
 function paintTile(kind: TileKind, variant: number, seed: number): Container {

@@ -1,22 +1,26 @@
+import { playSound } from '@ui/sound/player'
 import { createSack, createScrapBit, dustPuff, type Particles } from '../parts'
+import { POKE, restPose, walkPose } from '../poses'
+import type { Popups } from '../popups'
 import type { Spot } from '../types'
-import { createPickerSprite, type PickerSprite } from './sprites'
+import { createScavengerSprite, type ScavengerSprite } from './sprites'
 
 const WALK_SPEED = 34
 const BITS_PER_TRIP = 3
 
 export interface PickerActor {
-  update(dt: number, particles: Particles): void
-  sprite: PickerSprite
+  update(dt: number, particles: Particles, popups: Popups): void
+  sprite: ScavengerSprite
 }
 
 /**
  * Pick behaviour: walk between scrap piles (stepping legs, swinging arms, face
- * hides when walking north), crouch to pick (scrap bits arc into the bag), then
- * carry the full bag to the drop-off and hop while emptying it.
+ * hides when walking north), poke cans out of the pile — one jab lands one can
+ * in the plastic bag — then carry the full bag to the drop-off and hop while
+ * emptying it.
  */
 export function createPicker(variant: number, piles: Spot[], dropoff: Spot): PickerActor {
-  const sprite = createPickerSprite(variant)
+  const sprite = createScavengerSprite(variant)
   let seed = (variant * 2654435761) >>> 0 || 1
   const rnd = (): number => {
     seed = (seed * 1664525 + 1013904223) >>> 0
@@ -26,10 +30,11 @@ export function createPicker(variant: number, piles: Spot[], dropoff: Spot): Pic
   let x = piles[variant % piles.length]?.x ?? 0
   let y = piles[variant % piles.length]?.y ?? 0
   let target = piles[(variant + 1) % piles.length] ?? dropoff
-  let mode: 'walk' | 'pick' | 'drop' = 'walk'
+  let mode: 'walk' | 'work' | 'drop' = 'walk'
   let timer = 0
+  let workClock = 0
+  let prevP = 0
   let headingToDrop = false
-  let picksFull = 0
   let bits = 0
   let clock = rnd() * 8
   let dustTimer = 0
@@ -39,16 +44,7 @@ export function createPicker(variant: number, piles: Spot[], dropoff: Spot): Pic
     target = piles[Math.floor(rnd() * piles.length)] ?? dropoff
   }
 
-  const restPose = (): void => {
-    sprite.legsL.x = -3.8
-    sprite.legsR.x = 0.3
-    sprite.armsL.x = -7.5
-    sprite.armsR.x = 4.5
-    sprite.body.y = 0
-    sprite.face.visible = true
-  }
-
-  const update = (dt: number, particles: Particles): void => {
+  const update = (dt: number, particles: Particles, popups: Popups): void => {
     clock += dt
     const container = sprite.container
 
@@ -57,25 +53,21 @@ export function createPicker(variant: number, piles: Spot[], dropoff: Spot): Pic
       const dy = target.y - y
       const dist = Math.hypot(dx, dy)
       if (dist < 2) {
-        restPose()
+        restPose(sprite)
         if (headingToDrop) {
           mode = 'drop'
           timer = 0.7
         } else {
-          mode = 'pick'
-          timer = 0.9
+          mode = 'work'
+          workClock = 0
+          prevP = 0
         }
       } else {
         x += (dx / dist) * WALK_SPEED * dt
         y += (dy / dist) * WALK_SPEED * dt
         if (Math.abs(dx) > 3) facing = dx < 0 ? -1 : 1
         sprite.face.visible = !(dy < 0 && Math.abs(dy) > Math.abs(dx))
-        const step = Math.floor(clock / 0.15) % 2 === 0 ? 1 : -1
-        sprite.legsL.x = -3.8 + step * 1.4
-        sprite.legsR.x = 0.3 - step * 1.4
-        sprite.armsL.x = -7.5 - step
-        sprite.armsR.x = 4.5 + step
-        sprite.body.y = step > 0 ? -0.8 : 0
+        walkPose(sprite, clock)
         dustTimer -= dt
         if (dustTimer <= 0) {
           dustTimer = 0.42
@@ -87,45 +79,42 @@ export function createPicker(variant: number, piles: Spot[], dropoff: Spot): Pic
           })
         }
       }
-    } else if (mode === 'pick') {
-      timer -= dt
-      sprite.face.visible = true
-      sprite.body.scale.set(1, 0.9)
-      sprite.armsL.x = -5
-      sprite.armsR.x = 2
-      if (timer <= 0) {
-        sprite.body.scale.set(1, 1)
-        restPose()
+    } else if (mode === 'work') {
+      workClock += dt
+      const p = (workClock % POKE.beat) / POKE.beat
+      restPose(sprite)
+      POKE.apply(sprite, p)
+      if (prevP < 0.5 && p >= 0.5) {
         bits += 1
-        sprite.bag.visible = true
-        sprite.bag.scale.set(0.55 + bits * 0.16)
+        sprite.bag.setFill(bits / BITS_PER_TRIP)
+        popups.scrap(x, y - 40)
+        playSound('poke')
         particles.spawn(createScrapBit(variant + bits), target.x, target.y - 6, {
           vx: (x - target.x) / 0.16,
           vy: -14,
           life: 0.32,
           gravity: 68,
         })
-        picksFull += 1
-        if (picksFull >= BITS_PER_TRIP) {
-          headingToDrop = true
-          target = dropoff
-        } else {
-          pickNextPile()
-        }
+        if (bits >= BITS_PER_TRIP) headingToDrop = true
+      }
+      // Walk on only once the last beat has recovered, so the stick never snaps back.
+      if (p < prevP && headingToDrop) {
+        restPose(sprite)
+        target = dropoff
         mode = 'walk'
       }
+      prevP = p
     } else {
       timer -= dt
       const progress = 1 - Math.max(0, timer) / 0.7
       sprite.body.y = -Math.sin(Math.PI * progress) * 4
       if (timer <= 0) {
         sprite.body.y = 0
-        sprite.bag.scale.set(1)
-        sprite.bag.visible = false
+        sprite.bag.setFill(0)
         bits = 0
-        picksFull = 0
         headingToDrop = false
         particles.spawn(createSack(0.7), x + 4, y - 8, { vy: -6, life: 0.55, gravity: 28 })
+        playSound('sack-drop')
         pickNextPile()
         mode = 'walk'
       }

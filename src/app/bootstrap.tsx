@@ -9,8 +9,11 @@ import type { GameState } from '@domain/types'
 import { LocaleStore, detectLocale } from '@i18n/locale'
 import { isLocale, type Locale } from '@i18n/types'
 import { LocalStorageAdapter } from '@platform/storage'
+import { installCursor } from '@ui/cursor'
 import { App } from '@ui/hud/App'
-import { ContentContext, EngineContext, LocaleContext, ThemeContext } from '@ui/hooks'
+import { ContentContext, EngineContext, LocaleContext, SoundContext, ThemeContext } from '@ui/hooks'
+import { installAudioUnlock, sound } from '@ui/sound/player'
+import { DEFAULT_SOUND_SETTINGS, SoundStore } from '@ui/sound/settings'
 import { ThemeStore, isThemeMode, type ThemeMode } from '@ui/theme'
 import { ObservableStore } from '@core/store'
 import { SaveManager } from '@core/save/saveManager'
@@ -23,16 +26,21 @@ const DEFAULT_THEME: ThemeMode = 'light'
 interface StoredSettings {
   locale?: string
   theme?: string
+  soundVolume?: number
+  soundMuted?: boolean
 }
 
 interface AppStores {
   localeStore: LocaleStore
   themeStore: ThemeStore
+  soundStore: SoundStore
 }
 
 function loadStores(storage: LocalStorageAdapter): AppStores {
   let locale: Locale = detectLocale(navigator.language)
   let theme: ThemeMode = DEFAULT_THEME
+  let soundVolume = DEFAULT_SOUND_SETTINGS.volume
+  let soundMuted = DEFAULT_SOUND_SETTINGS.muted
   const raw = storage.get(SETTINGS_KEY)
   if (raw !== null) {
     try {
@@ -43,6 +51,12 @@ function loadStores(storage: LocalStorageAdapter): AppStores {
       if (typeof parsed.theme === 'string' && isThemeMode(parsed.theme)) {
         theme = parsed.theme
       }
+      if (typeof parsed.soundVolume === 'number' && Number.isFinite(parsed.soundVolume)) {
+        soundVolume = Math.min(1, Math.max(0, parsed.soundVolume))
+      }
+      if (typeof parsed.soundMuted === 'boolean') {
+        soundMuted = parsed.soundMuted
+      }
     } catch {
       // fall back to the defaults
     }
@@ -50,20 +64,34 @@ function loadStores(storage: LocalStorageAdapter): AppStores {
 
   const localeStore = new LocaleStore(locale)
   const themeStore = new ThemeStore(theme)
+  const soundStore = new SoundStore({ volume: soundVolume, muted: soundMuted })
   const persist = (): void => {
     document.documentElement.lang = localeStore.get()
     document.documentElement.dataset.theme = themeStore.get()
-    storage.set(SETTINGS_KEY, JSON.stringify({ locale: localeStore.get(), theme: themeStore.get() }))
+    storage.set(
+      SETTINGS_KEY,
+      JSON.stringify({
+        locale: localeStore.get(),
+        theme: themeStore.get(),
+        soundVolume: soundStore.get().volume,
+        soundMuted: soundStore.get().muted,
+      }),
+    )
   }
   persist()
   localeStore.subscribe(persist)
   themeStore.subscribe(persist)
-  return { localeStore, themeStore }
+  soundStore.subscribe(persist)
+  return { localeStore, themeStore, soundStore }
 }
 
 export function bootstrap(): void {
   const storage = new LocalStorageAdapter()
-  const { localeStore, themeStore } = loadStores(storage)
+  const { localeStore, themeStore, soundStore } = loadStores(storage)
+  sound.setMaster(soundStore.get())
+  soundStore.subscribe(() => sound.setMaster(soundStore.get()))
+  installAudioUnlock()
+  installCursor()
 
   if (import.meta.env.DEV) {
     for (const error of validateContent(GAME_CONTENT)) {
@@ -117,7 +145,9 @@ export function bootstrap(): void {
         <ContentContext.Provider value={GAME_CONTENT}>
           <LocaleContext.Provider value={localeStore}>
             <ThemeContext.Provider value={themeStore}>
-              <App initialOfflineReport={initialOfflineReport} />
+              <SoundContext.Provider value={soundStore}>
+                <App initialOfflineReport={initialOfflineReport} />
+              </SoundContext.Provider>
             </ThemeContext.Provider>
           </LocaleContext.Provider>
         </ContentContext.Provider>

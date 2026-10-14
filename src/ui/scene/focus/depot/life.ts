@@ -1,5 +1,6 @@
 import { Container, Graphics } from 'pixi.js'
 import { makeRandom } from '../../random'
+import { playSound } from '@ui/sound/player'
 import { SHADOW } from '../parts'
 import type { Spot } from '../types'
 
@@ -44,10 +45,17 @@ export function createDepotLife(spot: Spot): DepotLife {
 
   let blinkTimer = 2 + rnd() * 3
   let blinking = 0
+  let meowTimer = 20 + rnd() * 40
 
   const update = (dt: number, elapsed: number): void => {
     tail.x = 4.8 + Math.sin(elapsed * 2.2 + 0.6) * 1
     tail.y = -4.4 + Math.sin(elapsed * 2.2) * 1.2
+
+    meowTimer -= dt
+    if (meowTimer <= 0) {
+      meowTimer = 25 + rnd() * 45
+      playSound('cat')
+    }
 
     if (blinking > 0) {
       blinking -= dt

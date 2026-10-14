@@ -12,14 +12,43 @@ import { cornerHash } from './edgeGeometry'
  * Pure maths (no rendering imports) so it can be unit-tested directly.
  */
 
-/** Patch size of the main tone field, in world px. */
-export const VARIANT_PATCH_SCALE = 72
-/** Patch size of the finer field that makes patch outlines irregular. */
-const VARIANT_DETAIL_SCALE = 40
+/**
+ * Patch size of the *base* tone octave, in world px.
+ *
+ * Sized against the tile: one tone patch has to cover *several* tiles or the
+ * quantised field steps on nearly every neighbour and the ground reads as a
+ * chessboard. Measured: at 72px the mean run of one tone was 1.7 tiles (58% of
+ * neighbours differed) — a quilt, not patches.
+ */
+export const VARIANT_PATCH_SCALE = 560
+/**
+ * Octave stack for the tone field.
+ *
+ * More octaves is *not* decoration here, it is what makes the patches the right
+ * shape. One octave of value noise is a bilinear ramp inside each lattice cell,
+ * so its level sets are straight lines; at a patch scale this large a clearing
+ * sits almost entirely inside one cell and the "patches" came out as endlessly
+ * straight bands, which the tile grid then quantised into rectangles (dumped the
+ * grid: whole columns shared one variant — a pure 1-D ramp). Stacking octaves
+ * makes the contour wander at every scale, so a band edge is never straight.
+ */
+const TONE_OCTAVES = 3
+const TONE_OCTAVE_FALLOFF = 0.3
+const TONE_OCTAVE_LACUNARITY = 2
+/**
+ * Gain applied about the middle. Value noise bunches around 0.5, so without it the
+ * extreme tones never appear; too much of it and the field clips for long stretches.
+ */
+const FIELD_GAIN = 2.2
 /** Patch size of the clutter-density field, in world px. */
 export const SCATTER_DENSITY_SCALE = 64
-/** How close to a variant boundary a tile starts blending, in variant units. */
-const BLEND_RANGE = 0.45
+/**
+ * How close to a variant boundary a tile starts blending, in variant units. Kept
+ * tight on purpose: a band is only a few tiles wide, so a wide range puts *most of
+ * the map* in the dither pass and spends hundreds of thousands of rects on tiles
+ * that sit nowhere near a seam. This keeps the dither to roughly the border tile.
+ */
+const BLEND_RANGE = 0.25
 /**
  * The tone field is sampled on a **rotated** lattice (~35°). Value noise varies
  * along its own grid axes, so an axis-aligned field quantised into tone bands
@@ -51,16 +80,38 @@ function toneNoise(x: number, y: number, scale: number, seed: number): number {
 }
 
 /**
- * Smooth 0..1 field that decides which tone patch a tile belongs to. The detail
- * field only *perturbs* the broad one (averaging them would bunch every value
- * around 0.5 and leave the extreme tones unused), and the result is stretched so
- * the whole variant range actually shows up on a big clearing.
+ * Fractal sum of the tone noise. Each octave gets its own seed so they do not
+ * correlate, and the stack is normalised by the total amplitude so the result
+ * stays in 0..1 whatever `TONE_OCTAVES` is.
+ */
+function fbmTone(x: number, y: number, seed: number): number {
+  let value = 0
+  let total = 0
+  let amplitude = 1
+  let scale = VARIANT_PATCH_SCALE
+  for (let octave = 0; octave < TONE_OCTAVES; octave++) {
+    value += toneNoise(x, y, scale, seed * 977 + 3 + octave * 131) * amplitude
+    total += amplitude
+    amplitude *= TONE_OCTAVE_FALLOFF
+    scale /= TONE_OCTAVE_LACUNARITY
+  }
+  return value / total
+}
+
+/**
+ * Smooth 0..1 field that decides which tone patch a tile belongs to.
+ *
+ * Sampled from `fbmTone` (see the octave note above — one octave alone draws
+ * straight bands) and then stretched so the whole variant range shows up on a big
+ * clearing. The stretch is deliberately **linear**: this field is *quantised* into
+ * tone bands, so any curve here spends its steepness on some part of the range and
+ * steepness is band width — a soft roll-off made the middle bands so narrow that
+ * consecutive tiles alternated (measured: mean run 2.0 tiles). Linear keeps every
+ * band the same width, and the clipped ends are invisible: tiles either side of a
+ * clip both fall in the same end band, so no edge is drawn.
  */
 export function variantField(x: number, y: number, seed: number): number {
-  const broad = toneNoise(x, y, VARIANT_PATCH_SCALE, seed * 977 + 3)
-  const detail = toneNoise(x, y, VARIANT_DETAIL_SCALE, seed * 331 + 5)
-  const mixed = broad + (detail - 0.5) * 0.6
-  return clamp01((mixed - 0.5) * 1.6 + 0.5)
+  return clamp01((fbmTone(x, y, seed) - 0.5) * FIELD_GAIN + 0.5)
 }
 
 /** Tile variant index for a cell: patchy, with only a whisper of per-tile jitter. */
@@ -97,9 +148,14 @@ export function variantBoundaryBlend(x: number, y: number, count: number, seed: 
 /**
  * ±3% per-channel tint that follows the same low-frequency field (a whisper of
  * per-tile wobble on top), so large areas breathe without checkering.
+ *
+ * Uses the same octave stack as the tone bands, and for the same reason: a single
+ * octave of value noise ramps straight across a lattice cell, and because the tint
+ * is rounded to whole levels its level sets show up as faint *straight* steps
+ * running through the middle of a clearing.
  */
 export function groundTint(x: number, y: number, seed: number): number {
-  const patch = toneNoise(x, y, VARIANT_PATCH_SCALE, seed * 131 + 7)
+  const patch = fbmTone(x, y, seed * 131 + 7)
   const micro = (cornerHash(x, y, seed * 65537 + 17) % 5) - 2
   const base = Math.round((patch - 0.5) * 14) + micro
   return (

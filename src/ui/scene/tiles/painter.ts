@@ -1,6 +1,6 @@
 import { Container, Graphics, Sprite, type Renderer, type Texture } from 'pixi.js'
 import { makeRandom } from '../random'
-import type { ZoneRect } from '../zoneLayout'
+import { insideAnyRect, type ZoneRect } from '../zoneLayout'
 import { paintDragMarks, paintPuddle } from './dirtDetail'
 import { generateEdgeTiles } from './edgeTiles'
 import { TILE_SIZE, blobContour, cornerHash, cornerMask, rectContour } from './edgeGeometry'
@@ -16,7 +16,7 @@ import {
   pickWaterKind,
 } from './groundItems'
 import { EDGE_TONES, terrainTones, type TileKind } from './terrain'
-import { generateTileSet, tileSpeckTones, type TileSet } from './tileSet'
+import { generateTileSet, tileBaseTone, type TileSet } from './tileSet'
 import { groundTint, groundVariant, scatterDensity, scatterMix, variantBoundaryBlend } from './variety'
 import { paintShore } from './waterDetail'
 
@@ -29,6 +29,14 @@ export type ScatterVariant = 'flora' | 'debris' | 'water'
 
 /** Bề rộng vùng đệm khi rải rác trong một khu (tránh sát mép). */
 const SCATTER_MARGIN = 6
+
+/**
+ * Dither budget at a tonal patch border: fraction of the tile area sprinkled at
+ * the closest point of the border. Carried by *density*, not alpha, so the whole
+ * dither pass keeps one fill style and batches as a single draw.
+ */
+const DITHER_MAX_DENSITY = 0.35
+const DITHER_ALPHA = 0.6
 
 /**
  * Terrains whose textures are isotropic, so rotating/flipping a cell hides
@@ -244,8 +252,20 @@ export class TilePainter {
    * instead of an even sprinkle; `scatterMix` biases what each drift holds
    * (flowers vs tufts, stones vs twigs). `flora` belongs on grass — paint it
    * before the dirt blobs so clearings stay clean. `debris` works on any terrain.
+   *
+   * `skip` lists no-go rects (the zones plus their floor lip — see
+   * `worldGrounds.SCATTER_SKIP`): specimens landing there are dropped. The kind
+   * is still drawn from the RNG *before* the check, so clearing a region never
+   * shifts the rest of the map's scatter by one draw.
    */
-  scatter(container: Container, rect: ZoneRect, seed: number, variant: ScatterVariant = 'debris', cell = 22): void {
+  scatter(
+    container: Container,
+    rect: ZoneRect,
+    seed: number,
+    variant: ScatterVariant = 'debris',
+    cell = 22,
+    skip: readonly ZoneRect[] = [],
+  ): void {
     const rnd = makeRandom(seed)
     const g = new Graphics()
     for (let y = rect.y + SCATTER_MARGIN; y < rect.y + rect.height - SCATTER_MARGIN; y += cell) {
@@ -263,9 +283,16 @@ export class TilePainter {
           if (i > 0 && rnd() > density) break
           const px = i === 0 ? cx : Math.round(cx + (rnd() - 0.5) * cell * 0.8)
           const py = i === 0 ? cy : Math.round(cy + (rnd() - 0.5) * cell * 0.8)
-          if (variant === 'flora') drawFloraItem(g, px, py, pickFloraKind(mix, rnd), rnd)
-          else if (variant === 'water') drawWaterItem(g, px, py, pickWaterKind(mix, rnd), rnd)
-          else drawDebrisItem(g, px, py, pickDebrisKind(mix, rnd), rnd)
+          const kind =
+            variant === 'flora'
+              ? pickFloraKind(mix, rnd)
+              : variant === 'water'
+                ? pickWaterKind(mix, rnd)
+                : pickDebrisKind(mix, rnd)
+          if (insideAnyRect(skip, px, py)) continue
+          if (variant === 'flora') drawFloraItem(g, px, py, kind, rnd)
+          else if (variant === 'water') drawWaterItem(g, px, py, kind, rnd)
+          else drawDebrisItem(g, px, py, kind, rnd)
         }
       }
     }
@@ -296,7 +323,8 @@ export class TilePainter {
     const textures = this.set[kind]
     const count = textures.length
     const salt = seed + KIND_OFFSET[kind]
-    const texture = textures[groundVariant(x, y, count, salt)]
+    const variant = groundVariant(x, y, count, salt)
+    const texture = textures[variant]
     if (!texture) return
 
     const sprite = new Sprite(texture)
@@ -313,16 +341,46 @@ export class TilePainter {
     }
     container.addChild(sprite)
 
-    // Rìa mảng tông: rắc hạt của biến thể bên cạnh để mép không bị bậc.
+    this.ditherBorder(dither, kind, x, y, count, salt, variant)
+  }
+
+  /**
+   * Dissolves the step between two tonal patches.
+   *
+   * A tile that abuts a *different* tone gets its neighbour's **base** tone
+   * sprinkled over it, denser the closer it sits to the border between them. Three
+   * things matter and the first two were wrong before:
+   *
+   * 1. the dither colour is the neighbour's **base** tone, not its grain tones —
+   *    the grain pair sits ~30% away from the base, so the old dither sprinkled
+   *    light/dark dots that read as noise instead of easing one tone into the next;
+   * 2. only tiles that really touch another tone are dithered. The field value only
+   *    says "somewhere inside this band", which is most of the map, so dithering on
+   *    it alone spends hundreds of thousands of rects on tiles that show no seam;
+   * 3. density (not alpha) carries the blend, so the whole pass keeps one fill
+   *    style and batches as a single draw.
+   */
+  private ditherBorder(
+    dither: Graphics,
+    kind: TileKind,
+    x: number,
+    y: number,
+    count: number,
+    salt: number,
+    ownVariant: number,
+  ): void {
+    if (count < 2) return
+    if (!touchesOtherTone(x, y, count, salt, ownVariant)) return
     const blend = variantBoundaryBlend(x, y, count, salt)
     if (!blend || blend.amount <= 0.05) return
-    const tones = tileSpeckTones(kind, blend.variant)
-    const rnd = makeRandom(cornerHash(x, y, seed * 457 + 31))
-    const specks = Math.round(6 * blend.amount)
+
+    const tone = tileBaseTone(kind, blend.variant)
+    const rnd = makeRandom(cornerHash(x, y, salt * 457 + 31))
+    const specks = Math.round(TILE_SIZE * TILE_SIZE * DITHER_MAX_DENSITY * blend.amount)
     for (let i = 0; i < specks; i++) {
       dither
         .rect(Math.round(x + rnd() * (TILE_SIZE - 1)), Math.round(y + rnd() * (TILE_SIZE - 1)), 1, 1)
-        .fill({ color: rnd() < 0.5 ? tones[0] : tones[1], alpha: 0.5 * blend.amount })
+        .fill({ color: tone, alpha: DITHER_ALPHA })
     }
   }
 
@@ -540,6 +598,16 @@ export class TilePainter {
     }
     root.addChild(g)
   }
+}
+
+/** Does any 4-neighbour of this tile hold a different variant? */
+function touchesOtherTone(x: number, y: number, count: number, salt: number, ownVariant: number): boolean {
+  return (
+    groundVariant(x - TILE_SIZE, y, count, salt) !== ownVariant ||
+    groundVariant(x + TILE_SIZE, y, count, salt) !== ownVariant ||
+    groundVariant(x, y - TILE_SIZE, count, salt) !== ownVariant ||
+    groundVariant(x, y + TILE_SIZE, count, salt) !== ownVariant
+  )
 }
 
 const KIND_OFFSET: Record<TileKind, number> = {

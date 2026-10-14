@@ -1,4 +1,5 @@
 import type { GroundCanvas } from './tiles/groundCanvas'
+import type { ZoneRect } from './zoneLayout'
 
 /**
  * Yard decor specimens — trees, rocks, logs and scrap, all drawn with the same
@@ -137,25 +138,55 @@ export function drawBarrel(g: GroundCanvas, x: number, y: number, tone = 0x5d8a7
   g.rect(x - 7, y - 1, 14, 1).fill(UNDER_EDGE)
 }
 
-/** Single tyre lying flat: tread ticks outside, dark hole with a lit inner floor. */
+/**
+ * Rubber tones, matched to the alley tire art (`focus/alley/sprites.ts`): a tire
+ * is grey rubber, not a black ring. Side wall in shade, mid-tone face, tread
+ * nicks cut dark, and a pitch-dark hole with a lit inner edge up-left.
+ */
+const TIRE_WALL = 0x1f232b
+const TIRE_FACE = 0x353c48
+const TIRE_LIT = 0x4a5260
+const TIRE_TREAD = 0x12141a
+const TIRE_HOLE = 0x14161a
+const TIRE_RIM = 0x2a303a
+
+/** Single tyre lying flat: side wall peeking under the rim, tread nicks, lit crown. */
 export function drawTire(g: GroundCanvas, x: number, y: number): void {
-  footing(g, x, y, 10)
-  g.ellipse(x, y - 4, 10, 5).fill(0x2b2f3d)
-  g.ellipse(x, y - 4.5, 7, 3.4).fill(0x1a1c22)
-  g.ellipse(x, y - 3.5, 5.4, 2.2).fill(0x3a3f4d)
-  g.rect(x - 10, y - 5.5, 2, 1).fill({ color: 0x565c66, alpha: 0.8 })
-  g.rect(x + 3, y - 8.5, 1, 2).fill({ color: 0x565c66, alpha: 0.8 })
+  const rx = 10
+  const ry = 4.5
+  const cy = y - ry - 0.6
+  footing(g, x, y, rx)
+  g.ellipse(x, cy + 1.6, rx, ry).fill(TIRE_WALL)
+  for (const u of [-0.5, 0, 0.5]) {
+    const edge = cy + 1.6 + ry * Math.sqrt(1 - u * u)
+    g.rect(x + u * rx - 0.7, edge - 1.5, 1.4, 1.5).fill(TIRE_TREAD)
+  }
+  g.ellipse(x, cy, rx, ry).fill(TIRE_FACE)
+  g.rect(x - rx * 0.5, cy - ry * 0.9, rx, 1).fill({ color: TIRE_LIT, alpha: 0.8 })
+  g.ellipse(x, cy, rx * 0.5, ry * 0.47).fill(TIRE_HOLE)
+  g.rect(x - rx * 0.28, cy - ry * 0.38, rx * 0.56, 0.9).fill(TIRE_RIM)
 }
 
-/** Stack of tyres: each ring casts a little shade on the one below. */
+/** Stack of tyres: each level shows its tread wall under a lit rim, the one above shades it. */
 export function drawTireStack(g: GroundCanvas, x: number, y: number): void {
-  footing(g, x, y, 11)
+  const rx = 10.2
+  const ry = 3.6
+  const step = 5
+  footing(g, x, y, rx + 1)
   for (let i = 0; i < 3; i++) {
-    const base = y - i * 5
-    g.ellipse(x, base - 4, 10, 5).fill(0x2b2f3d)
-    g.ellipse(x, base - 4.5, 6.6, 3.2).fill(0x16181d)
-    g.ellipse(x - 1, base - 4.5, 5, 2.2).fill(0x3a3f4d)
-    g.rect(x - 10, base - 6.5, 20, 1).fill({ color: 0x000000, alpha: 0.25 })
+    const ty = y - i * step
+    g.ellipse(x, ty - ry + 0.6, rx, ry).fill(TIRE_WALL)
+    for (const u of [-0.5, 0, 0.5]) {
+      const edge = ty - ry + 0.6 + ry * Math.sqrt(1 - u * u)
+      g.rect(x + u * rx - 0.7, edge - 1.4, 1.4, 1.4).fill(TIRE_TREAD)
+    }
+    g.ellipse(x, ty - ry - 0.6, rx, ry).fill(TIRE_FACE)
+    g.rect(x - rx * 0.5, ty - ry - 0.6 - ry * 0.9, rx, 1).fill({ color: TIRE_LIT, alpha: 0.8 })
+    g.ellipse(x, ty - ry - 0.6, rx * 0.5, ry * 0.45).fill(TIRE_HOLE)
+    g.rect(x - rx * 0.28, ty - ry - 0.6 - ry * 0.36, rx * 0.56, 0.85).fill(TIRE_RIM)
+    if (i < 2) {
+      g.ellipse(x, ty - ry - 0.6, rx + 0.2, ry).fill({ color: 0x000000, alpha: 0.18 })
+    }
   }
 }
 
@@ -236,9 +267,9 @@ export function drawScrapPile(g: GroundCanvas, x: number, y: number): void {
   g.rect(x + 6, y - 19, 6, 1).fill(0xc9a06a)
   g.rect(x - 14, y - 4, 3, 1).fill({ color: 0x6b7480, alpha: 0.9 })
   g.rect(x + 12, y - 6, 2, 1).fill({ color: 0xaab3c0, alpha: 0.9 })
-  // Lốp cũ nằm chỏng: hai ellipse lồng nhau thay cho nét viền (giữ pixel sắc).
-  g.ellipse(x + 14, y - 2, 4, 3).fill(0x2b2f3d)
-  g.ellipse(x + 14, y - 2, 2, 1.4).fill(0x4a505c)
+  // Lốp cũ nằm chỏng: vành cao su quanh lỗ tối, cùng tông với lốp rời.
+  g.ellipse(x + 14, y - 2, 4, 3).fill(TIRE_FACE)
+  g.ellipse(x + 14, y - 2.3, 1.9, 1.4).fill(TIRE_HOLE)
 }
 
 export interface DecorSpecimen {
@@ -251,6 +282,22 @@ export interface DecorSpecimen {
   draw: (g: GroundCanvas, x: number, y: number) => void
 }
 
+/**
+ * How far a contact shadow may spill below the anchor (px). Widest pieces read
+ * as sitting on the ground only with a soft patch under them, so the declared
+ * box has to allow it — and so does anything that tests the box's footprint.
+ */
+export const SHADOW_SPILL = 10
+
+/**
+ * Footprint of a specimen placed at (x, y) in world px. Single source for
+ * "where does a hand-placed prop actually stand" — layout tests use it to keep
+ * props out of the zones.
+ */
+export function decorBox(specimen: DecorSpecimen, x: number, y: number): ZoneRect {
+  return { x: x - specimen.width / 2, y: y - specimen.height, width: specimen.width, height: specimen.height + SHADOW_SPILL }
+}
+
 /** The catalog the studio lists and the tests walk. */
 export const DECOR_SPECIMENS: readonly DecorSpecimen[] = [
   { key: 'tree0', label: 'cây sồi tối', group: 'Cây cối', width: 48, height: 44, draw: (g, x, y) => drawTree(g, x, y, 0) },
@@ -261,6 +308,8 @@ export const DECOR_SPECIMENS: readonly DecorSpecimen[] = [
   { key: 'log', label: 'khúc gỗ', group: 'Cây cối', width: 40, height: 14, draw: drawLog },
   { key: 'tuft', label: 'cụm cỏ cao', group: 'Cây cối', width: 18, height: 14, draw: drawTuft },
   { key: 'rock', label: 'hòn đá', group: 'Đá & mặt đất', width: 24, height: 12, draw: (g, x, y) => drawRock(g, x, y, 1) },
+  { key: 'rockSmall', label: 'đá nhỏ', group: 'Đá & mặt đất', width: 22, height: 11, draw: (g, x, y) => drawRock(g, x, y, 0.9) },
+  { key: 'rockBig', label: 'đá lớn', group: 'Đá & mặt đất', width: 27, height: 14, draw: (g, x, y) => drawRock(g, x, y, 1.1) },
   { key: 'rockCluster', label: 'cụm đá', group: 'Đá & mặt đất', width: 40, height: 14, draw: drawRockCluster },
   { key: 'barrel0', label: 'thùng phuy xanh', group: 'Phế liệu', width: 22, height: 26, draw: (g, x, y) => drawBarrel(g, x, y) },
   { key: 'barrel1', label: 'thùng phuy gỉ', group: 'Phế liệu', width: 22, height: 26, draw: (g, x, y) => drawBarrel(g, x, y, 0x8a6a52) },

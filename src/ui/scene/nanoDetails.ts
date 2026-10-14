@@ -12,7 +12,7 @@ export function createNanoDetails(): Container {
   const props = new Graphics()
 
   const rnd = makeRandom(777001)
-  for (const zoneId of ['alley', 'route', 'depot', 'gate']) {
+  for (const zoneId of ['alley', 'recycle', 'route', 'depot', 'gate']) {
     const layout = ZONE_LAYOUTS[zoneId]
     if (!layout) continue
     const rect = layout.rect

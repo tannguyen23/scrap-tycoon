@@ -1,6 +1,8 @@
 import type { GameContent } from '@domain/types'
+import { BALANCE } from './balance'
 import { SCRAP_BRANCH } from './branches/scrap'
 import { ITEMS, MONEY_ITEM } from './items'
+import { WEATHER } from './weather'
 import { ZONES } from './zones'
 
 /**
@@ -14,4 +16,6 @@ export const GAME_CONTENT: GameContent = {
   branches: {
     [SCRAP_BRANCH.id]: SCRAP_BRANCH,
   },
+  weather: WEATHER,
+  simulation: { offlineChunkSeconds: BALANCE.offlineChunkSeconds },
 }

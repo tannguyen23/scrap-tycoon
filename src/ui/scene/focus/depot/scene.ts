@@ -1,4 +1,4 @@
-import type { ZoneRect } from '../../zoneLayout'
+import { ZONE_LAYOUTS, type ZoneRect } from '../../zoneLayout'
 import { Container, Graphics } from 'pixi.js'
 import type { TilePainter } from '../../tiles/painter'
 import {
@@ -8,6 +8,7 @@ import {
   paintStain,
   paintWearPath,
 } from '../../tiles/dirtDetail'
+import { drawZoneFence } from '../fence'
 import { Particles, SHADOW, createSack } from '../parts'
 import type { DetailScene, DetailSceneState, Spot } from '../types'
 import { createHauler, type HaulerActor } from './actors'
@@ -23,7 +24,9 @@ export function createDepotDetail(rect: ZoneRect, tiles: TilePainter): DetailSce
   const width = rect.width
   const height = rect.height
 
-  tiles.paintBlob(root, { x: 0, y: 0, width, height }, 'dirt', 303, 16, 'dirt')
+  // KHÔNG vẽ lại sàn ở đây — xem ghi chú ở `focus/alley/scene.ts`: sàn đất của khu
+  // đã có trong `worldGrounds`, vẽ lần hai bằng seed khác ở toạ độ local chỉ tạo ra
+  // hai trường tông đâm vào nhau giữa sàn.
   // Sân bê tông trước kho: mép dùng tile chuyển tiếp bê tông↔đất nên nó loe ra
   // như sân mòn lẫn đất, không phải một slab với cạnh thẳng.
   tiles.paintPath(root, { x: 4, y: 52, width: 124, height: 36 }, 'concrete', 304, 'dirt', 14, 20)
@@ -50,6 +53,11 @@ export function createDepotDetail(rect: ZoneRect, tiles: TilePainter): DetailSce
   drawWheelbarrow(props, 60, 78)
   drawNoticeboard(props, 80, 60)
   root.addChild(props)
+
+  // Hàng rào bao sân, cổng mở đúng chỗ lối đi đất + làn nhựa vào kho (cạnh bắc).
+  const fence = new Graphics()
+  drawZoneFence(fence, rect, ZONE_LAYOUTS.depot?.fenceOpenings)
+  root.addChild(fence)
 
   const lamp = new Graphics()
   lamp.rect(115, 14, 2, 8).fill(0x75808d)

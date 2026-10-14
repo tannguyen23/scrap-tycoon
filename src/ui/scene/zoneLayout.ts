@@ -27,9 +27,25 @@ export interface ZoneStyle {
   css: string
 }
 
+/** Lỗ mở trên hàng rào bao khu — chỗ làn xe/lối đi cắt qua một cạnh của khu. */
+export interface FenceOpening {
+  /** Cạnh của khu bị cắt qua. */
+  edge: 'north' | 'east' | 'south' | 'west'
+  /** Toạ độ LOCAL dọc theo cạnh (x cho cạnh bắc/nam, y cho cạnh đông/tây). */
+  from: number
+  to: number
+}
+
 export interface ZoneLayout {
   rect: ZoneRect
   style: ZoneStyle
+  /**
+   * Hàng rào quanh khu do chính scene chi tiết của khu vẽ (để cả map lẫn tab Khu
+   * trong studio đều thấy). Ở đây chỉ khai LỖ MỞ: làn đất/làn nhựa cắt qua cạnh nào
+   * thì mở cổng đúng khổ làn đó, hai bên dựng trụ cổng. Khu `route` là đường chạy
+   * ngang map nên không rào, không khai gì.
+   */
+  fenceOpenings?: readonly FenceOpening[]
 }
 
 export const DEFAULT_ZONE_STYLE: ZoneStyle = { color: 0x8b93a7, css: '#8b93a7' }
@@ -43,7 +59,31 @@ export const DEFAULT_ZONE_STYLE: ZoneStyle = { color: 0x8b93a7, css: '#8b93a7' }
 export const ZONE_LAYOUTS: Record<string, ZoneLayout> = {
   alley: {
     style: { color: 0x7cc45c, css: '#7cc45c' },
-    rect: { x: 80, y: 70, width: 224, height: 124 },
+    // Bãi rác lớn: 21×17 ô. Trần kích thước là blob sàn chứ không phải rect — blob
+    // nở thêm pad 24 rồi cộng đợt sóng (~17% bán kính với mảng cỡ này), nên mép
+    // phải chừa ~40px mỗi bên: bên phải là bãi đất cao (blob tới x≈464) và ao nhỏ
+    // đã dời sang (490,210), bên trái là mép canvas. Cạnh vẫn bám lưới 16 để lớp
+    // sàn vẽ ở toạ độ local của khu trùng lưới tile với bản đồ.
+    rect: { x: 48, y: 48, width: 336, height: 272 },
+    // Cổng ngõ: làn đất ngõ → đường rộng 72px cắt qua cạnh nam (world x 206..278),
+    // và lối mòn đất sang xưởng tái chế ở cạnh đông (world y 100..148).
+    fenceOpenings: [
+      { edge: 'south', from: 158, to: 230 },
+      { edge: 'east', from: 52, to: 100 },
+    ],
+  },
+  recycle: {
+    style: { color: 0xd08a4a, css: '#d08a4a' },
+    // Xưởng tái chế: 16.5×11 ô ở khoảng trống phía bắc giữa map — chặng nối giữa
+    // ngõ nhặt (tây-bắc) và nơi đóng hàng (nam-tây). Cạnh bắc chừa 8px để rào
+    // không chạm mép canvas; cạnh nam (y 184) chừa 196px xuống mặt đường.
+    rect: { x: 608, y: 8, width: 264, height: 176 },
+    // Hai cổng: lối mòn đất từ ngõ (world y 100..148) ở cạnh tây, làn nhựa ra
+    // tuyến ba gác (world x 700..748) ở cạnh nam.
+    fenceOpenings: [
+      { edge: 'west', from: 92, to: 140 },
+      { edge: 'south', from: 92, to: 140 },
+    ],
   },
   route: {
     style: { color: 0xffb454, css: '#ffb454' },
@@ -52,15 +92,32 @@ export const ZONE_LAYOUTS: Record<string, ZoneLayout> = {
   depot: {
     style: { color: 0x7fa4d9, css: '#7fa4d9' },
     rect: { x: 80, y: 560, width: 264, height: 88 },
+    // Cổng kho: lối đi đất vào nhà (world x 196..272) cắt qua cạnh bắc; làn nhựa
+    // 216..252 nằm gọn trong lỗ mở đó.
+    fenceOpenings: [{ edge: 'north', from: 116, to: 192 }],
   },
   gate: {
     style: { color: 0xf08a6a, css: '#f08a6a' },
     rect: { x: 860, y: 548, width: 256, height: 92 },
+    // Hai cổng: làn nhựa vào cổng (world x 924..960) ở cạnh bắc, làn xuất hàng
+    // (world y 576..608) ở cạnh đông — mở tới y 612 để không cắt mặt nhựa trong sân.
+    fenceOpenings: [
+      { edge: 'north', from: 64, to: 100 },
+      { edge: 'east', from: 28, to: 64 },
+    ],
   },
 }
 
 export function zoneStyle(zoneId: ZoneId): ZoneStyle {
   return ZONE_LAYOUTS[zoneId]?.style ?? DEFAULT_ZONE_STYLE
+}
+
+/** True khi (x, y) rơi vào một trong các rect — dùng cho vùng cấm của lớp rải random. */
+export function insideAnyRect(rects: readonly ZoneRect[], x: number, y: number): boolean {
+  for (const rect of rects) {
+    if (x >= rect.x && x <= rect.x + rect.width && y >= rect.y && y <= rect.y + rect.height) return true
+  }
+  return false
 }
 
 /**
@@ -71,6 +128,9 @@ export const CONNECTORS: readonly ZoneRect[] = [
   { x: 216, y: 444, width: 36, height: 116 },
   { x: 924, y: 444, width: 36, height: 104 },
   { x: 1116, y: 576, width: 164, height: 32 },
+  // Làn nhựa xưởng tái chế → tuyến ba gác (world x 700..748), chạy từ mép nam
+  // của xưởng (y 184) xuống mặt đường (y 380).
+  { x: 700, y: 184, width: 48, height: 196 },
 ]
 
 export interface PatchArea {
@@ -117,7 +177,7 @@ export interface WaterArea {
 export const WATER_AREAS: readonly WaterArea[] = [
   { rect: { x: 880, y: 120, width: 170, height: 100 } },
   { rect: { x: 560, y: 240, width: 108, height: 66 } },
-  { rect: { x: 360, y: 120, width: 70, height: 44 } },
+  { rect: { x: 490, y: 210, width: 70, height: 44 } },
   { rect: { x: 440, y: 500, width: 120, height: 70 }, outside: 'dirt' },
   { rect: { x: 700, y: 610, width: 76, height: 46 } },
 ]

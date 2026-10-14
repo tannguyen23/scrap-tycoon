@@ -1,5 +1,7 @@
-import type Decimal from 'break_eternity.js'
+import { Decimal } from '@core/num'
 import type { GameContent, GameState, StatEffect } from './types'
+import { GLOBAL_WORKER_OUTPUT } from './statKeys'
+import { weatherWorkMultiplier } from './weather'
 
 export interface Modifiers {
   flat: Decimal[]
@@ -9,6 +11,17 @@ export interface Modifiers {
 
 export function emptyModifiers(): Modifiers {
   return { flat: [], mult: [], global: [] }
+}
+
+/** Concatenates two modifier sets — e.g. a branch's own mods + the global world mods. */
+export function mergeModifiers(a: Modifiers | undefined, b: Modifiers | undefined): Modifiers | undefined {
+  if (!a) return b
+  if (!b) return a
+  return {
+    flat: [...a.flat, ...b.flat],
+    mult: [...a.mult, ...b.mult],
+    global: [...a.global, ...b.global],
+  }
 }
 
 /**
@@ -36,6 +49,17 @@ export function collectModifiers(state: GameState, content: GameContent): Map<st
       for (const effect of upgrade.effects) {
         addEffect(result, effect)
       }
+    }
+  }
+
+  // Weather is time-derived (playTimeS) rather than purchased, but it still flows
+  // through the pipeline so every consumer — tick, offline, income selectors —
+  // sees the same multiplier without extra plumbing.
+  const weather = content.weather
+  if (weather) {
+    const multiplier = weatherWorkMultiplier(weather, state.stats.playTimeS)
+    if (multiplier !== 1) {
+      addEffect(result, { target: GLOBAL_WORKER_OUTPUT, kind: 'global', value: new Decimal(multiplier) })
     }
   }
   return result

@@ -1,6 +1,16 @@
 import { LANGUAGE_NAMES, UI } from '@i18n/text'
 import { LOCALES } from '@i18n/types'
-import { useEngine, useLocale, useLocaleStore, useText, useThemeMode, useThemeStore } from '@ui/hooks'
+import {
+  useEngine,
+  useLocale,
+  useLocaleStore,
+  useSoundSettings,
+  useSoundStore,
+  useText,
+  useThemeMode,
+  useThemeStore,
+} from '@ui/hooks'
+import { playSound } from '@ui/sound/player'
 
 export interface SettingsModalProps {
   onClose: () => void
@@ -12,6 +22,8 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
   const localeStore = useLocaleStore()
   const theme = useThemeMode()
   const themeStore = useThemeStore()
+  const soundStore = useSoundStore()
+  const settings = useSoundSettings()
   const text = useText()
 
   const resetSave = (): void => {
@@ -33,7 +45,10 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                 key={code}
                 type="button"
                 className={code === locale ? 'chip active' : 'chip'}
-                onClick={() => localeStore.set(code)}
+                onClick={() => {
+                  localeStore.set(code)
+                  playSound('click')
+                }}
               >
                 {LANGUAGE_NAMES[code]}
               </button>
@@ -47,16 +62,47 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
             <button
               type="button"
               className={theme === 'light' ? 'chip active' : 'chip'}
-              onClick={() => themeStore.set('light')}
+              onClick={() => {
+                themeStore.set('light')
+                playSound('click')
+              }}
             >
               {text(UI.themeLight)}
             </button>
             <button
               type="button"
               className={theme === 'dark' ? 'chip active' : 'chip'}
-              onClick={() => themeStore.set('dark')}
+              onClick={() => {
+                themeStore.set('dark')
+                playSound('click')
+              }}
             >
               {text(UI.themeDark)}
+            </button>
+          </div>
+        </div>
+
+        <div className="settings-row">
+          <span>{text(UI.sound)}</span>
+          <div className="language-options">
+            <input
+              type="range"
+              min={0}
+              max={100}
+              step={5}
+              value={Math.round(settings.volume * 100)}
+              aria-label={text(UI.sound)}
+              onChange={(event) => soundStore.set({ volume: Number(event.target.value) / 100 })}
+            />
+            <button
+              type="button"
+              className={settings.muted ? 'chip active' : 'chip'}
+              onClick={() => {
+                soundStore.set({ muted: !settings.muted })
+                playSound('click')
+              }}
+            >
+              {text(settings.muted ? UI.soundUnmute : UI.soundMute)}
             </button>
           </div>
         </div>

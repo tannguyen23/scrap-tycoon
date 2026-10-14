@@ -2,6 +2,7 @@ import { formatShort } from '@core/format'
 import type { OfflineReport } from '@domain/systems/offline'
 import { UI, formatDuration } from '@i18n/text'
 import { useLocale, useText } from '@ui/hooks'
+import { playSound } from '@ui/sound/player'
 
 export interface OfflineModalProps {
   report: OfflineReport
@@ -27,7 +28,13 @@ export function OfflineModal({ report, onClose }: OfflineModalProps) {
             {text(UI.offlineCapped, { time: formatDuration(report.effectiveSeconds, locale) })}
           </p>
         )}
-        <button type="button" onClick={onClose}>
+        <button
+          type="button"
+          onClick={() => {
+            onClose()
+            playSound('click')
+          }}
+        >
           {text(UI.ok)}
         </button>
       </div>

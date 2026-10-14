@@ -12,6 +12,12 @@ export const BALANCE = {
   autosaveSeconds: 15,
   /** Maximum offline time credited, in hours. */
   offlineCapHours: 8,
+  /**
+   * Step (s) used when offline must chunk because rates are state-dependent
+   * (stock caps / transport legs). Online ticks at `tickSeconds`; this is the
+   * offline approximation granularity.
+   */
+  offlineChunkSeconds: 1,
   /** Absences shorter than this are simulated silently (no welcome-back modal). */
   offlineModalThresholdSeconds: 60,
   /** rAF gaps longer than this are treated as an absence instead of ticks. */

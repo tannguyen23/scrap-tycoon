@@ -17,6 +17,13 @@ export const UI = {
   themeLight: { vi: 'Sáng', en: 'Light' },
   themeDark: { vi: 'Tối', en: 'Dark' },
   close: { vi: 'Đóng', en: 'Close' },
+  sound: { vi: 'Âm thanh', en: 'Sound' },
+  soundMute: { vi: 'Tắt tiếng', en: 'Mute' },
+  soundUnmute: { vi: 'Bật tiếng', en: 'Unmute' },
+  weather: { vi: 'Thời tiết — ảnh hưởng tốc độ thợ', en: 'Weather — affects worker speed' },
+  stock: { vi: 'Tồn', en: 'Stock' },
+  full: { vi: 'Đầy', en: 'Full' },
+  saleChannels: { vi: 'Kênh bán lẻ (vớt hàng dư)', en: 'Sales channels (surplus)' },
   resetSave: { vi: 'Xoá save', en: 'Reset save' },
   resetSaveConfirm: {
     vi: 'Xoá toàn bộ tiến độ và quay lại từ đầu?',

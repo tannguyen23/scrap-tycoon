@@ -1,8 +1,14 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { sampleAmbient } from '@ui/scene/lighting'
 import { PRIMARY_TERRAINS, type TileKind } from '@ui/scene/tiles/terrain'
+import { SOUND_GROUPS, SOUND_GROUP_LABELS, SOUND_IDS, SOUND_LIBRARY } from '@ui/sound/library'
+import { sound } from '@ui/sound/player'
+import { DEFAULT_SOUND_SETTINGS } from '@ui/sound/settings'
 import { StageCanvas } from './StageCanvas'
 import {
+  CHARACTER_CLIPS,
+  CHARACTERS,
+  STUDIO_WEATHER_KINDS,
   buildCharacters,
   buildDecor,
   buildEdgeSheet,
@@ -14,6 +20,7 @@ import {
   buildSeam,
   buildTiles,
   buildTraces,
+  buildWeatherWorld,
   buildZone,
 } from './previews'
 import type { StageApi, StageBuilder, StageCell, StageScene } from './types'
@@ -221,12 +228,78 @@ export function DecorTab() {
   )
 }
 
+/** Builders are cached per combo so the stage only rebuilds when the pair changes. */
+const charactersCache = new Map<string, StageBuilder>()
+function charactersFor(characterId: string, clipId: string): StageBuilder {
+  const key = `${characterId}|${clipId}`
+  let build = charactersCache.get(key)
+  if (!build) {
+    build = buildCharacters(characterId, clipId)
+    charactersCache.set(key, build)
+  }
+  return build
+}
+
 export function CharactersTab() {
+  const [characterId, setCharacterId] = useState('ve-chai')
+  const [clipId, setClipId] = useState('poke')
+  const [facing, setFacing] = useState<1 | -1>(1)
+  const [paused, setPaused] = useState(false)
+  const [api, setApi] = useState<StageApi | null>(null)
+
+  useEffect(() => {
+    api?.setFacing?.(facing)
+  }, [api, facing])
+
+  useEffect(() => {
+    api?.setPaused?.(paused)
+  }, [api, paused])
+
+  const character = CHARACTERS.find((entry) => entry.id === characterId)
+  const clip = CHARACTER_CLIPS.find((entry) => entry.id === clipId)
+
   return (
     <StageFrame
-      caption="Nhân vật — mọi biến thể, đang bước tại chỗ"
-      note="Dáng vuông vức kiểu voxel (đầu/mũ/tay/chân đều là khối chữ nhật, không bo tròn), góc nghiêng ¾: mặt + mũ, tay vung theo nhịp, chân bước; actor thật dùng chung sprite này qua actors.ts. Limb vẽ tại gốc và neo bằng .x; khối theo nắng trên-trái như decor (bóng tiếp xúc, giày tối, vai sáng – hông tối, đỉnh mũ sáng)."
-      build={buildCharacters}
+      caption={`Nhân vật — ${character?.prefix ?? '?'} × ${clip?.label ?? '?'}`}
+      note="Ghép tự do: chọn dáng rồi chọn hành động — đồ nghề thuộc về HÀNH ĐỘNG (WorkAction.items trong poses.ts), nên dáng nào cũng mặc được trọn bộ: 'chọt lon' tự gắn bịch nilong + cây chọt và lon bật vào bịch (đúng vòng lặp ngoài game ở alley/actors.ts); 'đi bộ'/'cúi nhặt' không mang đồ. 'Nhân vật trống' là body đầu trần không mũ để soi pose. Đổi lựa chọn là dựng lại stage; mỗi dáng hiện 3 biến thể A/B/C."
+      build={charactersFor(characterId, clipId)}
+      onScene={(scene) => setApi(scene.api ?? null)}
+      extra={
+        <div className="studio-controls">
+          <label className="studio-clip-group">
+            <span className="studio-clip-label">Nhân vật</span>
+            <select value={characterId} onChange={(event) => setCharacterId(event.target.value)}>
+              {CHARACTERS.map((entry) => (
+                <option key={entry.id} value={entry.id}>
+                  {entry.prefix}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="studio-clip-group">
+            <span className="studio-clip-label">Hành động</span>
+            <select value={clipId} onChange={(event) => setClipId(event.target.value)}>
+              {CHARACTER_CLIPS.map((entry) => (
+                <option key={entry.id} value={entry.id}>
+                  {entry.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="studio-check">
+            <input
+              type="checkbox"
+              checked={facing === -1}
+              onChange={(event) => setFacing(event.target.checked ? -1 : 1)}
+            />
+            Lật hướng (nhìn trái)
+          </label>
+          <label className="studio-check">
+            <input type="checkbox" checked={paused} onChange={(event) => setPaused(event.target.checked)} />
+            Tạm dừng
+          </label>
+        </div>
+      }
     />
   )
 }
@@ -235,7 +308,7 @@ export function PropsTab() {
   return (
     <StageFrame
       caption="Props & xe — bánh xe quay thật"
-      note="Bao tải/mảnh sắt/bánh nan hoa dùng chung từ parts.ts; xe ba gác và xe tải có state machine riêng ở actors.ts."
+      note="Bao tải/mảnh sắt/bánh nan hoa dùng chung từ parts.ts. Mọi xe (route: ba gác → bán tải → xe tải thùng; cổng xuất: xe container) đều dựng đứng trên bánh theo góc nghiêng ¾ như nhân vật: mặt hông nam có sọc sơn/tôn sóng, nóc nhô, đuôi xe hơi lộ (cửa cuốn trên xe cổng), bánh far/near lệch nhau như hai chân."
       build={buildProps}
     />
   )
@@ -243,25 +316,57 @@ export function PropsTab() {
 
 const ZONE_PREVIEWS = [
   { id: 'alley', caption: 'Khu: Ngõ nhặt ve chai (×2)', scale: 2 },
-  { id: 'route', caption: 'Khu: Đường ba gác chạy (×1)', scale: 1 },
-  { id: 'depot', caption: 'Khu: Kho / cân hàng (×2)', scale: 2 },
-  { id: 'gate', caption: 'Khu: Cổng ra vào (×2)', scale: 2 },
+  { id: 'recycle', caption: 'Khu: Xưởng tái chế — đe & búa (×2)', scale: 2 },
+  { id: 'route', caption: 'Khu: Tuyến xe chạy (×1)', scale: 1 },
+  { id: 'depot', caption: 'Khu: Nơi đóng hàng (×2)', scale: 2 },
+  { id: 'gate', caption: 'Khu: Cổng xuất (×2)', scale: 2 },
 ] as const
 
-const ZONE_BUILDERS = ZONE_PREVIEWS.map((zone) => ({
-  ...zone,
-  build: buildZone(zone.id, zone.scale),
-}))
+const ROUTE_TIERS = [
+  { tier: 0, label: 'Ba gác' },
+  { tier: 1, label: 'Xe bán tải' },
+  { tier: 2, label: 'Xe tải thùng' },
+] as const
+
+const zoneCache = new Map<string, StageBuilder>()
+function zoneFor(id: string, scale: number, tier: number): StageBuilder {
+  const key = `${id}|${scale}|${tier}`
+  let build = zoneCache.get(key)
+  if (!build) {
+    build = buildZone(id, scale, tier)
+    zoneCache.set(key, build)
+  }
+  return build
+}
 
 export function ZonesTab() {
+  const [routeTier, setRouteTier] = useState(0)
+  const routeTierLabel = ROUTE_TIERS.find((entry) => entry.tier === routeTier)?.label ?? ''
+
   return (
     <>
-      {ZONE_BUILDERS.map((zone) => (
+      {ZONE_PREVIEWS.map((zone) => (
         <StageFrame
           key={zone.id}
-          caption={zone.caption}
-          note="Scene thật của game với state giả (3 nhân công, log10 ≥ 5) — nhân vật, prop, ambient life đều chạy."
-          build={zone.build}
+          caption={zone.id === 'route' ? `${zone.caption} — ${routeTierLabel}` : zone.caption}
+          note="Scene thật của game với state giả (3 nhân công, log10 ≥ 5) — nhân vật, prop, ambient life đều chạy. Bậc xe ở tuyến đúng bằng art khi mua nâng cấp 'Xe bán tải' / 'Xe tải thùng' trong game."
+          build={zoneFor(zone.id, zone.scale, zone.id === 'route' ? routeTier : 0)}
+          extra={
+            zone.id === 'route' ? (
+              <div className="studio-switcher">
+                <label>
+                  Bậc xe:
+                  <select value={routeTier} onChange={(event) => setRouteTier(Number(event.target.value))}>
+                    {ROUTE_TIERS.map((entry) => (
+                      <option key={entry.tier} value={entry.tier}>
+                        {entry.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            ) : undefined
+          }
         />
       ))}
     </>
@@ -305,6 +410,7 @@ export function LayoutTab() {
 }
 
 const LIGHTING_WORLD = buildLightingWorld(18 / 24)
+const WEATHER_WORLD = buildWeatherWorld(14 / 24)
 
 function hex(color: number): string {
   return `#${color.toString(16).padStart(6, '0')}`
@@ -357,6 +463,155 @@ export function LightingTab() {
         </div>
       }
       onScene={(scene) => setApi(scene.api ?? null)}
+    />
+  )
+}
+
+/** Khoảng cách giữa hai âm khi "Phát lần lượt" — đủ để nghe rõ từng âm. */
+const SOUND_DEMO_STEP_MS = 450
+
+export function SoundsTab() {
+  const [volume, setVolume] = useState(DEFAULT_SOUND_SETTINGS.volume)
+  const [muted, setMuted] = useState(DEFAULT_SOUND_SETTINGS.muted)
+  const timers = useRef<number[]>([])
+
+  useEffect(() => {
+    sound.setMaster({ volume, muted })
+  }, [volume, muted])
+
+  useEffect(
+    () => () => {
+      for (const timer of timers.current) window.clearTimeout(timer)
+      timers.current = []
+    },
+    [],
+  )
+
+  const playAll = (): void => {
+    for (const timer of timers.current) window.clearTimeout(timer)
+    timers.current = SOUND_IDS.map((id, index) =>
+      window.setTimeout(() => {
+        sound.play(id)
+      }, index * SOUND_DEMO_STEP_MS),
+    )
+  }
+
+  return (
+    <section className="studio-panel">
+      <h3>Âm thanh — thư viện phát chung với game</h3>
+      <p className="studio-note">
+        Mọi âm thanh được tổng hợp bằng Web Audio trong ui/sound/library.ts — không có file âm thanh nào
+        trong repo. Game và studio phát đúng cùng một thư viện. Trình duyệt chỉ mở khoá audio sau click đầu
+        tiên (click này unlock, các click sau mới kêu); số trong tooltip là cooldown chống trùng của từng âm.
+      </p>
+      <div className="studio-controls">
+        <label className="studio-slider">
+          <span>
+            Âm lượng tổng: <b>{Math.round(volume * 100)}%</b>
+          </span>
+          <input
+            type="range"
+            min={0}
+            max={100}
+            step={5}
+            value={Math.round(volume * 100)}
+            onChange={(event) => setVolume(Number(event.target.value) / 100)}
+          />
+        </label>
+        <label className="studio-check">
+          <input type="checkbox" checked={muted} onChange={(event) => setMuted(event.target.checked)} />
+          Tắt tiếng
+        </label>
+        <button className="chip" onClick={playAll}>
+          Phát lần lượt ({SOUND_IDS.length})
+        </button>
+      </div>
+      <div className="studio-sound-groups">
+        {SOUND_GROUPS.map((group) => (
+          <div key={group} className="studio-sound-group">
+            <span className="studio-clip-label">{SOUND_GROUP_LABELS[group].vi}</span>
+            <div className="studio-controls">
+              {SOUND_IDS.filter((id) => SOUND_LIBRARY[id].group === group).map((id) => {
+                const spec = SOUND_LIBRARY[id]
+                return (
+                  <button
+                    key={id}
+                    className="chip"
+                    title={`${spec.description.vi} · cooldown ${spec.cooldownMs}ms`}
+                    onClick={() => {
+                      sound.play(id)
+                    }}
+                  >
+                    {spec.label.vi}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+export function WeatherTab() {
+  const [kindId, setKindId] = useState<string | null>('rain')
+  const [hour, setHour] = useState(14)
+  const [api, setApi] = useState<StageApi | null>(null)
+
+  useEffect(() => {
+    api?.setTime?.(hour / 24)
+  }, [api, hour])
+
+  useEffect(() => {
+    api?.setWeather?.(kindId)
+  }, [api, kindId])
+
+  return (
+    <StageFrame
+      caption="Thời tiết — mây, mưa, gió, bão trên map thật"
+      note="Dùng chung module ui/scene/weather.ts với game: mây + bóng ghép cặp lệch theo nắng trên-trái, gloom nhân màu, mưa nghiêng theo gió, splash + gợn mặt ao, chớp sét nằm sau grade ngày/đêm. 'Theo lịch' chạy nhanh ×8 để xem chuyển mùa; tiếng mưa/gió to dần theo cường độ, nút 'Chớp sét' phát cả sấm."
+      build={WEATHER_WORLD}
+      onScene={(scene) => setApi(scene.api ?? null)}
+      extra={
+        <div className="studio-controls">
+          <label className="studio-clip-group">
+            <span className="studio-clip-label">Thời tiết</span>
+            <select
+              value={kindId ?? 'schedule'}
+              onChange={(event) => setKindId(event.target.value === 'schedule' ? null : event.target.value)}
+            >
+              <option value="schedule">Theo lịch (nhanh ×8)</option>
+              {STUDIO_WEATHER_KINDS.map((kind) => (
+                <option key={kind.id} value={kind.id}>
+                  {kind.label.vi}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="studio-slider">
+            <span>
+              Giờ trong ngày: <b>{formatHour(hour)}</b>
+            </span>
+            <input
+              type="range"
+              min={0}
+              max={24}
+              step={0.25}
+              value={hour}
+              onChange={(event) => setHour(Number(event.target.value))}
+            />
+          </label>
+          <button
+            className="chip"
+            onClick={() => {
+              api?.strike?.()
+            }}
+          >
+            Chớp sét
+          </button>
+        </div>
+      }
     />
   )
 }

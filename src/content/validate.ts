@@ -1,4 +1,5 @@
-import type { BranchDef, GameContent } from '@domain/types'
+import type { BranchDef, GameContent, WeatherProfile, WeatherVisual } from '@domain/types'
+import { BALANCE } from './balance'
 
 /** Boot-time content checks (dev + tests). Returns human-readable errors. */
 export function validateContent(content: GameContent): string[] {
@@ -12,6 +13,13 @@ export function validateContent(content: GameContent): string[] {
     if (item.id !== key) {
       errors.push(`item key "${key}" does not match id "${item.id}"`)
     }
+    if (item.cap && item.cap.lte(0)) {
+      errors.push(`item "${key}" cap must be > 0 (or null/absent for uncapped)`)
+    }
+  }
+
+  if (content.simulation && !(content.simulation.offlineChunkSeconds > 0)) {
+    errors.push('simulation.offlineChunkSeconds must be > 0')
   }
 
   for (const [key, zone] of Object.entries(content.zones)) {
@@ -27,7 +35,56 @@ export function validateContent(content: GameContent): string[] {
     validateBranch(branch, content, errors)
   }
 
+  if (content.weather) {
+    validateWeather(content.weather, errors)
+  }
+
   return errors
+}
+
+function validateWeather(profile: WeatherProfile, errors: string[]): void {
+  const where = 'weather'
+  if (profile.kinds.length === 0) {
+    errors.push(`${where}: needs at least one kind`)
+  }
+  if (!(profile.blockSeconds > 0)) {
+    errors.push(`${where}: blockSeconds must be > 0`)
+  } else if (!isMultipleOfTick(profile.blockSeconds)) {
+    errors.push(`${where}: blockSeconds must be a multiple of tickSeconds`)
+  }
+  if (!(profile.transitionSeconds > 0) || profile.transitionSeconds >= profile.blockSeconds) {
+    errors.push(`${where}: transitionSeconds must be within (0, blockSeconds)`)
+  }
+
+  const seen = new Set<string>()
+  for (const kind of profile.kinds) {
+    if (seen.has(kind.id)) errors.push(`${where}: duplicate kind id "${kind.id}"`)
+    seen.add(kind.id)
+    if (!(kind.weight > 0)) errors.push(`${where}: kind "${kind.id}" weight must be > 0`)
+    if (!(kind.workMultiplier > 0) || kind.workMultiplier > 2) {
+      errors.push(`${where}: kind "${kind.id}" workMultiplier must be within (0, 2]`)
+    }
+    validateVisual(kind.id, kind.visual, errors)
+  }
+}
+
+function validateVisual(kindId: string, visual: WeatherVisual, errors: string[]): void {
+  const where = `weather kind "${kindId}"`
+  const unit = (label: string, value: number): void => {
+    if (!(value >= 0) || value > 1) errors.push(`${where}: ${label} must be within [0, 1]`)
+  }
+  unit('cloudCover', visual.cloudCover)
+  unit('rain', visual.rain)
+  if (!(visual.wind >= 0) || visual.wind > 2) {
+    errors.push(`${where}: wind must be within [0, 2]`)
+  }
+  if (!(visual.lightning >= 0)) errors.push(`${where}: lightning must be >= 0`)
+}
+
+/** true when `seconds` is a whole multiple of the fixed simulation step. */
+function isMultipleOfTick(seconds: number): boolean {
+  const steps = seconds / BALANCE.tickSeconds
+  return Math.abs(steps - Math.round(steps)) < 1e-9
 }
 
 function validateBranch(branch: BranchDef, content: GameContent, errors: string[]): void {
@@ -52,6 +109,17 @@ function validateBranch(branch: BranchDef, content: GameContent, errors: string[
     if (worker.output.ratePerUnit.lte(0)) {
       errors.push(`${where}: worker "${worker.id}" ratePerUnit must be > 0`)
     }
+    if (worker.input) {
+      if (!(worker.input.item in content.items)) {
+        errors.push(`${where}: worker "${worker.id}" consumes unknown item "${worker.input.item}"`)
+      }
+      if (worker.input.ratePerUnit.lte(0)) {
+        errors.push(`${where}: worker "${worker.id}" input ratePerUnit must be > 0`)
+      }
+      if (worker.input.item === worker.output.item) {
+        errors.push(`${where}: worker "${worker.id}" input and output must differ (same item is a no-op)`)
+      }
+    }
   }
 
   for (const recipe of branch.recipes) {
@@ -74,5 +142,13 @@ function validateBranch(branch: BranchDef, content: GameContent, errors: string[
     unique('upgrade', upgrade.id)
     if (upgrade.cost.lte(0)) errors.push(`${where}: upgrade "${upgrade.id}" cost must be > 0`)
     if (upgrade.effects.length === 0) errors.push(`${where}: upgrade "${upgrade.id}" has no effects`)
+    if (upgrade.visual) {
+      if (!(upgrade.visual.zone in content.zones)) {
+        errors.push(`${where}: upgrade "${upgrade.id}" raises unknown zone "${upgrade.visual.zone}"`)
+      }
+      if (!Number.isInteger(upgrade.visual.tier) || upgrade.visual.tier < 1) {
+        errors.push(`${where}: upgrade "${upgrade.id}" visual tier must be an integer >= 1`)
+      }
+    }
   }
 }

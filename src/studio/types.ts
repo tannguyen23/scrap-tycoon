@@ -15,6 +15,14 @@ export interface StageCell {
 
 export interface StageApi {
   setTime?(time: number): void
+  /** Characters sheet: mirror every figure. */
+  setFacing?(facing: 1 | -1): void
+  /** Characters sheet: freeze the clocks to inspect a pose. */
+  setPaused?(paused: boolean): void
+  /** Weather preview: pin one kind by id, or null to follow the schedule. */
+  setWeather?(kindId: string | null): void
+  /** Weather preview: flash one lightning strike right now. */
+  strike?(): void
 }
 
 export interface StageScene {

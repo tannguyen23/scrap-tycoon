@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { PRIMARY_TERRAINS } from '@ui/scene/tiles/terrain'
+import { SCATTER_SKIP_RECTS } from '@ui/scene/worldGrounds'
 import {
   CLEARINGS,
   CONNECTORS,
@@ -118,5 +119,71 @@ describe('map layout', () => {
   it('gives the ponds real size, not puddles', () => {
     const biggest = ponds.reduce((max, rect) => Math.max(max, rect.width * rect.height), 0)
     expect(biggest).toBeGreaterThan(12_000)
+  })
+
+  it('fences every yard and leaves the road open', () => {
+    // `route` là đường chạy ngang map — rào lại là vô nghĩa.
+    expect(ZONE_LAYOUTS.route?.fenceOpenings).toBeUndefined()
+    for (const id of ['alley', 'recycle', 'depot', 'gate']) {
+      expect(ZONE_LAYOUTS[id]?.fenceOpenings?.length, `${id} fence`).toBeGreaterThan(0)
+    }
+  })
+
+  it('keeps every fence opening inside its edge', () => {
+    for (const [id, layout] of Object.entries(ZONE_LAYOUTS)) {
+      for (const opening of layout.fenceOpenings ?? []) {
+        const span =
+          opening.edge === 'north' || opening.edge === 'south'
+            ? layout.rect.width
+            : layout.rect.height
+        expect(opening.from, `${id} ${opening.edge} from`).toBeGreaterThanOrEqual(0)
+        expect(opening.to, `${id} ${opening.edge} to`).toBeLessThanOrEqual(span)
+        expect(opening.from, `${id} ${opening.edge}`).toBeLessThan(opening.to)
+      }
+    }
+  })
+
+  it('clears the random ground scatter out of every zone', () => {
+    // Lớp rải flora/debris phủ cả map; vùng cấm phải TRÙM trọn từng rect khu (kể cả
+    // sát mép) — không thì hoa cỏ, sỏi rác lại mọc trong bãi.
+    for (const { id, rect } of zones) {
+      const covered = SCATTER_SKIP_RECTS.some(
+        (skip) =>
+          skip.x <= rect.x &&
+          skip.y <= rect.y &&
+          rect.x + rect.width <= skip.x + skip.width &&
+          rect.y + rect.height <= skip.y + skip.height,
+      )
+      expect(covered, `${id}: vùng cấm rải random phải trùm kín khu`).toBe(true)
+    }
+  })
+
+  it('opens each yard fence exactly where a lane crosses the edge', () => {
+    // Lane/lối đi thật trên map: làn đất ngõ→đường (worldGrounds) và hai làn nhựa
+    // của `CONNECTORS`. `slack` = số px cho phép mở rộng thêm mỗi phía.
+    const cases = [
+      { zone: 'alley', edge: 'south', lane: [206, 278], slack: 0 },
+      { zone: 'alley', edge: 'east', lane: [100, 148], slack: 0 },
+      { zone: 'recycle', edge: 'west', lane: [100, 148], slack: 0 },
+      { zone: 'recycle', edge: 'south', lane: [700, 748], slack: 0 },
+      { zone: 'depot', edge: 'north', lane: [196, 272], slack: 0 },
+      { zone: 'gate', edge: 'north', lane: [924, 960], slack: 0 },
+      { zone: 'gate', edge: 'east', lane: [576, 608], slack: 4 },
+    ] as const
+    for (const entry of cases) {
+      const layout = ZONE_LAYOUTS[entry.zone]
+      expect(layout, entry.zone).toBeDefined()
+      const opening = layout?.fenceOpenings?.find((candidate) => candidate.edge === entry.edge)
+      expect(opening, `${entry.zone} ${entry.edge}`).toBeDefined()
+      const horizontal = entry.edge === 'north' || entry.edge === 'south'
+      const base = horizontal ? (layout?.rect.x ?? 0) : (layout?.rect.y ?? 0)
+      const from = base + (opening?.from ?? 0)
+      const to = base + (opening?.to ?? 0)
+      expect(from, `${entry.zone} ${entry.edge}: mở trước làn`).toBeLessThanOrEqual(entry.lane[0])
+      expect(to, `${entry.zone} ${entry.edge}: mở hết làn`).toBeGreaterThanOrEqual(entry.lane[1])
+      expect(entry.lane[0] - from + (to - entry.lane[1]), `${entry.zone} ${entry.edge}: cổng rộng vừa`).toBeLessThanOrEqual(
+        entry.slack,
+      )
+    }
   })
 })

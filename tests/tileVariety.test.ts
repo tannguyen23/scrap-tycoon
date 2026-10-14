@@ -28,6 +28,22 @@ function neighbourAgreement(step: number): number {
   return same / total
 }
 
+/** Average number of consecutive tiles that hold one tone. */
+function meanRunLength(): number {
+  const runs: number[] = []
+  let run = 1
+  for (let x = 1; x < 512; x++) {
+    const previous = groundVariant((x - 1) * 16, 128, COUNT, SEED)
+    if (groundVariant(x * 16, 128, COUNT, SEED) === previous) run++
+    else {
+      runs.push(run)
+      run = 1
+    }
+  }
+  runs.push(run)
+  return runs.reduce((a, b) => a + b, 0) / runs.length
+}
+
 function channelDelta(a: number, b: number): number {
   const dr = Math.abs(((a >> 16) & 0xff) - ((b >> 16) & 0xff))
   const dg = Math.abs(((a >> 8) & 0xff) - ((b >> 8) & 0xff))
@@ -37,9 +53,13 @@ function channelDelta(a: number, b: number): number {
 
 describe('low-frequency tile variety', () => {
   it('clusters variants into patches instead of checkering', () => {
-    // Picking per cell at random would land near 1/8 = 0.125.
-    const agreement = neighbourAgreement(1)
-    expect(agreement).toBeGreaterThan(0.125 * 2.5)
+    // The bar is a *visual* one, not "better than white noise": each tone step is a
+    // whole palette step, so neighbours changing tone on most tiles draws a quilt.
+    // Measured before this was enforced: agreement 0.35 (mean run 1.5 tiles) — the
+    // old assertion (0.125 * 2.5 = 0.31) passed a ground that was visibly checkered.
+    // Now ~0.79, and grass over the map sits at ~0.74 with ~3.6-tile runs.
+    expect(neighbourAgreement(1)).toBeGreaterThan(0.65)
+    expect(meanRunLength()).toBeGreaterThan(3)
   })
 
   it('still uses every variant across a wide area', () => {

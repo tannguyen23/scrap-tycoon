@@ -1,5 +1,8 @@
 import type { ObservableStore } from '@core/store'
+import { stockRatio, zoneStockItem, zoneTiers } from '@domain/selectors'
 import type { GameContent, GameState, ZoneId } from '@domain/types'
+import type { LocaleStore } from '@i18n/locale'
+import { t, type Locale } from '@i18n/types'
 import { Application, Container, Graphics, TextureSource } from 'pixi.js'
 import { createAmbience } from './ambience'
 import { detailSceneFor } from './focus'
@@ -8,6 +11,7 @@ import { createLighting } from './lighting'
 import { createMicroDetails } from './microDetails'
 import { createNanoDetails } from './nanoDetails'
 import { TilePainter } from './tiles/painter'
+import { CALM_WIND, createWeather } from './weather'
 import { paintWorldGrounds } from './worldGrounds'
 import {
   CANVAS_SCALE,
@@ -42,6 +46,8 @@ export interface SceneHandle {
 export interface SceneOptions {
   /** Fired when a user gesture (wheel) changes the zoom level. */
   onZoomLevelChange?: (level: number) => void
+  /** Live locale for scene text (popups). Missing in dev tools — defaults to Vietnamese. */
+  localeStore?: LocaleStore
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -113,17 +119,17 @@ export async function mountScene(
   nanoLayer.visible = false
   const ambience = createAmbience()
   const lighting = createLighting()
+  const weather = content.weather ? createWeather({ profile: content.weather }) : null
   const outline = new Graphics()
-  world.addChild(
-    groundLayer,
-    decorArt,
-    detailLayer,
-    microLayer,
-    nanoLayer,
-    ambience.container,
-    lighting.container,
-    outline,
-  )
+  world.addChild(groundLayer, decorArt, detailLayer, microLayer, nanoLayer, ambience.container)
+  if (weather) {
+    // Mây/mưa đứng TRƯỚC grade ngày-đêm nên tự ăn tint; chớp sét đứng SAU grade
+    // để không bị multiply làm tối.
+    world.addChild(weather.container)
+  }
+  world.addChild(lighting.container)
+  if (weather) world.addChild(weather.flash)
+  world.addChild(outline)
 
   // Zone detail scenes are the base art now — always visible at every zoom.
   const details = new Map<ZoneId, DetailScene>()
@@ -152,9 +158,13 @@ export async function mountScene(
   }
   applyCamera()
 
+  const localeStore = options.localeStore
+  let locale: Locale = localeStore?.get() ?? 'vi'
+
   const sync = (): void => {
     const state = store.getSnapshot()
     const zoneCounts = new Map<ZoneId, number>()
+    const zoneItems = new Map<ZoneId, string>()
 
     for (const branch of Object.values(content.branches)) {
       const branchState = state.branches[branch.id]
@@ -163,14 +173,34 @@ export async function mountScene(
         const count = branchState.workers[worker.id] ?? 0
         if (count <= 0) continue
         zoneCounts.set(worker.visual.zone, (zoneCounts.get(worker.visual.zone) ?? 0) + count)
+        if (!zoneItems.has(worker.visual.zone)) {
+          zoneItems.set(worker.visual.zone, worker.output.item)
+        }
       }
     }
 
     const totalEarned = state.stats.totalEarned
     const earnedLog10 = totalEarned.gte(10) ? totalEarned.log10().toNumber() : 0
+    const tiers = zoneTiers(content, state)
+
+    // Popup wording: the item each zone produces + the currency, both localized.
+    const moneyName = content.items[content.currencyItemId]?.name
+    const moneyLabel = moneyName ? t(moneyName, locale) : content.currencyItemId
+    const itemLabel = (itemId: string | undefined): string => {
+      const name = itemId ? content.items[itemId]?.name : undefined
+      return name ? t(name, locale) : moneyLabel
+    }
 
     for (const [zoneId, detail] of details) {
-      detail.setState({ workers: zoneCounts.get(zoneId) ?? 0, earnedLog10 })
+      const stockItem = zoneStockItem(content, zoneId)
+      const ratio = stockItem ? stockRatio(state, content, stockItem) : null
+      detail.setState({
+        workers: zoneCounts.get(zoneId) ?? 0,
+        earnedLog10,
+        tier: tiers.get(zoneId) ?? 0,
+        labels: { produced: itemLabel(zoneItems.get(zoneId)), money: moneyLabel },
+        stock01: ratio ?? -1,
+      })
     }
   }
 
@@ -284,6 +314,13 @@ export async function mountScene(
   canvas.addEventListener('wheel', onWheel, { passive: false })
 
   const unsubscribe = store.subscribe(sync)
+  // New popups follow the language switch; ones already flying keep their text.
+  const unsubscribeLocale = localeStore
+    ? localeStore.subscribe(() => {
+        locale = localeStore.get()
+        sync()
+      })
+    : undefined
   sync()
 
   let elapsed = 0
@@ -309,6 +346,13 @@ export async function mountScene(
     microLayer.visible = cam.scale >= LOD_THRESHOLDS[0]
     nanoLayer.visible = cam.scale >= LOD_THRESHOLDS[1]
 
+    let wind = CALM_WIND
+    if (weather) {
+      weather.update(dt, store.getSnapshot().stats.playTimeS)
+      wind = weather.wind()
+      for (const detail of details.values()) detail.setAmbient?.(wind)
+    }
+
     // Update only what is actually on screen.
     const viewWidth = WORLD_WIDTH / cam.scale
     const viewHeight = WORLD_HEIGHT / cam.scale
@@ -323,7 +367,7 @@ export async function mountScene(
       if (!layout || !intersects(view, layout.rect)) continue
       detail.update(dt, elapsed)
     }
-    ambience.update(dt)
+    ambience.update(dt, wind)
     lighting.update(dt)
   })
 
@@ -362,7 +406,9 @@ export async function mountScene(
     destroy: () => {
       if (destroyed) return
       destroyed = true
+      weather?.dispose()
       unsubscribe()
+      unsubscribeLocale?.()
       resizeObserver.disconnect()
       canvas.removeEventListener('pointerdown', onPointerDown)
       canvas.removeEventListener('pointermove', onPointerMove)

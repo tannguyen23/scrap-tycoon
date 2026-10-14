@@ -4,12 +4,14 @@ import type { GameContent, GameState } from '@domain/types'
 import type { LocaleStore } from '@i18n/locale'
 import { t, type L10n, type Locale } from '@i18n/types'
 import { createContext, useContext, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import type { SoundSettings, SoundStore } from './sound/settings'
 import type { ThemeMode, ThemeStore } from './theme'
 
 export const EngineContext = createContext<EngineApi | null>(null)
 export const ContentContext = createContext<GameContent | null>(null)
 export const LocaleContext = createContext<LocaleStore | null>(null)
 export const ThemeContext = createContext<ThemeStore | null>(null)
+export const SoundContext = createContext<SoundStore | null>(null)
 
 export interface SceneBridge {
   /** Outline a zone on the map while its HUD card is hovered. */
@@ -72,6 +74,17 @@ export function useThemeStore(): ThemeStore {
 export function useThemeMode(): ThemeMode {
   const themeStore = useThemeStore()
   return useSyncExternalStore(themeStore.subscribe, themeStore.get)
+}
+
+export function useSoundStore(): SoundStore {
+  const soundStore = useContext(SoundContext)
+  if (!soundStore) throw new Error('SoundContext is missing')
+  return soundStore
+}
+
+export function useSoundSettings(): SoundSettings {
+  const soundStore = useSoundStore()
+  return useSyncExternalStore(soundStore.subscribe, soundStore.get)
 }
 
 /**

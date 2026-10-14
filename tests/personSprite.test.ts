@@ -1,7 +1,7 @@
 import type { Container } from 'pixi.js'
 import { describe, expect, it } from 'vitest'
 import { createPersonSprite } from '@ui/scene/focus/parts'
-import { createPickerSprite } from '@ui/scene/focus/alley/sprites'
+import { createScavengerSprite } from '@ui/scene/focus/alley/sprites'
 import { createHaulerSprite } from '@ui/scene/focus/depot/sprites'
 
 /** Composed span of a limb at rest — limb nodes are moved via `x` only. */
@@ -44,13 +44,16 @@ describe('person sprite composition', () => {
     expect(box.maxY).toBeLessThanOrEqual(6)
   })
 
-  it('starts with the carried props hidden and the back bag behind the body', () => {
-    const picker = createPickerSprite(1)
+  it('starts with the hauled sack hidden', () => {
     const hauler = createHaulerSprite(1)
-    expect(picker.bag.visible).toBe(false)
     expect(hauler.sack.visible).toBe(false)
-    expect(picker.container.getChildIndex(picker.bag)).toBeLessThan(
-      picker.container.getChildIndex(picker.body),
-    )
+  })
+
+  it('gives the alley scavenger a bag in the left hand and a stick in the right', () => {
+    const scavenger = createScavengerSprite(1)
+    expect(scavenger.armsL.children.includes(scavenger.bag.container)).toBe(true)
+    expect(scavenger.armsR.children.includes(scavenger.poker.container)).toBe(true)
+    expect(scavenger.bag.container.visible).toBe(true)
+    expect(scavenger.poker.container.visible).toBe(true)
   })
 })

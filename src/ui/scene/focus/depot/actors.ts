@@ -1,3 +1,4 @@
+import { playSound } from '@ui/sound/player'
 import { createSack, dustPuff, type Particles } from '../parts'
 import type { Spot } from '../types'
 import { createHaulerSprite, type HaulerSprite } from './sprites'
@@ -46,6 +47,7 @@ export function createHauler(variant: number, pickup: Spot, dropoff: Spot): Haul
           target = spread()
           sprite.armsL.x = -3.6
           sprite.armsR.x = 0.8
+          playSound('sack-lift')
         } else {
           target = pickup
           sprite.armsL.x = -7.5
@@ -56,6 +58,7 @@ export function createHauler(variant: number, pickup: Spot, dropoff: Spot): Haul
             life: 0.4,
             gravity: 52,
           })
+          playSound('sack-drop')
         }
       }
     } else {

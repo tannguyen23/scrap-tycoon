@@ -1,7 +1,8 @@
 import type { OfflineReport } from '@domain/systems/offline'
 import { UI } from '@i18n/text'
-import { SceneBridgeContext, useContent, useEngine, useGameState, useText, type SceneBridge } from '@ui/hooks'
+import { SceneBridgeContext, useContent, useEngine, useGameState, useLocaleStore, useText, type SceneBridge } from '@ui/hooks'
 import { ZOOM_LEVELS, mountScene, type SceneHandle } from '@ui/scene/PixiScene'
+import { playSound } from '@ui/sound/player'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { BranchPanel } from './BranchPanel'
 import { OfflineModal } from './OfflineModal'
@@ -16,6 +17,7 @@ export function App({ initialOfflineReport }: AppProps) {
   const engine = useEngine()
   const content = useContent()
   const state = useGameState()
+  const localeStore = useLocaleStore()
   const text = useText()
   const [offlineReport, setOfflineReport] = useState<OfflineReport | null>(initialOfflineReport)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -28,13 +30,25 @@ export function App({ initialOfflineReport }: AppProps) {
     return () => engine.setOfflineReportHandler(null)
   }, [engine])
 
+  // One chime per report; the ref keeps StrictMode's double effect from doubling it.
+  const offlineChimedRef = useRef(false)
+  useEffect(() => {
+    if (!offlineReport) {
+      offlineChimedRef.current = false
+      return
+    }
+    if (offlineChimedRef.current) return
+    offlineChimedRef.current = true
+    playSound('offline')
+  }, [offlineReport])
+
   useEffect(() => {
     const host = sceneHostRef.current
     if (!host) return
     let cancelled = false
     let handle: SceneHandle | null = null
 
-    mountScene(host, engine.store, content, { onZoomLevelChange: setZoomLevel })
+    mountScene(host, engine.store, content, { onZoomLevelChange: setZoomLevel, localeStore })
       .then((mounted) => {
         handle = mounted
         if (cancelled) mounted.destroy()
@@ -47,7 +61,7 @@ export function App({ initialOfflineReport }: AppProps) {
       setSceneHandle(null)
       handle?.destroy()
     }
-  }, [engine, content])
+  }, [engine, content, localeStore])
 
   const bridge = useMemo<SceneBridge>(
     () => ({
@@ -60,6 +74,7 @@ export function App({ initialOfflineReport }: AppProps) {
   const changeZoom = (level: number): void => {
     setZoomLevel(level)
     sceneHandle?.setZoomLevel(level)
+    playSound('click')
   }
 
   const zoomTitles = [text(UI.zoomFar), text(UI.zoomMid), text(UI.zoomNear)]

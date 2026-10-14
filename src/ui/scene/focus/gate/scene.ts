@@ -1,8 +1,12 @@
-import type { ZoneRect } from '../../zoneLayout'
+import { ZONE_LAYOUTS, type ZoneRect } from '../../zoneLayout'
 import { Container, Graphics } from 'pixi.js'
 import type { TilePainter } from '../../tiles/painter'
 import { paintFootprints, paintPuddle, paintStain } from '../../tiles/dirtDetail'
+import { playSound } from '@ui/sound/player'
+import { CALM_WIND, type Wind } from '../../weather'
+import { drawZoneFence } from '../fence'
 import { Particles, SHADOW } from '../parts'
+import { createPopups } from '../popups'
 import type { DetailScene, DetailSceneState } from '../types'
 import { LANE_Y, createTruck, type TruckActor } from './actors'
 
@@ -65,6 +69,11 @@ export function createGateDetail(rect: ZoneRect, tiles: TilePainter): DetailScen
   drawCone(props, 176, 24)
   root.addChild(props)
 
+  // Hàng rào bao sân: cổng bắc cho làn nhựa vào, cổng đông cho làn xuất hàng.
+  const fence = new Graphics()
+  drawZoneFence(fence, rect, ZONE_LAYOUTS.gate?.fenceOpenings)
+  root.addChild(fence)
+
   // cờ trên trụ cổng (2 frame vẫy)
   const flags = new Graphics()
   const flagWaveA = new Graphics()
@@ -83,6 +92,7 @@ export function createGateDetail(rect: ZoneRect, tiles: TilePainter): DetailScen
   const drawBarrier = (open: boolean): void => {
     if (open === barrierOpen) return
     barrierOpen = open
+    playSound('barrier')
     barrier.clear()
     barrier.rect(191, 68, 4, 4).fill(0x3d4356)
     if (open) {
@@ -97,13 +107,16 @@ export function createGateDetail(rect: ZoneRect, tiles: TilePainter): DetailScen
 
   const actors = new Container()
   const particles = new Particles()
-  root.addChild(actors, particles.container)
+  const popups = createPopups()
+  root.addChild(actors, particles.container, popups.container)
 
   const trucks: TruckActor[] = []
   let desired = 0
   let lastFlagFrame = -1
+  let ambient: Wind = CALM_WIND
 
   const setState = (state: DetailSceneState): void => {
+    popups.setLabels(state.labels)
     desired = Math.min(state.workers, CAP)
     while (trucks.length < desired) {
       const truck = createTruck(trucks.length, width)
@@ -117,7 +130,8 @@ export function createGateDetail(rect: ZoneRect, tiles: TilePainter): DetailScen
   }
 
   const update = (dt: number, elapsed: number): void => {
-    const flagFrame = Math.floor(elapsed * 2.5) % 2
+    // Gió mạnh thì cờ vẫy nhanh hơn — vẫn đúng 2 frame như cũ.
+    const flagFrame = Math.floor(elapsed * 2.5 * (1 + ambient.strength * 1.6)) % 2
     if (flagFrame !== lastFlagFrame) {
       lastFlagFrame = flagFrame
       const first = flags.children[0]
@@ -132,14 +146,22 @@ export function createGateDetail(rect: ZoneRect, tiles: TilePainter): DetailScen
     for (let i = 0; i < desired; i++) {
       const truck = trucks[i]
       if (!truck) continue
-      truck.update(dt, particles)
+      truck.update(dt, particles, popups, ambient)
       if (truck.getPhase() === 'depart' && truck.getX() > 80) anyDeparting = true
     }
     drawBarrier(anyDeparting)
     particles.update(dt)
+    popups.update(dt)
   }
 
-  return { root, setState, update }
+  return {
+    root,
+    setState,
+    update,
+    setAmbient: (wind) => {
+      ambient = wind
+    },
+  }
 }
 
 function drawCone(g: Graphics, x: number, y: number): void {

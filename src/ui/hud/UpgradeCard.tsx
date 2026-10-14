@@ -3,6 +3,7 @@ import { canAfford, isUpgradePurchased } from '@domain/selectors'
 import type { GameState, UpgradeDef } from '@domain/types'
 import { UI } from '@i18n/text'
 import { useContent, useEngine, useText } from '@ui/hooks'
+import { playSound } from '@ui/sound/player'
 
 export interface UpgradeCardProps {
   branchId: string
@@ -31,7 +32,8 @@ export function UpgradeCard({ branchId, upgrade, state }: UpgradeCardProps) {
           disabled={!affordable}
           onClick={(event) => {
             event.stopPropagation()
-            engine.buyUpgrade(branchId, upgrade.id)
+            const result = engine.buyUpgrade(branchId, upgrade.id)
+            playSound(result.ok ? 'upgrade' : 'deny')
           }}
         >
           {text(UI.buy)} · {formatShort(upgrade.cost)}

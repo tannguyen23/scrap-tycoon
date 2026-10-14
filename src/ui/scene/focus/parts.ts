@@ -114,6 +114,14 @@ export function dustPuff(): Graphics {
   return new Graphics().rect(0, 0, 2, 2).fill({ color: 0xd8d2c2, alpha: 0.7 })
 }
 
+/** Driver at the wheel, seen through a cab's side glass — cap + head; shoulders hide behind the door line. */
+export function drawCabDriver(x: number, y: number, capColor: number): Graphics {
+  const g = new Graphics()
+  g.rect(x + 0.4, y, 4.6, 2.2).fill(capColor)
+  g.rect(x + 0.8, y + 2, 3.8, 2.6).fill(0xe8c099)
+  return g
+}
+
 export function smokePuff(): Graphics {
   return new Graphics().rect(0, 0, 3, 3).fill({ color: 0xa0a6b2, alpha: 0.6 })
 }
@@ -130,7 +138,8 @@ export interface PersonSprite {
 
 /**
  * Tilted ¾-view person at double density, built from squared slabs only
- * (Minecraft-style): box head under a stepped straw hat / box cap, rect
+ * (Minecraft-style): box head under a stepped straw hat, a box cap, or nothing
+ * ('none' — the blank mannequin used to review poses), rect
  * limbs, blocky two-step ground shadow — no rounded shapes anywhere. Limb
  * nodes are drawn at the origin and positioned via their `x` — the convention
  * the actors and the studio both move them by — so the rest pose sits inside
@@ -140,7 +149,7 @@ export interface PersonSprite {
  * hat. Origin = feet; "forward" is local +x, so the actor flips
  * `container.scale.x`; walking north hides the face (back view).
  */
-export function createPersonSprite(variant: number, hat: 'straw' | 'cap'): PersonSprite {
+export function createPersonSprite(variant: number, hat: 'straw' | 'cap' | 'none'): PersonSprite {
   const SHIRTS = [0x5a82c2, 0x9a6bbf, 0x4fa06a]
   const PANTS = [0x3a4256, 0x443f52]
   const HAIRS = [0x4a3b2c, 0x2f2a26, 0x6b5a45]
@@ -227,7 +236,7 @@ export function createPersonSprite(variant: number, hat: 'straw' | 'cap'): Perso
     crown.rect(2.2, -29.2, 1.8, 4.1).fill({ color: 0x000000, alpha: 0.1 })
     const band = new Graphics().rect(-4.2, -26.4, 8.4, 1.3).fill({ color: 0xc8a25c, alpha: 0.9 })
     hatContainer.addChild(brim, crown, band)
-  } else {
+  } else if (hat === 'cap') {
     const CAPS = [0x6fa0e0, 0x9ad46f, 0xf08a6a]
     const cap = CAPS[variant % CAPS.length] ?? 0x6fa0e0
     const brim = new Graphics().rect(-4.4, -23.4, 8.8, 2.2).fill({ color: cap, alpha: 0.88 })

@@ -3,7 +3,7 @@ import { Container, Graphics } from 'pixi.js'
 import type { TilePainter } from '../../tiles/painter'
 import { Particles, SHADOW } from '../parts'
 import type { DetailScene, DetailSceneState } from '../types'
-import { createCart, type CartActor } from './actors'
+import { createRouteVehicle, type VehicleActor } from './actors'
 
 const CAP = 5
 
@@ -66,25 +66,37 @@ export function createRouteDetail(rect: ZoneRect, tiles: TilePainter): DetailSce
   const particles = new Particles()
   root.addChild(actors, particles.container)
 
-  const carts: CartActor[] = []
+  const vehicles: VehicleActor[] = []
   let desired = 0
+  let tier = 0
+
+  const ensureVehicles = (): void => {
+    while (vehicles.length < desired) {
+      const vehicle = createRouteVehicle(vehicles.length, width, height / 2, tier)
+      vehicles.push(vehicle)
+      actors.addChild(vehicle.sprite.container)
+    }
+    for (let i = 0; i < vehicles.length; i++) {
+      const vehicle = vehicles[i]
+      if (vehicle) vehicle.sprite.container.visible = i < desired
+    }
+  }
 
   const setState = (state: DetailSceneState): void => {
     desired = Math.min(state.workers, CAP)
-    while (carts.length < desired) {
-      const cart = createCart(carts.length, width, height / 2)
-      carts.push(cart)
-      actors.addChild(cart.sprite.container)
+    if (state.tier !== tier) {
+      // Đổi bậc xe là đổi hẳn art của cả đội (ba gác → bán tải → xe tải):
+      // dựng lại từ đầu theo tier mới thay vì cố vá sprite cũ.
+      tier = state.tier
+      for (const vehicle of vehicles) vehicle.sprite.container.destroy({ children: true })
+      vehicles.length = 0
     }
-    for (let i = 0; i < carts.length; i++) {
-      const cart = carts[i]
-      if (cart) cart.sprite.container.visible = i < desired
-    }
+    ensureVehicles()
   }
 
   const update = (dt: number): void => {
     for (let i = 0; i < desired; i++) {
-      carts[i]?.update(dt, particles)
+      vehicles[i]?.update(dt, particles)
     }
     particles.update(dt)
   }

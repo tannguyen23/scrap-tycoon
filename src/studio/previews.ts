@@ -1,20 +1,25 @@
-import type { ZoneId } from '@domain/types'
+import type { WeatherKindDef, WeatherProfile, ZoneId } from '@domain/types'
 import { Application, Container, Graphics, Sprite } from 'pixi.js'
-import { createPickerSprite } from '@ui/scene/focus/alley/sprites'
+import { createAmbience } from '@ui/scene/ambience'
 import { createHaulerSprite } from '@ui/scene/focus/depot/sprites'
 import { createTruckSprite } from '@ui/scene/focus/gate/sprites'
+import { equipItems, type HeldItem } from '@ui/scene/focus/heldItems'
+import { POKE, WORK_ACTIONS, restPose, walkPose, type WorkAction } from '@ui/scene/focus/poses'
 import {
+  Particles,
+  createPersonSprite,
   createSack,
   createScrapBit,
   createSpokeWheel,
   type PersonSprite,
   type SpokeWheel,
 } from '@ui/scene/focus/parts'
-import { createCartSprite } from '@ui/scene/focus/route/sprites'
+import { createCartSprite, createPickupSprite, createRouteTruckSprite } from '@ui/scene/focus/route/sprites'
 import { detailSceneFor } from '@ui/scene/focus'
 import type { DetailScene } from '@ui/scene/focus/types'
 import { createLighting } from '@ui/scene/lighting'
 import { makeRandom } from '@ui/scene/random'
+import { createWeather } from '@ui/scene/weather'
 import { DECOR_SPECIMENS, drawBush, drawStump, drawTree } from '@ui/scene/decorItems'
 import { TilePainter } from '@ui/scene/tiles/painter'
 import { drawDebrisItem, drawFloraItem, drawWaterItem } from '@ui/scene/tiles/groundItems'
@@ -318,55 +323,142 @@ export function buildDecor(): StageScene {
   return { root, width: 380, height: row * rowH + 12, cells }
 }
 
-const CHARACTER_ROWS: readonly {
-  prefix: string
-  make: (variant: number) => PersonSprite
-}[] = [
-  { prefix: 've chai', make: (variant) => createPickerSprite(variant) },
-  { prefix: 'khuân vác', make: (variant) => createHaulerSprite(variant) },
+export interface CharacterClip {
+  id: string
+  label: string
+  /** Work clip when set — a plain gait (đi bộ) when omitted. */
+  action?: WorkAction
+}
+
+/** Every clip the sheet can play — the walk gait plus all registered work actions. */
+export const CHARACTER_CLIPS: readonly CharacterClip[] = [
+  { id: 'walk', label: 'đi bộ' },
+  ...WORK_ACTIONS.map((action) => ({ id: action.id, label: action.label, action })),
 ]
 
-/** Every character variant, walking in place (legs/arms swing like the actors). */
-export function buildCharacters(): StageScene {
-  const root = new Container()
-  const cells: StageCell[] = []
-  const actors: { sprite: PersonSprite; phase: number }[] = []
-  const cellW = 110
-  const cellH = 122
-  const letters = ['A', 'B', 'C']
+export interface CharacterSpec {
+  id: string
+  prefix: string
+  make: (variant: number) => PersonSprite
+}
 
-  CHARACTER_ROWS.forEach((row, rowIndex) => {
+/**
+ * Bodies the sheet can dress. They carry no gear of their own — the kit comes
+ * with the clip (`WorkAction.items`), so any body × any action just works:
+ * dropping 'chọt lon' onto the hauler equips the stick and bag on him.
+ */
+export const CHARACTERS: readonly CharacterSpec[] = [
+  { id: 've-chai', prefix: 've chai', make: (variant) => createPersonSprite(variant, 'straw') },
+  { id: 'khuan-vac', prefix: 'khuân vác', make: (variant) => createHaulerSprite(variant) },
+  { id: 'trong', prefix: 'nhân vật trống', make: (variant) => createPersonSprite(variant, 'none') },
+]
+
+const CHAR_SCALE = 3
+const BAG_CANS = 3
+
+interface CharActor {
+  sprite: PersonSprite
+  bag: HeldItem | undefined
+  clock: number
+  phase: number
+  cans: number
+  prevP: number
+}
+
+/**
+ * One body × one clip: the three colour variants run the chosen action side by
+ * side, each dressed with the action's kit. The poke bag mirrors the game
+ * actor's loop — jabs knock cans in, the bag swells to three, then empties.
+ */
+export function buildCharacters(characterId: string, clipId: string): StageBuilder {
+  return (): StageScene => {
+    const character = CHARACTERS.find((entry) => entry.id === characterId)
+    const clip = CHARACTER_CLIPS.find((entry) => entry.id === clipId)
+    if (!character || !clip) throw new Error(`no character combo "${characterId}" × "${clipId}"`)
+    const action = clip.action
+
+    const root = new Container()
+    const cells: StageCell[] = []
+    const particles = new Particles()
+    const actors: CharActor[] = []
+    const cellW = 110
+    const cellH = 122
+    const letters = ['A', 'B', 'C']
+    let facing: 1 | -1 = 1
+    let paused = false
+
     for (let variant = 0; variant < 3; variant++) {
-      const sprite = row.make(variant)
-      sprite.container.scale.set(3)
-      sprite.container.position.set(variant * cellW + cellW / 2, rowIndex * cellH + cellH - 18)
+      const sprite = character.make(variant)
+      sprite.container.scale.set(CHAR_SCALE)
+      sprite.container.position.set(variant * cellW + cellW / 2, cellH - 18)
       root.addChild(sprite.container)
-      actors.push({ sprite, phase: variant * 0.4 + rowIndex * 0.7 })
+      const gear: Record<string, HeldItem> = action?.items ? equipItems(sprite, action.items) : {}
+      const phase = variant * 0.4
+      actors.push({
+        sprite,
+        bag: gear['bag'],
+        clock: phase,
+        phase,
+        cans: 0,
+        prevP: action ? (phase % action.beat) / action.beat : -1,
+      })
       cells.push({
-        label: `${row.prefix} ${letters[variant] ?? ''}`,
+        label: `${character.prefix} ${letters[variant] ?? ''}`,
         x: variant * cellW,
-        y: rowIndex * cellH + cellH - 16,
+        y: cellH - 16,
         width: cellW,
         height: 14,
       })
     }
-  })
+    root.addChild(particles.container)
 
-  return {
-    root,
-    width: cellW * 3,
-    height: cellH * CHARACTER_ROWS.length + 6,
-    cells,
-    update: (_dt, elapsed) => {
-      for (const actor of actors) {
-        const step = Math.floor((elapsed + actor.phase) / 0.15) % 2 === 0 ? 1 : -1
-        actor.sprite.legsL.x = -3.8 + step * 1.4
-        actor.sprite.legsR.x = 0.3 - step * 1.4
-        actor.sprite.armsL.x = -7.5 - step
-        actor.sprite.armsR.x = 4.5 + step
-        actor.sprite.body.y = step > 0 ? -0.8 : 0
-      }
-    },
+    const knockCan = (actor: CharActor): void => {
+      actor.cans = actor.cans >= BAG_CANS ? 0 : actor.cans + 1
+      actor.bag?.setFill(actor.cans / BAG_CANS)
+      const origin = actor.sprite.container.position
+      const front = origin.x + facing * 13 * CHAR_SCALE
+      const bagX = origin.x - facing * 8 * CHAR_SCALE
+      // The same arc the alley actor uses for a scrap bit, scaled to the sheet.
+      particles.spawn(createScrapBit(actor.cans), front, origin.y - 8 * CHAR_SCALE, {
+        vx: (bagX - front) / 0.16,
+        vy: -14 * CHAR_SCALE,
+        life: 0.32,
+        gravity: 68 * CHAR_SCALE,
+      })
+    }
+
+    return {
+      root,
+      width: cellW * 3,
+      height: cellH + 6,
+      cells,
+      api: {
+        setFacing: (value) => {
+          facing = value
+        },
+        setPaused: (value) => {
+          paused = value
+        },
+      },
+      update: (dt) => {
+        for (const actor of actors) {
+          actor.sprite.container.scale.set(CHAR_SCALE * facing, CHAR_SCALE)
+          if (paused) continue
+          actor.clock += dt
+          if (action) {
+            const p = (actor.clock % action.beat) / action.beat
+            restPose(actor.sprite)
+            action.apply(actor.sprite, p)
+            if (actor.bag && action.id === POKE.id && actor.prevP < 0.5 && p >= 0.5) knockCan(actor)
+            actor.prevP = p
+          } else {
+            actor.prevP = -1
+            walkPose(actor.sprite, actor.clock)
+          }
+        }
+        if (!paused) particles.update(dt)
+      },
+    }
   }
 }
 
@@ -403,14 +495,26 @@ export function buildProps(): StageScene {
   truck.container.position.set(430, 190)
   for (const truckWheel of truck.wheels) spins.push({ wheel: truckWheel, speed: 60 })
 
-  root.addChild(cart.container, truck.container)
+  const pickup = createPickupSprite(0)
+  pickup.container.scale.set(2)
+  pickup.container.position.set(150, 320)
+  for (const pickupWheel of pickup.wheels) spins.push({ wheel: pickupWheel, speed: 52 })
+
+  const routeTruck = createRouteTruckSprite(0)
+  routeTruck.container.scale.set(2)
+  routeTruck.container.position.set(430, 340)
+  for (const routeWheel of routeTruck.wheels) spins.push({ wheel: routeWheel, speed: 60 })
+
+  root.addChild(cart.container, truck.container, pickup.container, routeTruck.container)
   cells.push({ label: 'xe ba gác', x: 40, y: 196, width: 220, height: 14 })
-  cells.push({ label: 'xe tải', x: 330, y: 196, width: 220, height: 14 })
+  cells.push({ label: 'xe tải (cổng xuất)', x: 330, y: 196, width: 220, height: 14 })
+  cells.push({ label: 'xe bán tải', x: 40, y: 326, width: 220, height: 14 })
+  cells.push({ label: 'xe tải thùng (route)', x: 330, y: 346, width: 220, height: 14 })
 
   return {
     root,
     width: 620,
-    height: 216,
+    height: 372,
     cells,
     update: (dt) => {
       for (const { wheel: item, speed } of spins) item.spin(speed, dt)
@@ -418,15 +522,18 @@ export function buildProps(): StageScene {
   }
 }
 
+/** Popup wording for studio previews — the real labels come localized from content. */
+const STUDIO_LABELS = { produced: 'Sắt vụn', money: 'Tiền' }
+
 /** A full zone detail scene with a fake state so every actor shows up. */
-export function buildZone(zoneId: string, scale: number): StageBuilder {
+export function buildZone(zoneId: string, scale: number, tier = 0): StageBuilder {
   return (app: Application): StageScene => {
     const layout = ZONE_LAYOUTS[zoneId]
     const factory = detailSceneFor(zoneId as ZoneId)
     if (!layout || !factory) throw new Error(`no detail scene for zone "${zoneId}"`)
     const painter = new TilePainter(app.renderer)
     const detail = factory(layout.rect, painter)
-    detail.setState({ workers: 3, earnedLog10: 5 })
+    detail.setState({ workers: 3, earnedLog10: 5, tier, labels: STUDIO_LABELS, stock01: 0.6 })
     const root = new Container()
     root.addChild(detail.root)
     root.scale.set(scale)
@@ -581,7 +688,7 @@ export function buildLightingWorld(initialTime: number): StageBuilder {
       const factory = detailSceneFor(zoneId as ZoneId)
       if (!layout || !factory) continue
       const detail = factory(layout.rect, painter)
-      detail.setState({ workers: 2, earnedLog10: 6 })
+      detail.setState({ workers: 2, earnedLog10: 6, tier: 0, labels: STUDIO_LABELS, stock01: 0.6 })
       root.addChild(detail.root)
       details.push(detail)
     }
@@ -596,6 +703,103 @@ export function buildLightingWorld(initialTime: number): StageBuilder {
       api: { setTime: (time: number) => lighting.setTime(time) },
       update: (dt, elapsed) => {
         for (const detail of details) detail.update(dt, elapsed)
+        lighting.update(dt)
+      },
+    }
+  }
+}
+
+/**
+ * Weather kinds for the studio tab. The studio can't read `@content` (dependency
+ * rule), so — like `STUDIO_LABELS` — it carries its own sample numbers; the real
+ * game profile lives in `src/content/weather.ts`.
+ */
+export const STUDIO_WEATHER_KINDS: readonly WeatherKindDef[] = [
+  {
+    id: 'clear',
+    label: { vi: 'Nắng', en: 'Clear' },
+    weight: 30,
+    workMultiplier: 1,
+    visual: { cloudCover: 0.15, rain: 0, wind: 0.25, lightning: 0 },
+  },
+  {
+    id: 'cloudy',
+    label: { vi: 'Nhiều mây', en: 'Cloudy' },
+    weight: 26,
+    workMultiplier: 0.97,
+    visual: { cloudCover: 0.8, rain: 0, wind: 0.35, lightning: 0 },
+  },
+  {
+    id: 'rain',
+    label: { vi: 'Mưa rào', en: 'Rain' },
+    weight: 20,
+    workMultiplier: 0.9,
+    visual: { cloudCover: 0.95, rain: 0.7, wind: 0.55, lightning: 0 },
+  },
+  {
+    id: 'windy',
+    label: { vi: 'Gió mạnh', en: 'Windy' },
+    weight: 12,
+    workMultiplier: 0.95,
+    visual: { cloudCover: 0.55, rain: 0.15, wind: 1, lightning: 0 },
+  },
+  {
+    id: 'storm',
+    label: { vi: 'Bão', en: 'Storm' },
+    weight: 12,
+    workMultiplier: 0.75,
+    visual: { cloudCover: 1, rain: 1, wind: 1.35, lightning: 8 },
+  },
+]
+
+const STUDIO_WEATHER_PROFILE: WeatherProfile = {
+  blockSeconds: 480,
+  transitionSeconds: 24,
+  kinds: STUDIO_WEATHER_KINDS,
+}
+
+/** Lịch trong studio chạy nhanh ×8 để thấy chuyển mùa khi ngồi xem. */
+const STUDIO_SCHEDULE_SPEED = 8
+
+/** Like `buildLightingWorld` but with ambience + the real weather layer (and audio). */
+export function buildWeatherWorld(initialTime: number): StageBuilder {
+  return (app: Application): StageScene => {
+    const painter = new TilePainter(app.renderer)
+    const root = new Container()
+    const decor = new Graphics()
+    paintWorldGrounds(painter, root, decor)
+    root.addChild(decor)
+
+    const details: DetailScene[] = []
+    for (const zoneId of Object.keys(ZONE_LAYOUTS)) {
+      const layout = ZONE_LAYOUTS[zoneId]
+      const factory = detailSceneFor(zoneId as ZoneId)
+      if (!layout || !factory) continue
+      const detail = factory(layout.rect, painter)
+      detail.setState({ workers: 2, earnedLog10: 6, tier: 0, labels: STUDIO_LABELS, stock01: 0.6 })
+      root.addChild(detail.root)
+      details.push(detail)
+    }
+
+    const ambience = createAmbience()
+    const weather = createWeather({ profile: STUDIO_WEATHER_PROFILE })
+    const lighting = createLighting({ auto: false, time: initialTime })
+    root.addChild(ambience.container, weather.container, lighting.container, weather.flash)
+
+    return {
+      root,
+      width: WORLD_WIDTH,
+      height: WORLD_HEIGHT,
+      api: {
+        setTime: (time: number) => lighting.setTime(time),
+        setWeather: (kindId: string | null) =>
+          weather.setOverride(kindId === null ? null : (STUDIO_WEATHER_KINDS.find((k) => k.id === kindId) ?? null)),
+        strike: () => weather.strike(),
+      },
+      update: (dt, elapsed) => {
+        for (const detail of details) detail.update(dt, elapsed)
+        ambience.update(dt, weather.wind())
+        weather.update(dt, elapsed * STUDIO_SCHEDULE_SPEED)
         lighting.update(dt)
       },
     }

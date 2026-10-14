@@ -1,5 +1,6 @@
 import type { Container } from 'pixi.js'
 import type { TilePainter } from '../tiles/painter'
+import type { Wind } from '../weather'
 import type { ZoneRect } from '../zoneLayout'
 
 /** Plain point in a zone's local space (props, anchors, actor targets). */
@@ -12,6 +13,15 @@ export interface Spot {
 export interface DetailSceneState {
   workers: number
   earnedLog10: number
+  /** Vehicle/prop tier raised by owned upgrades (0 = base art). */
+  tier: number
+  /** Popup wording already translated to the active locale. */
+  labels: { produced: string; money: string }
+  /**
+   * How full the zone's stock item is (0..1; -1 when that item has no cap).
+   * Drives the visible bins/piles — a full bin is why upstream work stops.
+   */
+  stock01: number
 }
 
 /**
@@ -23,6 +33,8 @@ export interface DetailScene {
   readonly root: Container
   setState(state: DetailSceneState): void
   update(dt: number, elapsed: number): void
+  /** Gió toàn cục mỗi frame (thời tiết); zone nào không quan tâm thì bỏ qua. */
+  setAmbient?(ambient: Wind): void
 }
 
 export type DetailSceneFactory = (rect: ZoneRect, tiles: TilePainter) => DetailScene

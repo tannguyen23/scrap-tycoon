@@ -1,11 +1,7 @@
 import { Container, Graphics } from 'pixi.js'
 import { makeRandom } from './random'
+import { CALM_WIND, type Wind } from './weather'
 import { WORLD_WIDTH } from './zoneLayout'
-
-interface Cloud {
-  node: Graphics
-  speed: number
-}
 
 interface Puff {
   node: Graphics
@@ -29,34 +25,21 @@ const CHIMNEY = { x: 164, y: 564 }
 
 export interface Ambience {
   readonly container: Container
-  update(dt: number): void
+  update(dt: number, wind?: Wind): void
 }
 
 /**
- * Map-level ambience: cloud shadows drifting across the yard, smoke from the
- * depot chimney and birds crossing. Purely decorative — never touches state.
+ * Map-level ambience: smoke from the depot chimney and birds crossing. Mây + bóng
+ * mây đã chuyển sang `weather.ts` (ghép cặp với lớp thời tiết). Purely decorative
+ * — never touches state.
  */
 export function createAmbience(): Ambience {
   const container = new Container()
-  const cloudLayer = new Container()
   const puffLayer = new Container()
   const birdLayer = new Container()
-  container.addChild(cloudLayer, puffLayer, birdLayer)
+  container.addChild(puffLayer, birdLayer)
 
   const rnd = makeRandom(90210)
-
-  const cloudDefs = [
-    { x: -140, y: 104, rx: 104, ry: 48, speed: 10 },
-    { x: 500, y: 392, rx: 84, ry: 38, speed: 6.8 },
-    { x: 260, y: 232, rx: 64, ry: 28, speed: 8.6 },
-  ]
-  const clouds: Cloud[] = []
-  for (const def of cloudDefs) {
-    const cloud = new Graphics().ellipse(0, 0, def.rx, def.ry).fill({ color: 0x0a0e16, alpha: 0.06 })
-    cloud.position.set(def.x, def.y)
-    clouds.push({ node: cloud, speed: def.speed })
-    cloudLayer.addChild(cloud)
-  }
 
   const puffs: Puff[] = []
   let smokeTimer = 0.4
@@ -90,15 +73,11 @@ export function createAmbience(): Ambience {
 
   let clock = 0
 
-  const update = (dt: number): void => {
+  const update = (dt: number, wind: Wind = CALM_WIND): void => {
     clock += dt
-    for (const cloud of clouds) {
-      cloud.node.x += cloud.speed * dt
-      if (cloud.node.x > WORLD_WIDTH + 140) cloud.node.x = -140
-    }
 
     for (const bird of birds) {
-      bird.node.x += bird.speed * dt
+      bird.node.x += (bird.speed + wind.x * 6) * dt
       bird.node.y = bird.baseY + Math.sin((clock + bird.phase) * 0.6) * 6
       const flap = Math.floor((clock + bird.phase) * 5.5) % 2 === 0
       bird.wingA.visible = flap
@@ -113,7 +92,7 @@ export function createAmbience(): Ambience {
       smokeTimer = 1.15
       const puff = new Graphics().rect(0, 0, 4, 4).fill({ color: 0xcfc6b2, alpha: 0.5 })
       puff.position.set(CHIMNEY.x, CHIMNEY.y)
-      puffs.push({ node: puff, vx: -5, vy: -14, life: 0, maxLife: 1.4 })
+      puffs.push({ node: puff, vx: -5 + wind.x * 18, vy: -14, life: 0, maxLife: 1.4 })
       puffLayer.addChild(puff)
     }
     for (let i = puffs.length - 1; i >= 0; i--) {
