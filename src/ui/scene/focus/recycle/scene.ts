@@ -11,7 +11,7 @@ import {
 import { CALM_WIND, type Wind } from '../../weather'
 import { drawJunkHeap, drawDrum, drawWeedTuft } from '../alley/sprites'
 import { drawZoneFence } from '../fence'
-import { Particles, SHADOW, sortByDepth } from '../parts'
+import { Particles, SHADOW, depthArt, depthSlot, sortByDepth } from '../parts'
 import { createPopups } from '../popups'
 import type { DetailScene, DetailSceneState, Spot } from '../types'
 import { createSmith, type SmithActor } from './actors'
@@ -64,26 +64,38 @@ export function createRecycleDetail(rect: ZoneRect, tiles: TilePainter): DetailS
   paintPuddle(decals, 64, 130, 6, 2.6, 461)
   root.addChild(decals)
 
+  // Lớp depth của khu: actor + prop cao cùng xếp theo y — thợ đứng trong lòng xưởng
+  // không bị mái che mất, còn đe/lò/chồng bao thì che được người đi phía sau.
+  const actors = new Container()
+  actors.label = 'actors'
+
   const props = new Graphics()
-  drawForgeShed(props)
-  drawChimney(props)
-  drawAnvil(props, anvil.x, anvil.y)
-  drawPalletStack(props, stack.x, stack.y + 4)
-  drawDrum(props, 78, 56, 0x5c6b78, 0x7d8b98)
-  drawDrum(props, 96, 52, 0x7a6a52, 0x93815f)
-  drawJunkHeap(props, 34, 44, 1)
-  drawJunkHeap(props, 232, 130, 4)
   drawWeedTuft(props, 12, 168)
   drawWeedTuft(props, 252, 88)
   root.addChild(props)
 
-  // Lò nấu: hộc lửa hai frame + quầng sáng nhấp nháy (đèn đêm nằm ở lighting.ts).
-  const hearthBase = new Graphics()
-  hearthBase.ellipse(hearth.x, hearth.y + 2, 15, 6).fill(SHADOW)
-  hearthBase.rect(hearth.x - 13, hearth.y - 12, 26, 14).fill(0x6a6f78)
-  hearthBase.rect(hearth.x - 13, hearth.y - 12, 26, 3).fill(0x8b939c)
-  hearthBase.rect(hearth.x - 8, hearth.y - 9, 16, 9).fill(0x2b2119)
-  root.addChild(hearthBase)
+  // Nhà hở (mặt tiền mở): sort theo mép BẮC để lòng xưởng không bao giờ bị mái che.
+  const shed = depthArt(actors, 12)
+  drawForgeShed(shed)
+  drawChimney(shed)
+  const anvilArt = depthArt(actors, anvil.y)
+  drawAnvil(anvilArt, anvil.x, anvil.y)
+  const palletArt = depthArt(actors, stack.y + 4)
+  drawPalletStack(palletArt, stack.x, stack.y + 4)
+  const drums = depthArt(actors, 56)
+  drawDrum(drums, 78, 56, 0x5c6b78, 0x7d8b98)
+  drawDrum(drums, 96, 52, 0x7a6a52, 0x93815f)
+  const heaps = depthArt(actors, 130)
+  drawJunkHeap(heaps, 34, 44, 1)
+  drawJunkHeap(heaps, 232, 130, 4)
+
+  // Lò nấu: hộc lửa hai frame + quầng sáng nhấp nháy (đèn đêm nằm ở lighting.ts) —
+  // lửa và quầng nằm luôn trong node của lò nên không bao giờ tách khỏi nó.
+  const hearthArt = depthArt(actors, hearth.y + 2)
+  hearthArt.ellipse(hearth.x, hearth.y + 2, 15, 6).fill(SHADOW)
+  hearthArt.rect(hearth.x - 13, hearth.y - 12, 26, 14).fill(0x6a6f78)
+  hearthArt.rect(hearth.x - 13, hearth.y - 12, 26, 3).fill(0x8b939c)
+  hearthArt.rect(hearth.x - 8, hearth.y - 9, 16, 9).fill(0x2b2119)
 
   const flameA = new Graphics()
   flameA.rect(hearth.x - 6, hearth.y - 7, 12, 7).fill(0xf08a3d)
@@ -94,20 +106,20 @@ export function createRecycleDetail(rect: ZoneRect, tiles: TilePainter): DetailS
   const forgeGlow = new Graphics()
     .ellipse(hearth.x, hearth.y - 2, 26, 14)
     .fill({ color: 0xffb45a, alpha: 0.5 })
-  root.addChild(forgeGlow, flameA, flameB)
+  hearthArt.addChild(forgeGlow, flameA, flameB)
 
   const fence = new Graphics()
   drawZoneFence(fence, rect, ZONE_LAYOUTS.recycle?.fenceOpenings)
   root.addChild(fence)
 
-  const lamp = new Graphics()
+  const lamp = depthArt(actors, 76)
   lamp.rect(170, 66, 2, 10).fill(0x75808d)
   lamp.rect(168, 62, 7, 4).fill(0x93a1b0)
   const lampGlow = new Graphics().ellipse(171.4, 68, 11, 6).fill({ color: 0xffd27f, alpha: 0.9 })
-  root.addChild(lamp, lampGlow)
+  lamp.addChild(lampGlow)
 
-  const sackStack = new Container()
-  root.addChild(sackStack)
+  const sackStack = depthSlot(actors, pile.y + 6)
+  sackStack.label = 'warehouse'
   let sackLevel = -1
 
   const fullMark = new Graphics().rect(pile.x - 2, pile.y - 30, 4, 4).fill(0xd9534f)
@@ -117,8 +129,6 @@ export function createRecycleDetail(rect: ZoneRect, tiles: TilePainter): DetailS
   const life = createForgeLife({ x: 236, y: 6 })
   root.addChild(life.container)
 
-  const actors = new Container()
-  actors.label = 'actors'
   const particles = new Particles()
   const popups = createPopups()
   root.addChild(actors, particles.container, popups.container)
