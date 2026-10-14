@@ -94,11 +94,59 @@ export function CharactersTab() {
   )
 }
 
+/** Luật hình (AGENTS "Dáng Stardew") — in ngay cạnh chỗ nghiệm thu art. */
+const ART_RULES: readonly string[] = [
+  'Một camera: ¾ top-down cố định, tile vuông THẲNG TRỤC 16px, zoom nguyên 1×/2×/4× — KHÔNG isometric 30°/45°, không xoay.',
+  'Một mặt trời ở TRÊN-TRÁI: bậc sáng mặt trên > mặt nam (mặt tiền) > gầm/viền; bóng tiếp xúc lệch xuống-phải (+1..+2px); hông tây sáng, đông tối.',
+  'Khối 3 tầng + bóng: bóng tiếp xúc → viền tối chân → thân chia mặt tối/sáng; độ cao giả bằng dịch mặt trên lên (tường nam + mái nhô), không bằng outline.',
+  'Y-sort theo chiều sâu: y lớn hơn vẽ sau; nhân vật đi RA SAU cây/thùng/mái (không dùng thứ tự layer tĩnh cho vật có thể chồng).',
+  'Chi tiết thưa: ~4 chi tiết/ô nền, ~1 chi tiết mỗi 40–50px, trường tông α ≤ 0,07; mép bằng autotile + jitter 1 ô, không mask vector.',
+  'Silhouette trước: mọi món khai KHUNG BAO và đọc được ở 1×; silhouette không trùng nhau.',
+  'Tỉ lệ cố định: người ~30px ⇒ cửa 1,5–2× người; xe ~50px; cây ~48px; hoa 4–5px — không phóng to vật để nhấn mạnh.',
+  'Animation lệch pha: mọi thứ ambient động (cờ/khói/chim/nước/bánh xe), clock lệch nhau; animation là hình, không đụng domain.',
+  'Ngoại lệ phải khai báo + có test (danh sách dưới) — thêm ngoại lệ mới mà không ghi vào AGENTS là lỗi.',
+]
+
+const ART_EXCEPTIONS: readonly string[] = [
+  'View NHÌN THẲNG của xe tải ở chặng driveway (cổng xuất): bánh là MẶT LỐP, không nan hoa — khoá ở tests/gateTruck.test.ts + tests/artConvention.test.ts.',
+  'Bánh xe tròn nằm trên mặt phẳng màn hình (không ép phối cảnh xuống mặt đất).',
+  'Vật bay không bóng: chim, ruồi, tia lửa.',
+  'Mặt phẳng nền: tile, vạch kẻ, vỉa hè, ổ gà, nắp cống, UI/HUD, con trỏ.',
+  'Lật scale.x để quay mặt là XẤP XỈ: vật lật được hai chiều thì mặt hông đừng tô chênh sáng mạnh.',
+]
+
+export function RulesTab() {
+  return (
+    <section className="studio-panel">
+      <h3>Luật hình — dáng Stardew</h3>
+      <p className="studio-note">
+        Bản đầy đủ nằm ở AGENTS.md (mục "Scene / UI" → “Dáng Stardew — luật hình”) và README.md. Mọi art mới
+        phải theo 9 luật dưới; tab này là chỗ đối chiếu nhanh khi nghiệm thu.
+      </p>
+      <ol>
+        {ART_RULES.map((rule) => (
+          <li key={rule} className="studio-note">
+            {rule}
+          </li>
+        ))}
+      </ol>
+      <h3>Ngoại lệ đã khai báo</h3>
+      <ul>
+        {ART_EXCEPTIONS.map((exception) => (
+          <li key={exception} className="studio-note">
+            {exception}
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
 export function DecorTab() {
   return (
     <StageFrame
       caption="Decor — danh sách dọc, vẽ ở ×2"
-      note="Mọi món dùng cùng công thức khối: bóng tiếp xúc dưới chân → viền tối nơi thân gặp đất → thân chia mặt tối/sáng → mặt sáng hướng trên-trái. Số cạnh tên là khung bao đã khai báo — test tự kiểm art có nằm trong khung đó. Thêm món mới = thêm drawer trong ui/scene/decorItems.ts (kèm khung bao) là studio tự liệt kê."
+      note="Mọi món dùng cùng công thức khối: bóng tiếp xúc dưới chân → viền tối nơi thân gặp đất → thân chia mặt tối/sáng → mặt sáng hướng trên-trái. Bậc sáng bắt buộc: MẶT TRÊN > mặt nam (mặt tiền) > gầm; hông tây sáng, đông tối — tests/artConvention.test.ts quét lại cả danh mục (dải trên phải sáng hơn khối thân, đáy phải có bóng/viền tối). Số cạnh tên là khung bao đã khai báo — test tự kiểm art có nằm trong khung đó. Thêm món mới = thêm drawer trong ui/scene/decorItems.ts (kèm khung bao) là studio tự liệt kê."
       build={buildDecor}
     />
   )

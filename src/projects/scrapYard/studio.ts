@@ -9,6 +9,7 @@ import {
   LayoutTab,
   LightingTab,
   PropsTab,
+  RulesTab,
   SoundsTab,
   WeatherTab,
   ZonesTab,
@@ -16,6 +17,7 @@ import {
 
 /** Tabs this project adds on top of the kit's own tabs. */
 const ZONE_TABS: readonly StudioTab[] = [
+  { id: 'rules', label: 'Luật hình', render: () => createElement(RulesTab) },
   { id: 'decor', label: 'Decor', render: () => createElement(DecorTab) },
   { id: 'characters', label: 'Nhân vật', render: () => createElement(CharactersTab) },
   { id: 'props', label: 'Props & xe', render: () => createElement(PropsTab) },
