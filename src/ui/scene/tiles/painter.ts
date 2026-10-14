@@ -172,6 +172,11 @@ export class TilePainter {
    * wobbles** (`jitter`, pass it for dirt tracks): a perfectly straight band
    * renders as a ruler line with a uniform edge-tile row, which reads as a pasted
    * rectangle. Roads and slabs keep `jitter = 0`.
+   *
+   * Dirt/gravel bands also get the **same interior dressing as a clearing**
+   * (tonal patches, pebble clusters, litter along the edges, a puddle or drag
+   * marks), clipped to the band outline — a path is a place people work, not a
+   * bare strip of tiles.
    */
   paintPath(
     root: Container,
@@ -188,6 +193,16 @@ export class TilePainter {
     const tileLayer = new Container()
     root.addChild(tileLayer)
     this.paintTiles(tileLayer, rect, 0, points, seed, kind, outside)
+
+    const dressed = new Container()
+    const clip = new Graphics().poly(points).fill(0xffffff)
+    root.addChild(dressed, clip)
+    dressed.mask = clip
+    this.tonesInside(dressed, rect, 0, seed, kind)
+    this.clustersInside(dressed, rect, 0, seed, kind)
+    this.litterInside(dressed, points, seed, kind)
+    this.groundStories(dressed, rect, 0, seed, kind)
+
     this.fringeInside(root, points, seed, outside, kind)
   }
 

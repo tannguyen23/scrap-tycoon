@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
+import { Container, Graphics } from 'pixi.js'
 import { COURIER_RUNS } from '@ui/scene/couriers'
 import { PRIMARY_TERRAINS } from '@ui/scene/tiles/terrain'
-import { SCATTER_SKIP_RECTS } from '@ui/scene/worldGrounds'
+import { paintWorldGrounds, SCATTER_SKIP_RECTS } from '@ui/scene/worldGrounds'
+import type { TilePainter } from '@ui/scene/tiles/painter'
 import {
   CLEARINGS,
   CONNECTORS,
@@ -36,6 +38,36 @@ function contains(outer: ZoneRect, inner: ZoneRect, margin: number): boolean {
     inner.y + inner.height + margin <= outer.y + outer.height
   )
 }
+
+describe('lane dressing', () => {
+  it('roughens every dirt lane and lays wear along them', () => {
+    // A path is a place people work: its contour must wobble (or the edge-tile
+    // row is uniform and the band reads as a pasted rectangle) and the map must
+    // lay usage traces over it (a bare strip of tiles reads as flat).
+    const calls: unknown[][] = []
+    const painter = {
+      paint: () => {},
+      patchwork: () => {},
+      scatter: () => {},
+      paintBlob: () => {},
+      paintPath: (...args: unknown[]) => {
+        calls.push(args)
+      },
+    } as unknown as TilePainter
+    const ground = new Container()
+    paintWorldGrounds(painter, ground, new Graphics())
+
+    const lanes = calls.filter((args) => args[2] === 'dirt')
+    expect(lanes.length).toBeGreaterThanOrEqual(2)
+    for (const args of lanes) {
+      // jitter is the 9th argument of paintPath.
+      expect(typeof args[8], `lane ${JSON.stringify(args[1])}`).toBe('number')
+      expect(args[8] as number).toBeGreaterThan(0)
+    }
+    // The wear pass (worn line / footprints / wheel ruts) lands on the ground.
+    expect(ground.children.length).toBeGreaterThan(0)
+  })
+})
 
 describe('map layout', () => {
   it('is roomy enough for four zones plus open ground', () => {
