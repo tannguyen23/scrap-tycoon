@@ -127,11 +127,11 @@ export function createRecycleDetail(rect: ZoneRect, tiles: TilePainter): DetailS
   root.addChild(fullMark)
 
   const life = createForgeLife({ x: 236, y: 6 })
-  root.addChild(life.container)
 
   const particles = new Particles()
   const popups = createPopups()
-  root.addChild(actors, particles.container, popups.container)
+  // Khói/tia lửa của xưởng vẽ SAU lớp depth (nằm cạnh ống khói, không bị mái che).
+  root.addChild(actors, life.container, particles.container, popups.container)
 
   const smiths: SmithActor[] = []
   let desired = 0

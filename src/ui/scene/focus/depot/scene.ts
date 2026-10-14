@@ -9,7 +9,7 @@ import {
   paintWearPath,
 } from '@ground/packs/scrapYard/decals'
 import { drawZoneFence } from '../fence'
-import { Particles, SHADOW, createSack, sortByDepth } from '../parts'
+import { Particles, SHADOW, createSack, depthArt, depthSlot, sortByDepth } from '../parts'
 import type { DetailScene, DetailSceneState, Spot } from '../types'
 import { createHauler, type HaulerActor } from './actors'
 import { createDepotLife } from './life'
@@ -50,37 +50,44 @@ export function createDepotDetail(rect: ZoneRect, tiles: TilePainter): DetailSce
   paintPuddle(decals, 100, 40, 5, 2.4, 361)
   root.addChild(decals)
 
-  const props = new Graphics()
-  drawWarehouse(props)
-  drawScale(props)
-  drawCrates(props, 120, 8)
-  drawWheelbarrow(props, 60, 78)
-  drawNoticeboard(props, 80, 60)
-  root.addChild(props)
+  // Lớp depth của khu: actor + prop cao cùng xếp theo y — nhà kho/bàn cân che được
+  // người đi phía sau, thợ bốc hàng đi ra sau chồng bao và chồng pallet.
+  const actors = new Container()
+  actors.label = 'actors'
+
+  // Nhà kho là công trình mặt tiền kín ⇒ sort theo mép NAM (76).
+  const warehouse = depthArt(actors, 76)
+  drawWarehouse(warehouse)
+  const scaleArt = depthArt(actors, 68)
+  drawScale(scaleArt)
+  const crates = depthArt(actors, 20)
+  drawCrates(crates, 120, 8)
+  const barrow = depthArt(actors, 78)
+  drawWheelbarrow(barrow, 60, 78)
+  const board = depthArt(actors, 74)
+  drawNoticeboard(board, 80, 60)
 
   // Hàng rào bao sân, cổng mở đúng chỗ lối đi đất + làn nhựa vào kho (cạnh bắc).
   const fence = new Graphics()
   drawZoneFence(fence, rect, ZONE_LAYOUTS.depot?.fenceOpenings)
   root.addChild(fence)
 
-  const lamp = new Graphics()
+  const lamp = depthArt(actors, 22)
   lamp.rect(115, 14, 2, 8).fill(0x75808d)
   lamp.rect(113, 10, 7, 4).fill(0x93a1b0)
   const glow = new Graphics().ellipse(116.4, 16, 12, 7).fill({ color: 0xffd27f, alpha: 1 })
-  root.addChild(lamp, glow)
+  lamp.addChild(glow)
 
   const blink = new Graphics().rect(138, 33, 2, 2).fill(0x9ad46f)
   root.addChild(blink)
 
-  const pile = new Container()
-  root.addChild(pile)
+  const pile = depthSlot(actors, dropoff.y + 12)
   let pileLevel = -1
 
   // Kho của khu: chồng pallet bên cổng bắc, lớn dần theo tồn `pallet` thật; dấu
   // đỏ nhấp nháy khi bin đầy (chặng ba gác phía trước bị nghẽn).
-  const palletStack = new Container()
+  const palletStack = depthSlot(actors, PALLET_STACK.y)
   palletStack.label = 'warehouse'
-  root.addChild(palletStack)
   const palletFullMark = new Graphics().rect(PALLET_STACK.x - 2, PALLET_STACK.y - 34, 4, 4).fill(0xd9534f)
   palletFullMark.visible = false
   root.addChild(palletFullMark)
@@ -88,12 +95,10 @@ export function createDepotDetail(rect: ZoneRect, tiles: TilePainter): DetailSce
   let stock01 = -1
 
   const life = createDepotLife({ x: 210, y: 60 })
-  root.addChild(life.container)
 
-  const actors = new Container()
-  actors.label = 'actors'
   const particles = new Particles()
-  root.addChild(actors, particles.container)
+  // Mèo nằm TRÊN chồng bao nên lớp life phải vẽ sau lớp depth.
+  root.addChild(actors, life.container, particles.container)
 
   const haulers: HaulerActor[] = []
   let desired = 0
