@@ -18,72 +18,77 @@ interface TilePalette {
  * Per-terrain palettes. Dirt carries the most variants on purpose: large
  * clearings are where repetition shows, so it mixes hue-shifted tones instead of
  * one brown. Numbers here are also the variant counts.
+ *
+ * **The array order is a brightness ramp**: the tone field quantises into bands
+ * that follow the index, so two neighbours in this list end up next to each
+ * other on screen. Any step larger than ~10/255 reads as a blocky seam along
+ * the band edge (measured on the alley lane: index 4 → 5 stepped 18 in red and
+ * drew visible rectangles). Hues still vary — the ramp sorts them by brightness
+ * instead of scattering them. `tests/tileVariety.test.ts` locks the bound; keep
+ * each variant's speck pair riding with its base when reordering.
  */
 const PALETTES: Record<TileKind, TilePalette> = {
   dirt: {
-    // Tám tông lệch HUE nhưng cùng độ sáng (lệch ~±5%) — chênh sáng nhiều thì
-    // biên mảng tông bị đọc thành các khối chữ nhật theo lưới tile.
-    bases: [0x7f6a4a, 0x77684b, 0x83704f, 0x7c6b4c, 0x866b52, 0x746349, 0x817052, 0x7d694a],
+    bases: [0x746349, 0x77684b, 0x7c6b4c, 0x7d694a, 0x7f6a4a, 0x817052, 0x83704f, 0x866b52],
     specks: [
-      [0x6a5738, 0x95805e],
-      [0x63513a, 0x9a8460],
-      [0x715c3d, 0xa08a63],
-      [0x665341, 0x8f7b58],
-      [0x7a5240, 0xa8795c],
       [0x5c5245, 0x8c8474],
-      [0x6f6242, 0xa39a74],
+      [0x63513a, 0x9a8460],
+      [0x665341, 0x8f7b58],
       [0x6a5540, 0x93795a],
+      [0x6a5738, 0x95805e],
+      [0x6f6242, 0xa39a74],
+      [0x715c3d, 0xa08a63],
+      [0x7a5240, 0xa8795c],
     ],
   },
   water: {
-    // Nước ao bãi phế liệu: xanh lục lam, hơi đục. Sáu tông chỉ lệch HUE ~±5%
-    // về sáng — nước là mặt phẳng, chênh sáng nhiều thì mặt ao thành các ô vuông.
-    bases: [0x4a80a2, 0x457a9c, 0x4e85a6, 0x43789a, 0x4b81a3, 0x477d9f],
+    // Nước ao bãi phế liệu: xanh lục lam, hơi đục. Sáu tông xếp theo ramp sáng.
+    bases: [0x43789a, 0x457a9c, 0x477d9f, 0x4a80a2, 0x4b81a3, 0x4e85a6],
     specks: [
-      [0x35607d, 0x9fd4e8],
-      [0x2f5a76, 0xa8dcec],
-      [0x3b6a86, 0x93cbe2],
       [0x2a5070, 0xb0e2f0],
-      [0x38668a, 0x9ed2e6],
+      [0x2f5a76, 0xa8dcec],
       [0x2d5473, 0xa4d8ea],
+      [0x35607d, 0x9fd4e8],
+      [0x38668a, 0x9ed2e6],
+      [0x3b6a86, 0x93cbe2],
     ],
   },
   gravel: {
-    bases: [0x767468, 0x6e6c60, 0x7f7d70, 0x747266, 0x7b7364, 0x6b6a5f],
+    bases: [0x7f7d70, 0x767468, 0x7b7364, 0x747266, 0x6e6c60, 0x6b6a5f],
     specks: [
-      [0x626053, 0x8d8b7e],
-      [0x5b594d, 0x9a988b],
       [0x6a675a, 0xa5a396],
-      [0x605e52, 0x94927f],
+      [0x626053, 0x8d8b7e],
       [0x6f6656, 0xa8a08c],
+      [0x605e52, 0x94927f],
+      [0x5b594d, 0x9a988b],
       [0x585f66, 0x8a929a],
     ],
   },
   grass: {
-    // Sáu tông chênh nhau rất ít (±4% sáng): bước tông nhỏ thì mảng tông trên cỏ
-    // đọc ra là "cỏ sáng/tối" chứ không thành các ô vuông khác màu.
-    bases: [0x4f7d3c, 0x4b7839, 0x53823f, 0x4d7b3b, 0x568642, 0x497536],
+    // Sáu tông chênh nhau rất ít (≤ 5/255 mỗi bước): mảng tông trên cỏ đọc ra là
+    // "cỏ sáng/tối" chứ không thành các ô vuông khác màu.
+    bases: [0x497536, 0x4b7839, 0x4d7b3b, 0x4f7d3c, 0x53823f, 0x568642],
     specks: [[0x3d6730, 0x6ba24f]],
   },
   asphalt: {
-    bases: [0x5b6472, 0x565f6c, 0x606a78, 0x596270],
+    bases: [0x565f6c, 0x596270, 0x5b6472, 0x606a78],
     specks: [[0x4d5563, 0x707a88]],
   },
   concrete: {
     // Xám trung tính, hơi ấm — bê tông ngả xanh bị đọc thành mặt nước.
-    bases: [0x9a968c, 0x949086, 0xa09c92, 0x969288],
+    bases: [0x949086, 0x969288, 0x9a968c, 0xa09c92],
     specks: [[0x8b877c, 0xa8a49a]],
   },
   dirtFringe: {
-    bases: [0x7d6848, 0x776246, 0x82704e, 0x7a6748],
+    bases: [0x776246, 0x7a6748, 0x7d6848, 0x82704e],
     specks: [[0x6a5738, 0x95805e]],
   },
   grassFringe: {
-    bases: [0x4f7d3c, 0x4b7839, 0x53823f, 0x4d7b3b, 0x568642, 0x497536],
+    bases: [0x497536, 0x4b7839, 0x4d7b3b, 0x4f7d3c, 0x53823f, 0x568642],
     specks: [[0x3d6730, 0x6ba24f]],
   },
   gravelFringe: {
-    bases: [0x747266, 0x6e6c60, 0x7c7a6e, 0x727064],
+    bases: [0x6e6c60, 0x727064, 0x747266, 0x7c7a6e],
     specks: [[0x626053, 0x8d8b7e]],
   },
 }

@@ -1,10 +1,23 @@
 import { describe, it } from 'vitest'
 import { TILE_SIZE } from '@ui/scene/tiles/terrain'
-import { groundVariant, variantBoundaryBlend } from '@ui/scene/tiles/variety'
+import { boundaryDitherWeight, groundVariant, variantBoundaryBlend } from '@ui/scene/tiles/variety'
 
 const WORLD_W = 1280
 const WORLD_H = 720
 const DITHER_MAX_DENSITY = 0.35
+
+/** Mean of the edge weight over one tile — sampling every 4px is plenty here. */
+function meanWeight(x: number, y: number, count: number, salt: number): number {
+  let sum = 0
+  let samples = 0
+  for (let py = 0; py < TILE_SIZE; py += 4) {
+    for (let px = 0; px < TILE_SIZE; px += 4) {
+      sum += boundaryDitherWeight(x, y, x + px, y + py, count, salt)
+      samples++
+    }
+  }
+  return sum / samples
+}
 
 function budget(label: string, count: number, salt: number) {
   let tiles = 0
@@ -25,13 +38,14 @@ function budget(label: string, count: number, salt: number) {
       const blend = variantBoundaryBlend(x, y, count, salt)
       if (!blend || blend.amount <= 0.05) continue
       tiles++
-      specks += Math.round(TILE_SIZE * TILE_SIZE * DITHER_MAX_DENSITY * blend.amount)
+      const nominal = TILE_SIZE * TILE_SIZE * DITHER_MAX_DENSITY * blend.amount
+      specks += nominal * meanWeight(x, y, count, salt)
     }
   }
   console.log(
     `  ${label.padEnd(10)} count=${count} salt=${String(salt).padEnd(3)} ` +
       `gated=${((gated / area) * 100).toFixed(1)}% of map  dithered=${((tiles / area) * 100).toFixed(1)}%  ` +
-      `specks=${specks}  rects/tile=${(specks / Math.max(1, tiles)).toFixed(1)}`,
+      `specks=${Math.round(specks)} (edge-weighted)  rects/tile=${(specks / Math.max(1, tiles)).toFixed(1)}`,
   )
 }
 

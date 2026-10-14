@@ -1,4 +1,5 @@
 import { cornerHash } from './edgeGeometry'
+import { TILE_SIZE } from './terrain'
 
 /**
  * Low-frequency tile variety — the fix for "checkerboard ground".
@@ -143,6 +144,38 @@ export function variantBoundaryBlend(x: number, y: number, count: number, seed: 
   if (distance > BLEND_RANGE) return null
   const neighbour = frac < 0.5 ? (index - 1 + count) % count : (index + 1) % count
   return { variant: neighbour, amount: 1 - distance / BLEND_RANGE }
+}
+
+/**
+ * Weight for one dither speck at `(px, py)` inside the tile at `(x, y)`.
+ *
+ * 1 sits on a tile edge whose neighbour holds a different tone and falls to 0
+ * away from it, so the blend creeps over the seam like a gradient. Sprinkling
+ * the whole tile evenly instead turned every boundary tile into a speckled
+ * *block* — measured along the alley lane: runs of up to 9 speckled tiles in a
+ * row, which reads as rectangles on a narrow band, not a transition.
+ *
+ * Returns 0 when no 4-neighbour differs, which makes the caller's "is there a
+ * seam at all" check implicit.
+ */
+export function boundaryDitherWeight(
+  x: number,
+  y: number,
+  px: number,
+  py: number,
+  count: number,
+  seed: number,
+): number {
+  if (count < 2) return 0
+  const own = groundVariant(x, y, count, seed)
+  const u = clamp01((px - x) / TILE_SIZE)
+  const v = clamp01((py - y) / TILE_SIZE)
+  let weight = 0
+  if (groundVariant(x - TILE_SIZE, y, count, seed) !== own) weight = Math.max(weight, 1 - u)
+  if (groundVariant(x + TILE_SIZE, y, count, seed) !== own) weight = Math.max(weight, u)
+  if (groundVariant(x, y - TILE_SIZE, count, seed) !== own) weight = Math.max(weight, 1 - v)
+  if (groundVariant(x, y + TILE_SIZE, count, seed) !== own) weight = Math.max(weight, v)
+  return weight
 }
 
 /**

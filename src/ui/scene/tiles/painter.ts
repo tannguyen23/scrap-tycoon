@@ -17,7 +17,7 @@ import {
 } from './groundItems'
 import { EDGE_TONES, terrainTones, type TileKind } from './terrain'
 import { generateTileSet, tileBaseTone, type TileSet } from './tileSet'
-import { groundTint, groundVariant, scatterDensity, scatterMix, variantBoundaryBlend } from './variety'
+import { boundaryDitherWeight, groundTint, groundVariant, scatterDensity, scatterMix, variantBoundaryBlend } from './variety'
 import { paintShore } from './waterDetail'
 
 export interface MaskedOptions {
@@ -341,22 +341,23 @@ export class TilePainter {
     }
     container.addChild(sprite)
 
-    this.ditherBorder(dither, kind, x, y, count, salt, variant)
+    this.ditherBorder(dither, kind, x, y, count, salt)
   }
 
   /**
    * Dissolves the step between two tonal patches.
    *
    * A tile that abuts a *different* tone gets its neighbour's **base** tone
-   * sprinkled over it, denser the closer it sits to the border between them. Three
+   * sprinkled over it, **dense on the edge that abuts the neighbour and fading
+   * inwards** (`boundaryDitherWeight`), so the seam reads as a gradient. Three
    * things matter and the first two were wrong before:
    *
    * 1. the dither colour is the neighbour's **base** tone, not its grain tones —
    *    the grain pair sits ~30% away from the base, so the old dither sprinkled
    *    light/dark dots that read as noise instead of easing one tone into the next;
-   * 2. only tiles that really touch another tone are dithered. The field value only
-   *    says "somewhere inside this band", which is most of the map, so dithering on
-   *    it alone spends hundreds of thousands of rects on tiles that show no seam;
+   * 2. the specks are weighted toward the shared edge. Sprinkling the whole tile
+   *    evenly made every boundary tile a speckled rectangle, and on a narrow band
+   *    (the alley lane) the boundary ran along it for tiles on end;
    * 3. density (not alpha) carries the blend, so the whole pass keeps one fill
    *    style and batches as a single draw.
    */
@@ -367,10 +368,8 @@ export class TilePainter {
     y: number,
     count: number,
     salt: number,
-    ownVariant: number,
   ): void {
     if (count < 2) return
-    if (!touchesOtherTone(x, y, count, salt, ownVariant)) return
     const blend = variantBoundaryBlend(x, y, count, salt)
     if (!blend || blend.amount <= 0.05) return
 
@@ -378,9 +377,10 @@ export class TilePainter {
     const rnd = makeRandom(cornerHash(x, y, salt * 457 + 31))
     const specks = Math.round(TILE_SIZE * TILE_SIZE * DITHER_MAX_DENSITY * blend.amount)
     for (let i = 0; i < specks; i++) {
-      dither
-        .rect(Math.round(x + rnd() * (TILE_SIZE - 1)), Math.round(y + rnd() * (TILE_SIZE - 1)), 1, 1)
-        .fill({ color: tone, alpha: DITHER_ALPHA })
+      const px = Math.round(x + rnd() * (TILE_SIZE - 1))
+      const py = Math.round(y + rnd() * (TILE_SIZE - 1))
+      if (rnd() > boundaryDitherWeight(x, y, px, py, count, salt)) continue
+      dither.rect(px, py, 1, 1).fill({ color: tone, alpha: DITHER_ALPHA })
     }
   }
 
@@ -598,16 +598,6 @@ export class TilePainter {
     }
     root.addChild(g)
   }
-}
-
-/** Does any 4-neighbour of this tile hold a different variant? */
-function touchesOtherTone(x: number, y: number, count: number, salt: number, ownVariant: number): boolean {
-  return (
-    groundVariant(x - TILE_SIZE, y, count, salt) !== ownVariant ||
-    groundVariant(x + TILE_SIZE, y, count, salt) !== ownVariant ||
-    groundVariant(x, y - TILE_SIZE, count, salt) !== ownVariant ||
-    groundVariant(x, y + TILE_SIZE, count, salt) !== ownVariant
-  )
 }
 
 const KIND_OFFSET: Record<TileKind, number> = {

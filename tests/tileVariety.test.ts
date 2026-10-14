@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
+import { TILE_KINDS } from '@ui/scene/tiles/terrain'
+import { tileBaseTone, tileVariantCount } from '@ui/scene/tiles/tileSet'
 import {
+  boundaryDitherWeight,
   groundTint,
   groundVariant,
   scatterDensity,
@@ -115,6 +118,80 @@ describe('low-frequency tile variety', () => {
       expect(value).toBeGreaterThanOrEqual(0)
       expect(value).toBeLessThanOrEqual(1)
     }
+  })
+})
+
+describe('tile palettes', () => {
+  it('orders variants as a brightness ramp so tone band edges step little', () => {
+    // The tone field quantises into bands that follow the variant index, so the
+    // array order decides the step at every band edge. Scattering the hues
+    // (the old order) put an 18/255 jump at one edge, which drew visible
+    // rectangles along the alley lane.
+    for (const kind of TILE_KINDS) {
+      const count = tileVariantCount(kind)
+      expect(count, kind).toBeGreaterThan(0)
+      for (let i = 0; i + 1 < count; i++) {
+        const step = channelDelta(tileBaseTone(kind, i), tileBaseTone(kind, i + 1))
+        expect(step, `${kind}: variant ${i} -> ${i + 1}`).toBeLessThanOrEqual(10)
+      }
+    }
+  })
+})
+
+describe('boundary dither weight', () => {
+  it('concentrates the blend on the edge that abuts another tone', () => {
+    let checked = 0
+    for (let y = 32; y < 400 && checked < 3; y += 16) {
+      for (let x = 32; x < 400 && checked < 3; x += 16) {
+        const own = groundVariant(x, y, COUNT, SEED)
+        const rightDiffers = groundVariant(x + 16, y, COUNT, SEED) !== own
+        const othersMatch =
+          groundVariant(x - 16, y, COUNT, SEED) === own &&
+          groundVariant(x, y - 16, COUNT, SEED) === own &&
+          groundVariant(x, y + 16, COUNT, SEED) === own
+        if (!rightDiffers || !othersMatch) continue
+        checked++
+        expect(boundaryDitherWeight(x, y, x + 15, y + 8, COUNT, SEED)).toBeGreaterThan(0.85)
+        expect(boundaryDitherWeight(x, y, x + 1, y + 8, COUNT, SEED)).toBeLessThan(0.15)
+      }
+    }
+    expect(checked, 'no right-edge seam tile found — the field seed changed?').toBeGreaterThan(0)
+  })
+
+  it('fades the blend inward from an inside corner', () => {
+    let checked = 0
+    for (let y = 32; y < 400 && checked < 3; y += 16) {
+      for (let x = 32; x < 400 && checked < 3; x += 16) {
+        const own = groundVariant(x, y, COUNT, SEED)
+        const cornerDiffers =
+          groundVariant(x + 16, y, COUNT, SEED) !== own && groundVariant(x, y + 16, COUNT, SEED) !== own
+        const othersMatch = groundVariant(x - 16, y, COUNT, SEED) === own && groundVariant(x, y - 16, COUNT, SEED) === own
+        if (!cornerDiffers || !othersMatch) continue
+        checked++
+        expect(boundaryDitherWeight(x, y, x + 15, y + 15, COUNT, SEED)).toBeGreaterThan(0.85)
+        expect(boundaryDitherWeight(x, y, x, y, COUNT, SEED)).toBeLessThan(0.15)
+      }
+    }
+    expect(checked, 'no corner seam tile found — the field seed changed?').toBeGreaterThan(0)
+  })
+
+  it('is zero when no neighbour holds a different tone', () => {
+    let checked = 0
+    for (let y = 32; y < 400 && checked < 2; y += 16) {
+      for (let x = 32; x < 400 && checked < 2; x += 16) {
+        const own = groundVariant(x, y, COUNT, SEED)
+        const alone =
+          groundVariant(x - 16, y, COUNT, SEED) === own &&
+          groundVariant(x + 16, y, COUNT, SEED) === own &&
+          groundVariant(x, y - 16, COUNT, SEED) === own &&
+          groundVariant(x, y + 16, COUNT, SEED) === own
+        if (!alone) continue
+        checked++
+        expect(boundaryDitherWeight(x, y, x + 8, y + 8, COUNT, SEED)).toBe(0)
+        expect(boundaryDitherWeight(x, y, x + 15, y + 15, COUNT, SEED)).toBe(0)
+      }
+    }
+    expect(checked, 'no interior tile found — the field seed changed?').toBeGreaterThan(0)
   })
 })
 
