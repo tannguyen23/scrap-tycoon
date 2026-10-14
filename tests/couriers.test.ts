@@ -45,39 +45,44 @@ describe('courier layer', () => {
   })
 })
 
-describe('sack run (alley → forge)', () => {
-  it('carries a sack to the forge and walks back empty, inside the dirt path', () => {
+describe('cart run (alley → forge)', () => {
+  it('trundles the dirt path both ways with its nose pointing where it goes', () => {
     const run = COURIER_RUNS['alley>recycle']
     if (!run) throw new Error('missing the alley>recycle run')
-    const walker = createWalkerCourier(run, 0)
+    expect(run.kind).toBe('drive')
+    const cart = createDriveCourier(run, run.vehicle ?? 0, 0)
     const particles = new Particles()
 
-    let loads = 0
-    let drops = 0
-    let carried = walker.cargo.visible
     let minX = Number.POSITIVE_INFINITY
     let maxX = Number.NEGATIVE_INFINITY
     let minY = Number.POSITIVE_INFINITY
     let maxY = Number.NEGATIVE_INFINITY
+    let previousX = cart.container.x
+    let sawEast = false
+    let sawWest = false
 
     for (let frame = 0; frame < 60 * 90; frame++) {
-      walker.update(1 / 60, particles)
+      cart.update(1 / 60, particles)
       particles.update(1 / 60)
-      const { x, y } = walker.container
+      const { x, y } = cart.container
       minX = Math.min(minX, x)
       maxX = Math.max(maxX, x)
       minY = Math.min(minY, y)
       maxY = Math.max(maxY, y)
 
-      const carryingNow = walker.cargo.visible
-      if (carryingNow && !carried && x < 430) loads += 1
-      if (!carryingNow && carried && x > 580) drops += 1
-      carried = carryingNow
+      // Hướng mặt khớp chiều đi: chạy về đông thì +1, về tây thì −1.
+      const dx = x - previousX
+      previousX = x
+      if (Math.abs(dx) > 0.05) {
+        expect(Math.sign(cart.container.scale.x)).toBe(Math.sign(dx))
+        if (dx > 0) sawEast = true
+        else sawWest = true
+      }
     }
 
-    expect(loads).toBeGreaterThanOrEqual(2)
-    expect(drops).toBeGreaterThanOrEqual(2)
-    // The whole round trip stays on the dirt path, into the forge sack stack.
+    expect(sawEast).toBe(true)
+    expect(sawWest).toBe(true)
+    // The whole round trip stays on the dirt path.
     expect(minX).toBeGreaterThanOrEqual(384)
     expect(maxX).toBeLessThanOrEqual(652)
     expect(minY).toBeGreaterThanOrEqual(100)
@@ -86,10 +91,12 @@ describe('sack run (alley → forge)', () => {
 })
 
 describe('pallet run (route → depot)', () => {
-  it('drives the road lane and the depot driveway, ending in the yard', () => {
+  it('carries pallets on foot down the driveway — no vehicle slides sideways', () => {
     const run = COURIER_RUNS['route>depot']
     if (!run) throw new Error('missing the route>depot run')
-    const driver = createDriveCourier(run, 0, 0)
+    // Driveway là đường dọc: art xe chỉ có hướng đông-tây nên chặng này phải đi bộ.
+    expect(run.kind).toBe('walk')
+    const walker = createWalkerCourier(run, 0)
     const particles = new Particles()
     const road = ZONE_LAYOUTS['route']?.rect
     const driveway = CONNECTORS[0]
@@ -98,16 +105,19 @@ describe('pallet run (route → depot)', () => {
 
     let reachedDepot = false
     let reachedRoad = false
+    let carried = false
 
-    for (let frame = 0; frame < 60 * 60; frame++) {
-      driver.update(1 / 60, particles)
+    for (let frame = 0; frame < 60 * 90; frame++) {
+      walker.update(1 / 60, particles)
       particles.update(1 / 60)
-      const { x, y } = driver.container
-      expect(insideAnyRect([road, driveway, depot], x, y), `cart left the lane at ${x},${y}`).toBe(true)
+      const { x, y } = walker.container
+      expect(insideAnyRect([road, driveway, depot], x, y), `pallet carrier left the lane at ${x},${y}`).toBe(true)
+      if (walker.cargo.visible) carried = true
       if (y > 540) reachedDepot = true
       if (x > 700 && y < 430) reachedRoad = true
     }
 
+    expect(carried).toBe(true)
     expect(reachedDepot).toBe(true)
     expect(reachedRoad).toBe(true)
   })

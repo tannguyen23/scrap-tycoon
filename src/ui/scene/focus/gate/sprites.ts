@@ -161,3 +161,91 @@ export function createTruckSprite(variant: number): TruckSprite {
   )
   return { container, wheels, doorClosed, doorOpen }
 }
+
+export interface TruckFrontSprite {
+  container: Container
+  wheels: SpokeWheel[]
+}
+
+/**
+ * Front (south) view of the export truck, for the leg where it drives down the
+ * access driveway toward the viewer: cab shows its windshield, headlights and
+ * grille, and the container's front wall rises behind the roof. Same block recipe
+ * as the side view (contact shadow → wheels → dark chassis → lit top plane, sun
+ * from the top-left) and the same shell paint per variant, so swapping views at a
+ * corner keeps the truck the same truck.
+ */
+export function createTruckFrontSprite(variant: number): TruckFrontSprite {
+  const shell = SHELLS[variant % SHELLS.length] ?? DEFAULT_SHELL
+
+  const container = new Container()
+  const shadow = new Graphics().ellipse(0, 0.8, 17, 5.4).fill(SHADOW)
+
+  const wheels: SpokeWheel[] = []
+  // Rear axle first: further away, so it sits higher and wider on screen.
+  for (const [x, y] of [
+    [-18, -7.4],
+    [18, -7.4],
+    [-14, -4.4],
+    [14, -4.4],
+  ] as const) {
+    const wheel = createSpokeWheel(4.4)
+    wheel.container.position.set(x, y)
+    wheels.push(wheel)
+  }
+
+  const body = new Graphics()
+  // thùng container sau lưng ca-bin: mặt nam + gân tôn + nóc nhô + trụ góc
+  body.rect(-16, -31, 32, 9).fill(shell.body)
+  for (let x = -13.5; x < 13; x += 4) {
+    body.rect(x, -30.4, 0.7, 8) .fill({ color: 0x000000, alpha: 0.1 })
+    body.rect(x + 2.1, -30.4, 0.5, 8).fill({ color: 0xffffff, alpha: 0.05 })
+  }
+  body.rect(-16, -32.4, 32, 1.4).fill(shell.dark)
+  body.rect(-16, -32.4, 32, 0.6).fill({ color: 0xffffff, alpha: 0.2 })
+  body.rect(-16, -31, 2, 9).fill(shell.dark)
+  body.rect(14, -31, 2, 9).fill(shell.dark)
+  // dải mã thùng trên mặt nam
+  body.rect(-11, -27.4, 22, 2.2).fill({ color: 0xf0ece2, alpha: 0.9 })
+  body.rect(-9.6, -26.8, 3, 1).fill({ color: 0x2b2f36, alpha: 0.8 })
+  body.rect(-5.6, -26.8, 5, 1).fill({ color: 0x2b2f36, alpha: 0.6 })
+  body.rect(0.6, -26.8, 1.8, 1).fill({ color: 0x2b2f36, alpha: 0.7 })
+  // ca-bin: mặt nam + kính + nóc + gương hai bên
+  body.rect(-13, -22, 26, 13).fill(CABIN)
+  body.rect(-13, -22, 26, 0.8).fill({ color: 0xffffff, alpha: 0.2 })
+  body.rect(-10.5, -20.4, 21, 7.4).fill(GLASS)
+  body.rect(-10.5, -20.4, 21, 0.8).fill({ color: 0xffffff, alpha: 0.3 })
+  body.rect(-10.5, -20.4, 21, 7.4).stroke({ width: 0.6, color: 0x3a4048 })
+  body.rect(-13.6, -23.4, 27.2, 1.4).fill(CABIN)
+  body.rect(-13.6, -23.4, 27.2, 0.6).fill({ color: 0xffffff, alpha: 0.24 })
+  body.rect(-15.8, -21, 2, 6).fill(METAL_DARK)
+  body.rect(13.8, -21, 2, 6).fill(METAL_DARK)
+  body.rect(-15.8, -21, 2, 0.7).fill({ color: 0xffffff, alpha: 0.25 })
+  body.rect(13.8, -21, 2, 0.7).fill({ color: 0xffffff, alpha: 0.25 })
+  // lưới tản nhiệt + đèn pha + biển số + cản trước
+  body.rect(-9, -13.4, 18, 2).fill(METAL_DARK)
+  for (let x = -7.4; x < 8; x += 2) body.rect(x, -13, 0.8, 1.4).fill({ color: 0x6f7681, alpha: 0.8 })
+  body.rect(-12.4, -13.6, 3.2, 2.6).fill(0xffe9a8)
+  body.rect(9.2, -13.6, 3.2, 2.6).fill(0xffe9a8)
+  body.rect(-11.8, -13.2, 1.4, 1).fill({ color: 0xffffff, alpha: 0.7 })
+  body.rect(10.4, -13.2, 1.4, 1).fill({ color: 0xffffff, alpha: 0.7 })
+  body.rect(-3.4, -11.4, 6.8, 2.4).fill(PLATE)
+  body.rect(-4, -11.4, 0.8, 2.4).fill({ color: 0x000000, alpha: 0.25 })
+  body.rect(14.4, -9.6, 1.8, 4).fill(METAL)
+  body.rect(-16.2, -9.6, 1.8, 4).fill(METAL)
+  // gầm chạy hết chiều ngang: dải xám → gầm đặc chạm bánh → viền gầm
+  body.rect(-16, -9, 32, 2.4).fill(METAL_DARK)
+  body.rect(-16, -6.6, 32, 2.8).fill(SKIRT)
+  body.rect(-16, -3.8, 32, 0.6).fill(SKIRT_DARK)
+
+  // tài xế sau kính: bóng đầu + vai, rồi vệt sáng chéo trên kính
+  const driver = new Graphics()
+  driver.rect(-5.4, -19.8, 10.8, 4.4).fill({ color: 0x2f3742, alpha: 0.5 })
+  driver.circle(0.6, -20.6, 2.6).fill({ color: 0xe8c099, alpha: 0.85 })
+  driver.rect(0.6, -20.6, 2.6, 2.6).fill({ color: 0x3a4048, alpha: 0.55 })
+  const glassShine = new Graphics()
+  glassShine.rect(-10.5, -20.4, 7, 7.4).fill({ color: 0xffffff, alpha: 0.13 })
+
+  container.addChild(shadow, ...wheels.map((wheel) => wheel.container), body, driver, glassShine)
+  return { container, wheels }
+}

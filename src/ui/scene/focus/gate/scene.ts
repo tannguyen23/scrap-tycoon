@@ -14,11 +14,12 @@ import { drawCrateStack } from './sprites'
 const CAP = 2
 const MAX_CRATES = 8
 /**
- * Chồng kiện chờ bốc lên xe ở cổng bắc (local; world 942, 572) — đúng chỗ courier
- * kho→cổng thả hàng xuống. Xuất cả sang test để khoá bất biến "xe lùi vào sao cho
- * cửa cuốn ở đuôi xe đứng ngay cạnh chồng kiện".
+ * Chồng kiện chờ bốc lên xe ở cổng bắc (local; world 956, 572) — đúng chỗ courier
+ * kho→cổng thả hàng xuống. Lệch về đông một chút để xe tải lùi xuống driveway
+ * không cắt qua chồng hàng. Xuất cả sang test để khoá bất biến "cửa cuốn ở đuôi xe
+ * đứng ngay cạnh chồng kiện khi xe đỗ ở dock".
  */
-export const CRATE_STACK = { x: 82, y: 24 }
+export const CRATE_STACK = { x: 96, y: 24 }
 
 /** Detailed city gate: booth, waving flags, boom barrier + trucks loading/departing. */
 export function createGateDetail(rect: ZoneRect, tiles: TilePainter): DetailScene {
@@ -142,11 +143,11 @@ export function createGateDetail(rect: ZoneRect, tiles: TilePainter): DetailScen
     while (trucks.length < desired) {
       const truck = createTruck(trucks.length, width)
       trucks.push(truck)
-      actors.addChild(truck.sprite.container)
+      actors.addChild(truck.sprite.container, truck.front.container)
     }
     for (let i = 0; i < trucks.length; i++) {
       const truck = trucks[i]
-      if (truck) truck.sprite.container.visible = i < desired
+      if (truck) truck.setActive(i < desired)
     }
 
     stock01 = state.stock01
@@ -173,22 +174,19 @@ export function createGateDetail(rect: ZoneRect, tiles: TilePainter): DetailScen
     }
 
     let anyDeparting = false
-    let anyArriving = false
     for (let i = 0; i < desired; i++) {
       const truck = trucks[i]
       if (!truck) continue
       truck.update(dt, particles, popups, ambient, i === turn)
       const phase = truck.getPhase()
-      // Xe lùi vào sân cũng đi qua trạm, nên thanh chắn phải mở cho cả chiều vào.
-      if (phase === 'arrive' && truck.getX() < width) anyArriving = true
       if (phase === 'depart' && truck.getX() > 80) anyDeparting = true
     }
-    // Một dock, một làn vào/ra: xe đang giữ lượt nhường cho xe kế khi đã ra khỏi map
+    // Một dock, một làn: xe đang giữ lượt nhường cho xe kế khi đã ra khỏi map
     // ('wait') — xe kế lúc đó mới rời bìa map, nên hai thùng xe không bao giờ chồng nhau.
     const holder = trucks[turn]
     if (holder && holder.getPhase() === 'wait') turn = (turn + 1) % Math.max(1, desired)
     if (turn >= desired) turn = 0
-    drawBarrier(anyDeparting || anyArriving)
+    drawBarrier(anyDeparting)
     particles.update(dt)
     popups.update(dt)
   }

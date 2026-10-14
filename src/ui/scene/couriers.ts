@@ -34,6 +34,11 @@ export interface CourierRun {
   readonly cap: number
   readonly cargo: CargoKind
   readonly hat: 'straw' | 'cap'
+  /**
+   * Fleet tier override for a driving run: a hand cart on a dirt footpath never
+   * upgrades itself into a box truck, whatever its zone's visual tier says.
+   */
+  readonly vehicle?: number
   readonly path: readonly Spot[]
   /**
    * World point where delivered cargo lands — the destination zone's visible
@@ -44,12 +49,14 @@ export interface CourierRun {
 
 export const COURIER_RUNS: Record<string, CourierRun> = {
   // Dirt path {x:384, y:100, w:224, h:48}: alley east gate → the forge sack stack.
+  // Đẩy xe cút kít theo lối mòn (ghim tier 0 — lối mòn không bao giờ thành xe tải).
   'alley>recycle': {
-    kind: 'walk',
-    speed: 30,
+    kind: 'drive',
+    speed: 34,
     cap: 3,
     cargo: 'sack',
     hat: 'cap',
+    vehicle: 0,
     path: [
       { x: 388, y: 124 },
       { x: 596, y: 124 },
@@ -71,14 +78,16 @@ export const COURIER_RUNS: Record<string, CourierRun> = {
     ],
     drop: { x: 724, y: 372 },
   },
-  // Westbound lane of the road band, then the depot driveway {x:216, y:444, w:36, h:116}
-  // into the yard where the pallet stack waits.
+  // Westbound lane of the road band, then down the depot driveway {x:216, y:444, w:36, h:116}
+  // into the yard where the pallet stack waits. Đi bộ: driveway là đường DỌC, mà
+  // art xe chỉ có hướng đông-tây — chạy xe xuống đây là trôi ngang. Xe chỉ chạy
+  // trên đường ngang (band + làn xuất), mọi chặng dọc do người vác.
   'route>depot': {
-    kind: 'drive',
-    speed: 52,
-    cap: 2,
+    kind: 'walk',
+    speed: 30,
     cargo: 'pallet',
     hat: 'cap',
+    cap: 2,
     path: [
       { x: 724, y: 418 },
       { x: 252, y: 418 },
@@ -88,8 +97,8 @@ export const COURIER_RUNS: Record<string, CourierRun> = {
     ],
     drop: { x: 280, y: 584 },
   },
-  // Depot driveway up to the road, east along the south walk, down to the gate
-  // where the crate stack waits.
+  // Depot driveway up to the road, east along the south walk, down the gate
+  // driveway's east side to the crate stack (world 956, beside the truck dock).
   'depot>gate': {
     kind: 'walk',
     speed: 34,
@@ -100,10 +109,10 @@ export const COURIER_RUNS: Record<string, CourierRun> = {
       { x: 234, y: 556 },
       { x: 234, y: 447 },
       { x: 240, y: 441 },
-      { x: 942, y: 441 },
-      { x: 942, y: 552 },
+      { x: 956, y: 441 },
+      { x: 956, y: 552 },
     ],
-    drop: { x: 942, y: 560 },
+    drop: { x: 956, y: 560 },
   },
 }
 
@@ -288,7 +297,8 @@ export function createDriveCourier(run: CourierRun, tier: number, variant: numbe
 
   let load: Container | null = null
   if (tier <= 1) {
-    load = createPalletLoad(0.9)
+    load = createCargo(run.cargo)
+    load.scale.set(0.9)
     load.position.set(tier === 0 ? -9 : -10, tier === 0 ? -17.4 : -17.6)
     container.addChild(load)
   }
@@ -338,8 +348,11 @@ export function createDriveCourier(run: CourierRun, tier: number, variant: numbe
     }
 
     const spot = samplePath(path, dist)
-    if (Math.abs(spot.dx) > 3) {
-      container.scale.x = spot.dx < 0 ? -1 : 1
+    // Hướng mặt theo CHIỀU ĐI thật (segment × dir) — thiếu `dir` là xe chạy ngược
+    // mặt suốt chiều về.
+    const travelX = spot.dx * dir
+    if (Math.abs(travelX) > 3) {
+      container.scale.x = travelX < 0 ? -1 : 1
     }
     for (const wheel of vehicle.wheels) {
       wheel.spin(moving ? run.speed : 0, dt)
@@ -348,7 +361,7 @@ export function createDriveCourier(run: CourierRun, tier: number, variant: numbe
     dustTimer -= dt
     if (moving && dustTimer <= 0) {
       dustTimer = 0.36
-      const back = spot.dx < 0 ? 14 : -14
+      const back = travelX < 0 ? 14 : -14
       particles.spawn(dustPuff(), spot.x - back, spot.y + 1, { vx: -back, vy: -2, life: 0.4, gravity: 6 })
     }
 
@@ -473,7 +486,12 @@ export function createCouriers(courierLegs: readonly CourierLeg[]): Couriers {
     tiers.clear()
     for (const [zoneId, value] of counts.tiers) tiers.set(zoneId, value)
 
-    const nextTier = Math.max(0, ...legs.filter((leg) => leg.run.kind === 'drive').map((leg) => tiers.get(leg.from) ?? 0))
+    const nextTier = Math.max(
+      0,
+      ...legs
+        .filter((leg) => leg.run.kind === 'drive' && leg.run.vehicle === undefined)
+        .map((leg) => tiers.get(leg.from) ?? 0),
+    )
     if (nextTier !== tier) {
       // New fleet art: rebuild driving couriers instead of patching sprites.
       tier = nextTier
@@ -497,7 +515,7 @@ export function createCouriers(courierLegs: readonly CourierLeg[]): Couriers {
       }
       while (actors.length < desired) {
         const actor: Actor = leg.run.kind === 'drive'
-          ? createDriveCourier(leg.run, tier, actors.length)
+          ? createDriveCourier(leg.run, leg.run.vehicle ?? tier, actors.length)
           : createWalkerCourier(leg.run, actors.length)
         actors.push(actor)
         root.addChild(actor.container)

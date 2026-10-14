@@ -11,7 +11,7 @@ import { COURIER_RUNS, createCouriers, type CourierLeg } from '@ui/scene/courier
 import { DECOR_SPECIMENS } from '@ui/scene/decorItems'
 import { detailSceneFor } from '@ui/scene/focus'
 import { createHaulerSprite } from '@ui/scene/focus/depot/sprites'
-import { createTruckSprite } from '@ui/scene/focus/gate/sprites'
+import { createTruckFrontSprite, createTruckSprite } from '@ui/scene/focus/gate/sprites'
 import { equipItems, type HeldItem } from '@ui/scene/focus/heldItems'
 import {
   Particles,
@@ -253,9 +253,16 @@ export function buildProps(): StageScene {
   routeTruck.container.position.set(430, 340)
   for (const routeWheel of routeTruck.wheels) spins.push({ wheel: routeWheel, speed: 60 })
 
-  root.addChild(cart.container, truck.container, pickup.container, routeTruck.container)
+  // Xe xuất nhìn thẳng (hướng nam): view dùng khi nó chạy xuống driveway.
+  const truckFront = createTruckFrontSprite(0)
+  truckFront.container.scale.set(2)
+  truckFront.container.position.set(300, 250)
+  for (const frontWheel of truckFront.wheels) spins.push({ wheel: frontWheel, speed: 52 })
+
+  root.addChild(cart.container, truck.container, pickup.container, routeTruck.container, truckFront.container)
   cells.push({ label: 'xe ba gác', x: 40, y: 196, width: 220, height: 14 })
   cells.push({ label: 'xe tải (cổng xuất)', x: 330, y: 196, width: 220, height: 14 })
+  cells.push({ label: 'xe tải (nhìn thẳng)', x: 240, y: 256, width: 130, height: 14 })
   cells.push({ label: 'xe bán tải', x: 40, y: 326, width: 220, height: 14 })
   cells.push({ label: 'xe tải thùng (route)', x: 330, y: 346, width: 220, height: 14 })
 
