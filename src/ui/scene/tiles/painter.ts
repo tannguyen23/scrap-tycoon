@@ -168,7 +168,10 @@ export class TilePainter {
   /**
    * Straight ground band (a path). A blob would taper at the ends, which pinches
    * the link between a zone and the road; a band keeps one width all the way and
-   * the tile grid roughens its sides for free.
+   * the tile grid roughens its sides for free — **but only when the contour
+   * wobbles** (`jitter`, pass it for dirt tracks): a perfectly straight band
+   * renders as a ruler line with a uniform edge-tile row, which reads as a pasted
+   * rectangle. Roads and slabs keep `jitter = 0`.
    */
   paintPath(
     root: Container,
@@ -179,8 +182,9 @@ export class TilePainter {
     flare = 0,
     ramp = flare,
     mouths: 'both' | 'top' | 'bottom' = 'both',
+    jitter = 0,
   ): void {
-    const points = rectContour(rect, flare, ramp, mouths)
+    const points = rectContour(rect, flare, ramp, mouths, jitter)
     const tileLayer = new Container()
     root.addChild(tileLayer)
     this.paintTiles(tileLayer, rect, 0, points, seed, kind, outside)

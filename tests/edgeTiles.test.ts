@@ -272,6 +272,67 @@ describe('clearing contour masks', () => {
     expect(xs.filter((x) => x === rect.x + rect.width).length).toBeGreaterThanOrEqual(2)
   })
 
+  it('roughens a band side at the tile scale while pinning its ends and mouths', () => {
+    // Dead-straight sides can never flip a tile mask (the corner sampler is ±3px,
+    // under half a tile), so the band renders as a ruler line with a uniform edge
+    // row — the "pasted rectangle" read. The wobble has to move the side by a few
+    // px at the tile scale for whole tiles to step in and out.
+    const rect = { x: 384, y: 100, width: 224, height: 48 }
+    const points = rectContour(rect, 0, 0, 'both', 5)
+
+    expect(points[0]).toBe(rect.x)
+    expect(points[1]).toBe(rect.y)
+    expect(points[points.length - 2]).toBe(rect.x)
+    expect(points[points.length - 1]).toBe(rect.y + rect.height)
+
+    const ys = points.filter((_, index) => index % 2 === 1)
+    const top = ys.filter((y) => y <= rect.y + rect.height / 2).map((y) => y - rect.y)
+    const bottom = ys.filter((y) => y > rect.y + rect.height / 2).map((y) => y - (rect.y + rect.height))
+    // Wobbles both ways along the run, never a whole tile.
+    expect(top.some((d) => d < -1.5)).toBe(true)
+    expect(top.some((d) => d > 1.5)).toBe(true)
+    expect(Math.max(...top.map(Math.abs))).toBeLessThanOrEqual(5)
+    expect(Math.max(...bottom.map(Math.abs))).toBeLessThanOrEqual(5)
+
+    // End corners stay exact for every jitter, and 0 keeps the plain rectangle.
+    expect(rectContour(rect).length).toBe(8)
+    expect(rectContour(rect, 0, 0, 'both', 0).length).toBe(8)
+
+    // The point of the wobble: over the middle stretch the top tile row must
+    // resolve to more than one mask. A dead-straight edge gives one uniform row
+    // (only the two end columns jitter, from the corner sampler).
+    const plain = rectContour(rect, 0, 0, 'both', 0)
+    const flat = new Set<number>()
+    const rough = new Set<number>()
+    for (let x = rect.x + TILE_SIZE; x < rect.x + rect.width - TILE_SIZE; x += TILE_SIZE) {
+      flat.add(cornerMask(x, rect.y - 4, plain, 17))
+      rough.add(cornerMask(x, rect.y - 4, points, 17))
+    }
+    expect(flat.size).toBe(1)
+    expect(rough.size).toBeGreaterThan(1)
+  })
+
+  it('wobbles a flared vertical band on its sides, never across a mouth', () => {
+    // The alley→road lane: sides run vertically, mouths sit at the yard and at the
+    // road. A wobble across a mouth would leave a grass sliver on the asphalt.
+    const rect = { x: 206, y: 150, width: 72, height: 230 }
+    const points = rectContour(rect, 44, 50, 'top', 5)
+    const xs: number[] = []
+    const ys: number[] = []
+    for (let i = 0; i < points.length; i += 2) {
+      xs.push(points[i] ?? 0)
+      ys.push(points[i + 1] ?? 0)
+    }
+    // The band's own side columns wobble (up to 5px), the flared mouth does not.
+    const sideA = xs.filter((x) => Math.abs(x - rect.x) <= 5)
+    const sideB = xs.filter((x) => Math.abs(x - (rect.x + rect.width)) <= 5)
+    expect(sideA.some((x) => Math.abs(x - rect.x) > 1.5)).toBe(true)
+    expect(sideB.some((x) => Math.abs(x - (rect.x + rect.width)) > 1.5)).toBe(true)
+    // Mouth corners keep the exact flare width.
+    expect(Math.min(...xs)).toBe(rect.x - 44)
+    expect(Math.max(...xs)).toBe(rect.x + rect.width + 44)
+  })
+
   it('selects a transition tile for every tile the contour crosses', () => {
     // Proof that the connect is actually used: any tile whose inner corners
     // straddle the contour must resolve to a mixed mask (1..14), never 0 or 15.

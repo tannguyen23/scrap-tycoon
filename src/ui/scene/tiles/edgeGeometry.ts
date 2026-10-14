@@ -220,45 +220,106 @@ export function blobContour(rect: ZoneRect, pad: number, seed: number): number[]
 }
 
 /**
- * Straight band outline (a path), optionally flared at its ends.
+ * Straight band outline (a path), optionally flared at its ends and **roughened
+ * along its length**.
  *
  * A band keeps one width for its whole length — a blob would taper to a point and
  * pinch the link. `flare` widens the mouth(s), `ramp` is how many px the widening
  * takes to fade back to the band width, and `mouths` picks which end flares: a
  * funnel only makes sense on the end that opens into an area, while a bell on the
  * end that meets a road is just an artificial trapezoid.
+ *
+ * `jitter` wobbles the band's **two long sides** (the edges running along its
+ * dominant axis) at the tile scale, pinning mouths and butt ends so a junction
+ * keeps its width. It matters for the same reason `blobContour` jitters: the tile
+ * grid only stops cutting a flat edge when the outline moves about a tile within
+ * a couple of tiles of length, and the corner sampler alone (±3px, under half a
+ * tile) can never flip a mask along a straight line — so a dead-straight band
+ * renders as a ruler line and reads as a pasted rectangle ("chưa smooth"). Roads
+ * and slabs stay at 0.
  */
 export function rectContour(
   rect: ZoneRect,
   flare = 0,
   ramp = flare,
   mouths: 'both' | 'top' | 'bottom' = 'both',
+  jitter = 0,
 ): number[] {
   const { x, y, width, height } = rect
   const topFlare = flare > 0 && mouths !== 'bottom' ? flare : 0
   const bottomFlare = flare > 0 && mouths !== 'top' ? flare : 0
-  if (topFlare === 0 && bottomFlare === 0) {
-    return [x, y, x + width, y, x + width, y + height, x, y + height]
+  const base =
+    topFlare === 0 && bottomFlare === 0
+      ? [x, y, x + width, y, x + width, y + height, x, y + height]
+      : (() => {
+          const length = Math.max(2, Math.min(ramp, height / 2 - 1))
+          return [
+            x - topFlare,
+            y,
+            x + width + topFlare,
+            y,
+            x + width,
+            y + length,
+            x + width,
+            y + height - length,
+            x + width + bottomFlare,
+            y + height,
+            x - bottomFlare,
+            y + height,
+            x,
+            y + height - length,
+            x,
+            y + length,
+          ]
+        })()
+  if (jitter <= 0) return base
+  return roughenBand(base, jitter, width >= height ? 'x' : 'y')
+}
+
+/** Step between wobble samples along a band edge, in px (~one tile third). */
+const BAND_WOBBLE_STEP = 6
+/** Edges shorter than this stay pinned — mouths, ramps and band ends. */
+const BAND_WOBBLE_MIN_EDGE = TILE_SIZE * 5
+
+/**
+ * Subdivides the band's two long sides (the edges that run along its dominant
+ * `axis`) and pushes each sample along the edge normal by a position-hashed
+ * amount in `[-jitter, jitter]`. Mouths, ramps and butt ends are shorter than
+ * `BAND_WOBBLE_MIN_EDGE` and stay pinned, so junctions keep their exact width;
+ * the same position always gets the same wobble, so neighbours never crack.
+ */
+function roughenBand(points: readonly number[], jitter: number, axis: 'x' | 'y'): number[] {
+  const count = points.length / 2
+  if (count < 3) return [...points]
+
+  const out: number[] = []
+  for (let i = 0; i < count; i++) {
+    const ax = points[i * 2] ?? 0
+    const ay = points[i * 2 + 1] ?? 0
+    const bx = points[((i + 1) % count) * 2] ?? 0
+    const by = points[((i + 1) % count) * 2 + 1] ?? 0
+    out.push(ax, ay)
+
+    const dx = bx - ax
+    const dy = by - ay
+    const length = Math.hypot(dx, dy)
+    const alongAxis = axis === 'x' ? Math.abs(dx) > Math.abs(dy) : Math.abs(dy) > Math.abs(dx)
+    if (!alongAxis || length < BAND_WOBBLE_MIN_EDGE) continue
+
+    // Clockwise winding: the outward normal of an edge (dx, dy) is (dy, -dx).
+    const nx = dy / length
+    const ny = -dx / length
+    const steps = Math.ceil(length / BAND_WOBBLE_STEP)
+    for (let s = 1; s < steps; s++) {
+      const t = s / steps
+      const px = ax + dx * t
+      const py = ay + dy * t
+      const hash = cornerHash(Math.round(px), Math.round(py), 0x5ee2) % 2001
+      const amount = ((hash / 2000) * 2 - 1) * jitter
+      out.push(Math.round((px + nx * amount) * 4) / 4, Math.round((py + ny * amount) * 4) / 4)
+    }
   }
-  const length = Math.max(2, Math.min(ramp, height / 2 - 1))
-  return [
-    x - topFlare,
-    y,
-    x + width + topFlare,
-    y,
-    x + width,
-    y + length,
-    x + width,
-    y + height - length,
-    x + width + bottomFlare,
-    y + height,
-    x - bottomFlare,
-    y + height,
-    x,
-    y + height - length,
-    x,
-    y + length,
-  ]
+  return out
 }
 
 export function pointInPolygon(x: number, y: number, points: readonly number[]): boolean {

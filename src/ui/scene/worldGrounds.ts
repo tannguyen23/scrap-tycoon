@@ -54,11 +54,13 @@ export function paintWorldGrounds(painter: TilePainter, ground: Container, decor
   // mảng đất khu nên phần loe bị sàn khu phủ. Đầu dưới kết thúc ĐÚNG mép đường (y 380):
   // vành tile của làn vươn 16px lên mặt nhựa nhưng asphalt của khu `route` được vẽ
   // sau worldGrounds nên phủ mất phần đó — chỗ gặp chỉ còn vành cỏ phía trên.
-  painter.paintPath(ground, { x: 206, y: 150, width: 72, height: 230 }, 'dirt', 12, 'grass', 44, 50, 'top')
+  painter.paintPath(ground, { x: 206, y: 150, width: 72, height: 230 }, 'dirt', 12, 'grass', 44, 50, 'top', 5)
 
   // Lối mòn đất khu ve chai → xưởng tái chế: làn 48px chạy ngang từ mép đông khu (x 384)
-  // sang mép tây xưởng (x 608). Không loe (flare 0) vì hai đầu đều cắm vào sàn khu.
-  painter.paintPath(ground, { x: 384, y: 100, width: 224, height: 48 }, 'dirt', 17, 'grass', 0)
+  // sang mép tây xưởng (x 608). Không loe (flare 0) vì hai đầu đều cắm vào sàn khu;
+  // `jitter` 5px cho hai mép dài bước theo lưới ô như mọi mảng đất khác — làn thẳng
+  // tắp 14 ô đọc ra như hình chữ nhật dán lên cỏ.
+  painter.paintPath(ground, { x: 384, y: 100, width: 224, height: 48 }, 'dirt', 17, 'grass', 0, 0, 'both', 5)
 
   // Sàn của 5 khu (vẽ dưới scene chi tiết của từng khu). `outside` phải là nền THẬT
   // quanh sàn — ba sàn này nằm giữa CỎ, không phải trong bãi cùng loại nền. Khai
@@ -89,7 +91,7 @@ export function paintWorldGrounds(painter: TilePainter, ground: Container, decor
   // `outside`, nên `outside: 'asphalt'` giữa đồng cỏ chính là "cái nêm xám" từng
   // làm bản đồ rối. Vành phải rơi lên chính loại nền đó (hoặc cùng tông) mới vô hình.
   // (a) Lối vào nhà khu dưới-trái nằm trong bãi đất của kho nên môi là ĐẤT.
-  painter.paintPath(ground, { x: 196, y: 498, width: 76, height: 88 }, 'dirt', 33, 'dirt', 30, 34)
+  painter.paintPath(ground, { x: 196, y: 498, width: 76, height: 88 }, 'dirt', 33, 'dirt', 30, 34, 'both', 4)
   // (b) Lối vào sân công nghiệp phía tây: vành rơi lên chính bãi sỏi của sân.
   painter.paintPath(ground, { x: 900, y: 498, width: 84, height: 84 }, 'gravel', 34, 'gravel', 30, 32)
   // (c) Miệng làn xuất hàng hoà vào sỏi sân.
