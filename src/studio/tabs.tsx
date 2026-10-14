@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { validateGroundMap } from '@ground/core/grounds'
+import { validateGroundPack } from '@ground/core/pack'
 import { sampleAmbient } from '@ui/scene/lighting'
 import { PRIMARY_TERRAINS, type TileKind } from '@ground/packs/scrapYard/terrains'
 import { SOUND_GROUPS, SOUND_GROUP_LABELS, SOUND_IDS, SOUND_LIBRARY } from '@ui/sound/library'
 import { sound } from '@ui/sound/player'
 import { DEFAULT_SOUND_SETTINGS } from '@ui/sound/settings'
+import { STUDIO_GROUND_PACKS } from './packs'
 import { StageCanvas } from './StageCanvas'
 import {
   CHARACTER_CLIPS,
@@ -14,6 +17,7 @@ import {
   buildEdgeSheet,
   buildLayout,
   buildLightingWorld,
+  buildPackWorld,
   buildProps,
   buildScatter,
   buildScatterField,
@@ -174,7 +178,7 @@ export function TilesTab() {
     <>
       <StageFrame
         caption="Tileset — mọi loại nền × biến thể tông"
-        note="Sinh bằng code trong tiles/tileSet.ts. Mỗi loại nền có 4–8 biến thể tuỳ terrain; mép của mảng do bộ tile chuyển tiếp bên dưới đảm nhiệm."
+        note="Sinh bằng code: kit ở src/ground/core, asset ở pack của dự án. Mỗi loại nền có 4–8 biến thể tuỳ terrain; mép của mảng do bộ tile chuyển tiếp bên dưới đảm nhiệm."
         build={buildTiles}
       />
       <StageFrame
@@ -206,12 +210,12 @@ export function ScatterTab() {
       />
       <StageFrame
         caption="Trường mật độ scatter (seed 41 — lớp flora của map)"
-        note="Mật độ lấy từ tiles/variety.ts (SCATTER_DENSITY_SCALE = 64px): ~30% map sạch hẳn, ~50% thưa/vừa, ~20% dày — chỗ dày thì cụm sỏi trong mảng đất cũng tụ vào, chỗ sạch thì paintBlob chỉ làm nhạt đất chứ không thêm rác. Muốn dày/thưa tổng thể thì chỉnh SCATTER_DENSITY_SCALE và các ngưỡng 0.18/0.55/0.85 trong TilePainter.scatter."
+        note="Mật độ lấy từ @ground/core/variety (SCATTER_DENSITY_SCALE = 64px): ~30% map sạch hẳn, ~50% thưa/vừa, ~20% dày — chỗ dày thì cụm sỏi trong mảng đất cũng tụ vào, chỗ sạch thì paintBlob chỉ làm nhạt đất chứ không thêm rác. Muốn dày/thưa tổng thể thì chỉnh SCATTER_DENSITY_SCALE và các ngưỡng 0.18/0.55/0.85 trong TilePainter.scatter."
         build={buildScatterField}
       />
       <StageFrame
         caption="Dấu vết sử dụng trên nền đất (×2)"
-        note="Các decal trong tiles/dirtDetail.ts được gọi bằng anchor thật của từng khu (piles/dropoff ở khu ve chai, pickup/dropoff ở kho, chỗ xe tải đỗ ở cổng) nên lối mòn luôn khớp nơi nhân công làm việc; vệt kéo bao + cụm sỏi + vũng nước chung do paintBlob rải cho mọi mảng đất."
+        note="Các decal trong pack (scrapYard/decals.ts) được gọi bằng anchor thật của từng khu (piles/dropoff ở khu ve chai, pickup/dropoff ở kho, chỗ xe tải đỗ ở cổng) nên lối mòn luôn khớp nơi nhân công làm việc; vệt kéo bao + cụm sỏi + vũng nước chung do paintBlob rải cho mọi mảng đất."
         build={buildTraces}
       />
     </>
@@ -396,6 +400,84 @@ export function SeamsTab() {
         />
       }
     />
+  )
+}
+
+const packTilesCache = new Map<string, StageBuilder>()
+function packTilesFor(id: string): StageBuilder {
+  let build = packTilesCache.get(id)
+  if (!build) {
+    const entry = STUDIO_GROUND_PACKS.find((candidate) => candidate.id === id)
+    build = entry ? (app) => buildTiles(app, entry.pack) : buildTiles
+    packTilesCache.set(id, build)
+  }
+  return build
+}
+
+const packWorldCache = new Map<string, StageBuilder>()
+function packWorldFor(id: string): StageBuilder | null {
+  const entry = STUDIO_GROUND_PACKS.find((candidate) => candidate.id === id)
+  if (!entry?.map) return null
+  let build = packWorldCache.get(id)
+  if (!build) {
+    build = buildPackWorld(entry.pack, entry.map)
+    packWorldCache.set(id, build)
+  }
+  return build
+}
+
+/**
+ * Hub đa dự án: chọn pack nền rồi xem chính kit vẽ nó. Kit ở `src/ground/core`
+ * (depcruise cấm import pack/dự án), mỗi dự án một pack ở `src/ground/packs/<id>`
+ * (terrain, specimen, decal, bờ nước, map). Thêm dự án = thêm một dòng vào
+ * `studio/packs.ts` — game và studio dựng painter từ cùng pack đó.
+ */
+export function PacksTab() {
+  const [packId, setPackId] = useState(STUDIO_GROUND_PACKS[0]?.id ?? '')
+  const entry = STUDIO_GROUND_PACKS.find((candidate) => candidate.id === packId) ?? STUDIO_GROUND_PACKS[0]
+  if (!entry) return null
+  const errors = [
+    ...validateGroundPack(entry.pack),
+    ...(entry.map ? validateGroundMap(entry.pack, entry.map) : []),
+  ]
+  const world = packWorldFor(entry.id)
+
+  return (
+    <>
+      <section className="studio-panel">
+        <h3>Pack nền — hub đa dự án</h3>
+        <p className="studio-note">
+          Chọn một pack để xem đúng những gì kit dựng ra cho dự án đó: bảng tile (terrain × biến thể) và map
+          riêng của pack, vẽ bằng chính `paintGrounds` mà game chạy. Thêm dự án mới = thêm một pack module +
+          một dòng vào `studio/packs.ts`, không đụng gì trong `ground/core`.
+        </p>
+        <div className="studio-switcher">
+          <label>
+            Pack:
+            <select value={entry.id} onChange={(event) => setPackId(event.target.value)}>
+              {STUDIO_GROUND_PACKS.map((candidate) => (
+                <option key={candidate.id} value={candidate.id}>
+                  {candidate.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <span className="studio-note">{errors.length === 0 ? '✓ pack + map hợp lệ' : `✗ ${errors.join(' · ')}`}</span>
+        </div>
+      </section>
+      <StageFrame
+        caption={`Tileset — ${entry.label}`}
+        note="Sinh bằng code từ pack đang chọn: palette là ramp sáng (bước liền kề ≤ 10/255, validateGroundPack khoá), kiểu vẽ ô do pack khai."
+        build={packTilesFor(entry.id)}
+      />
+      {world ? (
+        <StageFrame
+          caption={`Map — ${entry.label} (${entry.map?.width ?? 0}×${entry.map?.height ?? 0})`}
+          note="Map của pack, vẽ bằng đúng các pass của kit (nền → rải → làn → sàn → mảng → vết → đường nối → ao). Đây là đường mà game đi."
+          build={world}
+        />
+      ) : null}
+    </>
   )
 }
 

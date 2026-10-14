@@ -36,6 +36,8 @@ import { TILE_SIZE, blobContour, cornerMask } from '@ground/core/edgeGeometry'
 import { generateEdgeTiles } from '@ground/core/edgeTiles'
 import { generateTileSet } from '@ground/core/tileSet'
 import { TILE_KINDS, type TileKind } from '@ground/packs/scrapYard/terrains'
+import { paintGrounds, type GroundMap } from '@ground/core/grounds'
+import type { GroundPack } from '@ground/core/pack'
 import { SCRAP_YARD_PACK, scrapTerrain } from '@ground/packs/scrapYard/pack'
 import { paintWorldGrounds } from '@ground/packs/scrapYard/worldGrounds'
 import { scatterDensity } from '@ground/core/variety'
@@ -46,12 +48,13 @@ const TILE_CELL = 64
 const TILE_SCALE = 3
 
 /** Every generated tile kind × variant, as a labelled sheet. */
-export function buildTiles(app: Application): StageScene {
-  const set = generateTileSet(app.renderer, SCRAP_YARD_PACK)
+export function buildTiles(app: Application, pack: GroundPack = SCRAP_YARD_PACK): StageScene {
+  const set = generateTileSet(app.renderer, pack)
+  const kinds = pack.terrains.map((terrain) => terrain.id)
   const root = new Container()
   const cells: StageCell[] = []
-  const columns = Math.max(...TILE_KINDS.map((kind) => (set[kind] ?? []).length))
-  TILE_KINDS.forEach((kind, row) => {
+  const columns = Math.max(...kinds.map((kind) => (set[kind] ?? []).length))
+  kinds.forEach((kind, row) => {
     const textures = set[kind] ?? []
     textures.forEach((texture, variant) => {
       const sprite = new Sprite(texture)
@@ -749,6 +752,22 @@ export function buildLayout(): StageScene {
     })
   }
   return { root, width: WORLD_WIDTH, height: WORLD_HEIGHT, cells }
+}
+
+/**
+ * Any pack's own map, painted through the kit — the hub's world preview. The
+ * game itself calls the same `paintGrounds`, so a pack previewed here is the
+ * pack the game renders.
+ */
+export function buildPackWorld(pack: GroundPack, map: GroundMap): StageBuilder {
+  return (app: Application): StageScene => {
+    const painter = new TilePainter(app.renderer, pack)
+    const root = new Container()
+    const decor = new Graphics()
+    paintGrounds(pack, map, painter, root, decor)
+    root.addChild(decor)
+    return { root, width: map.width, height: map.height }
+  }
 }
 
 /** The whole yard as the game paints it, with the shared lighting layer on top. */

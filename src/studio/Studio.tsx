@@ -4,6 +4,7 @@ import {
   DecorTab,
   LayoutTab,
   LightingTab,
+  PacksTab,
   PropsTab,
   ScatterTab,
   SeamsTab,
@@ -14,6 +15,7 @@ import {
 } from './tabs'
 
 const TABS = [
+  { id: 'packs', label: 'Pack nền', render: () => <PacksTab /> },
   { id: 'tiles', label: 'Tileset', render: () => <TilesTab /> },
   { id: 'scatter', label: 'Scatter', render: () => <ScatterTab /> },
   { id: 'decor', label: 'Decor', render: () => <DecorTab /> },
