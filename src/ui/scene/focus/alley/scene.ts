@@ -10,7 +10,7 @@ import {
   paintWearPath,
 } from '@ground/packs/scrapYard/decals'
 import { drawZoneFence } from '../fence'
-import { Particles, sortByDepth } from '../parts'
+import { Particles, depthArt, sortByDepth } from '../parts'
 import { createPopups } from '../popups'
 import type { DetailScene, DetailSceneState, Spot } from '../types'
 import { CALM_WIND, type Wind } from '../../weather'
@@ -106,25 +106,13 @@ export function createAlleyDetail(rect: ZoneRect, tiles: TilePainter): DetailSce
   paintPuddle(decals, 236, 240, 5, 2.2, 172)
   root.addChild(decals)
 
+  // Lớp depth của khu: actor + prop cao cùng xếp theo y — nhân vật đi RA SAU đống
+  // phế liệu, thùng rác, tủ lạnh, lốp... thay vì luôn bị vẽ đè lên.
+  const actors = new Container()
+  actors.label = 'actors'
+
+  // Thứ nằm PHẲNG trên nền (bao vứt lẻ, chai lọ lăn, cụm cỏ) vẫn ở lớp tĩnh.
   const props = new Graphics()
-  piles.forEach((pile, index) => drawJunkHeap(props, pile.x, pile.y, index))
-  drawDumpster(props, 250, 44)
-  drawCrate(props, 112, 88)
-  drawPallet(props, 110, 232)
-  drawFridge(props, 306, 158)
-  drawWasher(props, 22, 244)
-  drawTireStack(props, 86, 108, 3)
-  drawFlatTire(props, 68, 114, 6.4)
-  drawLeaningTire(props, 240, 47, 6.2)
-  drawLeaningSheet(props, 56, 40)
-  drawDrum(props, 166, 74, 0x5d8a74, 0x7aa884)
-  drawDrum(props, 322, 176, 0x5a6a8a, 0x78899f)
-  drawDrum(props, 24, 118, 0x9c5a48, 0xba7059)
-  drawTippedDrum(props, 316, 244, 0x9c5a48, 0xba7059)
-  drawBrokenTv(props, 66, 216)
-  drawGreenBin(props, binA.x, binA.y)
-  drawGreenBin(props, binB.x, binB.y, true)
-  drawTippedBin(props, tippedBin.x, tippedBin.y)
   looseBags.forEach((bag, index) => drawTrashBag(props, bag.x, bag.y, 4.5 + (index % 2)))
   for (const bottle of [
     [230, 112, 0, true],
@@ -150,15 +138,36 @@ export function createAlleyDetail(rect: ZoneRect, tiles: TilePainter): DetailSce
   }
   root.addChild(props)
 
+  // Mỗi món ĐỨNG là một node depth theo đường chân của nó.
+  piles.forEach((pile, index) => drawJunkHeap(depthArt(actors, pile.y), pile.x, pile.y, index))
+  drawDumpster(depthArt(actors, 44), 250, 44)
+  drawCrate(depthArt(actors, 88), 112, 88)
+  drawPallet(depthArt(actors, 232), 110, 232)
+  drawFridge(depthArt(actors, 158), 306, 158)
+  drawWasher(depthArt(actors, 244), 22, 244)
+  drawTireStack(depthArt(actors, 108), 86, 108, 3)
+  drawFlatTire(depthArt(actors, 114), 68, 114, 6.4)
+  drawLeaningTire(depthArt(actors, 47), 240, 47, 6.2)
+  drawLeaningSheet(depthArt(actors, 40), 56, 40)
+  drawDrum(depthArt(actors, 74), 166, 74, 0x5d8a74, 0x7aa884)
+  drawDrum(depthArt(actors, 176), 322, 176, 0x5a6a8a, 0x78899f)
+  drawDrum(depthArt(actors, 118), 24, 118, 0x9c5a48, 0xba7059)
+  drawTippedDrum(depthArt(actors, 244), 316, 244, 0x9c5a48, 0xba7059)
+  drawBrokenTv(depthArt(actors, 216), 66, 216)
+  drawGreenBin(depthArt(actors, binA.y), binA.x, binA.y)
+  drawGreenBin(depthArt(actors, binB.y), binB.x, binB.y, true)
+  drawTippedBin(depthArt(actors, tippedBin.y), tippedBin.x, tippedBin.y)
+
   // Hàng rào bao bãi, cổng mở đúng chỗ làn đất bãi → đường cắt qua cạnh nam.
   const fence = new Graphics()
   drawZoneFence(fence, rect, ZONE_LAYOUTS.alley?.fenceOpenings)
   root.addChild(fence)
 
   // Đống gom MỘT MỐI: bao thợ nhặt mang về chất tại điểm đổ, lớn dần theo tồn `scrap`
-  // (đầy = thợ nhặt đứng chờ, porter hết bao để vác). Vẽ dưới lớp actors.
-  const scrapPile = new Graphics()
-  root.addChild(scrapPile)
+  // (đầy = thợ nhặt đứng chờ, porter hết bao để vác). Nằm trong lớp depth nên người
+  // đi ngang sẽ che/được che đúng theo y.
+  const scrapPile = depthArt(actors, dropoff.y - 2)
+  scrapPile.label = 'warehouse'
 
   const life = createAlleyLife(piles, [
     binA,
@@ -167,13 +176,11 @@ export function createAlleyDetail(rect: ZoneRect, tiles: TilePainter): DetailSce
     ...looseBags,
     { x: dropoff.x, y: dropoff.y - 2 },
   ])
-  root.addChild(life.container)
 
-  const actors = new Container()
-  actors.label = 'actors'
   const particles = new Particles()
   const popups = createPopups()
-  root.addChild(actors, particles.container, popups.container)
+  // Ruồi/chuột/hải âu + thùng phuy đốt nằm TRÊN lớp depth (đống bao, thùng rác, lốp).
+  root.addChild(actors, life.container, particles.container, popups.container)
 
   const pickers: PickerActor[] = []
   const porters: PorterActor[] = []
