@@ -7,7 +7,9 @@
  *   domain    -> core, i18n
  *   content   -> domain, i18n, core
  *   platform  -> core
- *   ui        -> core, ground, domain, i18n   (must NOT import content or app)
+ *   ui        -> core, ground, scenery, domain, i18n   (must NOT import content or app)
+ *   projects  -> ui + kits + studio framework          (studio adapters, one folder per project)
+ *   studio    -> kits + project adapters               (must NOT import a project's ui modules)
  *   app       -> everything
  *
  * Content is injected into the UI through React context from app; only app + tests import @content.
@@ -99,11 +101,18 @@ module.exports = {
       },
     },
     {
-      name: 'studio-imports-ui',
+      name: 'studio-is-project-agnostic',
       severity: 'error',
-      comment: 'the asset studio is a viewer: it may only read ui/ground/scenery/domain/core/i18n',
-      from: { path: '^src/studio/' },
-      to: { pathNot: '^src/(studio|ui|ground|scenery|core|domain|i18n)/' },
+      comment: 'the studio is a multi-project hub: it reads the kits and project adapters, never a project module directly',
+      from: { path: '^studio/src/' },
+      to: { pathNot: '^(studio|src/(core|domain|i18n|ground|scenery|projects))/' },
+    },
+    {
+      name: 'projects-bind-a-project-to-the-studio',
+      severity: 'error',
+      comment: 'a project adapter may import the game UI, the kits, core and the studio framework, but nothing app-level',
+      from: { path: '^src/projects/' },
+      to: { pathNot: '^(studio|src/(projects|ui|ground|scenery|core|domain|i18n))/' },
     },
   ],
   options: {

@@ -1,4 +1,5 @@
 import type { Application, Container } from 'pixi.js'
+import type { ReactNode } from 'react'
 
 /** A label box drawn over the stage, in canvas pixels. */
 export interface StageCell {
@@ -35,3 +36,23 @@ export interface StageScene {
 }
 
 export type StageBuilder = (app: Application) => StageScene
+
+/** One tab of the studio: the kit's own tabs plus one set per project. */
+export interface StudioTab {
+  readonly id: string
+  readonly label: string
+  render(): ReactNode
+}
+
+/**
+ * A project plugged into the hub. The studio renders its tabs and boots its chrome
+ * without importing its modules (dependency rule), so a new project is one adapter
+ * module plus one line in `projects.ts`.
+ */
+export interface StudioProject {
+  readonly id: string
+  readonly label: string
+  /** Theme, cursor art and audio unlock, supplied by the project the studio boots in. */
+  installChrome?(): void
+  readonly tabs: readonly StudioTab[]
+}

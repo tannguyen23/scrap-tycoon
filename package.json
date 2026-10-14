@@ -5,14 +5,14 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "dev:studio": "vite --config vite.studio.config.ts",
+    "dev:studio": "vite --config studio/vite.config.ts",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "lint": "oxlint",
-    "depcheck": "depcruise src",
+    "depcheck": "depcruise src studio",
     "test": "vitest run",
     "test:watch": "vitest",
-    "check": "tsc -b && oxlint && depcruise src && vitest run"
+    "check": "tsc -b && oxlint && depcruise src studio && vitest run"
   },
   "dependencies": {
     "@fontsource/jetbrains-mono": "^5.3.0",

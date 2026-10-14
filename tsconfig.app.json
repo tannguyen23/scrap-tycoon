@@ -21,6 +21,8 @@
       "@core/*": ["./src/core/*"],
       "@ground/*": ["./src/ground/*"],
       "@scenery/*": ["./src/scenery/*"],
+      "@projects/*": ["./src/projects/*"],
+      "@studio/*": ["./studio/src/*"],
       "@domain/*": ["./src/domain/*"],
       "@content/*": ["./src/content/*"],
       "@ui/*": ["./src/ui/*"],
@@ -37,5 +39,5 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src", "tests"]
+  "include": ["src", "tests", "studio"]
 }
