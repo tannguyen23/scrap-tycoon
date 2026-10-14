@@ -1,5 +1,5 @@
 import { Container, type Graphics } from 'pixi.js'
-import type { GroundCanvas } from '../../tiles/groundCanvas'
+import type { GroundCanvas } from '@ground/core/groundCanvas'
 import { equipItems, type HeldItem } from '../heldItems'
 import { SHADOW, createPersonSprite, createSack, type PersonSprite } from '../parts'
 import { POKE_ITEMS } from '../poses'

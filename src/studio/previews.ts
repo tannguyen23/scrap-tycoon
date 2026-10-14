@@ -22,8 +22,8 @@ import { createLighting } from '@ui/scene/lighting'
 import { makeRandom } from '@ui/scene/random'
 import { createWeather } from '@ui/scene/weather'
 import { DECOR_SPECIMENS, drawBush, drawStump, drawTree } from '@ui/scene/decorItems'
-import { TilePainter } from '@ui/scene/tiles/painter'
-import { drawDebrisItem, drawFloraItem, drawWaterItem } from '@ui/scene/tiles/groundItems'
+import { TilePainter } from '@ground/core/painter'
+import { drawDebrisItem, drawFloraItem, drawWaterItem } from '@ground/packs/scrapYard/specimens'
 import {
   paintDragMarks,
   paintFootprints,
@@ -31,12 +31,14 @@ import {
   paintRuts,
   paintStain,
   paintWearPath,
-} from '@ui/scene/tiles/dirtDetail'
-import { TILE_SIZE, blobContour, cornerMask } from '@ui/scene/tiles/edgeGeometry'
-import { generateEdgeTiles } from '@ui/scene/tiles/edgeTiles'
-import { TILE_KINDS, generateTileSet, type TileKind } from '@ui/scene/tiles/tileSet'
-import { paintWorldGrounds } from '@ui/scene/worldGrounds'
-import { scatterDensity } from '@ui/scene/tiles/variety'
+} from '@ground/packs/scrapYard/decals'
+import { TILE_SIZE, blobContour, cornerMask } from '@ground/core/edgeGeometry'
+import { generateEdgeTiles } from '@ground/core/edgeTiles'
+import { generateTileSet } from '@ground/core/tileSet'
+import { TILE_KINDS, type TileKind } from '@ground/packs/scrapYard/terrains'
+import { SCRAP_YARD_PACK, scrapTerrain } from '@ground/packs/scrapYard/pack'
+import { paintWorldGrounds } from '@ground/packs/scrapYard/worldGrounds'
+import { scatterDensity } from '@ground/core/variety'
 import { CLEARINGS, CONNECTORS, WATER_AREAS, WORLD_HEIGHT, WORLD_WIDTH, ZONE_LAYOUTS } from '@ui/scene/zoneLayout'
 import type { StageBuilder, StageCell, StageScene } from './types'
 
@@ -45,12 +47,13 @@ const TILE_SCALE = 3
 
 /** Every generated tile kind × variant, as a labelled sheet. */
 export function buildTiles(app: Application): StageScene {
-  const set = generateTileSet(app.renderer)
+  const set = generateTileSet(app.renderer, SCRAP_YARD_PACK)
   const root = new Container()
   const cells: StageCell[] = []
-  const columns = Math.max(...TILE_KINDS.map((kind) => set[kind].length))
+  const columns = Math.max(...TILE_KINDS.map((kind) => (set[kind] ?? []).length))
   TILE_KINDS.forEach((kind, row) => {
-    set[kind].forEach((texture, variant) => {
+    const textures = set[kind] ?? []
+    textures.forEach((texture, variant) => {
       const sprite = new Sprite(texture)
       sprite.scale.set(TILE_SCALE)
       sprite.position.set(variant * TILE_CELL + 8, row * TILE_CELL + 6)
@@ -109,7 +112,7 @@ const EDGE_CELL_H = 86
  */
 export function buildEdgeSheet(inside: TileKind, outside: TileKind): StageBuilder {
   return (app: Application): StageScene => {
-    const edges = generateEdgeTiles(app.renderer, inside, outside)
+    const edges = generateEdgeTiles(app.renderer, scrapTerrain(inside), scrapTerrain(outside))
     const root = new Container()
     const cells: StageCell[] = []
 
@@ -204,7 +207,7 @@ const TRACE_SCALE = 2
 
 /** Ground decal lab: one dirt patch wearing every usage trace, labelled. */
 export function buildTraces(app: Application): StageScene {
-  const painter = new TilePainter(app.renderer)
+  const painter = new TilePainter(app.renderer, SCRAP_YARD_PACK)
   const view = { x: 0, y: 0, width: 300, height: 140 }
   const root = new Container()
   painter.paint(root, view, 'dirt', 21)
@@ -240,7 +243,7 @@ export function buildTraces(app: Application): StageScene {
 
 /** Flora on grass + debris on dirt, one specimen per cell. */
 export function buildScatter(app: Application): StageScene {
-  const set = generateTileSet(app.renderer)
+  const set = generateTileSet(app.renderer, SCRAP_YARD_PACK)
   const root = new Container()
   const cells: StageCell[] = []
   const cellW = 56
@@ -257,7 +260,7 @@ export function buildScatter(app: Application): StageScene {
   ]
 
   rows.forEach((row, rowIndex) => {
-    const bgTexture = set[row.kind][0]
+    const bgTexture = (set[row.kind] ?? [])[0]
     row.labels.forEach((label, kind) => {
       const x = kind * cellW + 4
       const y = rowIndex * rowH + 4
@@ -532,7 +535,7 @@ export function buildZone(zoneId: string, scale: number, tier = 0): StageBuilder
     const layout = ZONE_LAYOUTS[zoneId]
     const factory = detailSceneFor(zoneId as ZoneId)
     if (!layout || !factory) throw new Error(`no detail scene for zone "${zoneId}"`)
-    const painter = new TilePainter(app.renderer)
+    const painter = new TilePainter(app.renderer, SCRAP_YARD_PACK)
     const detail = factory(layout.rect, painter)
     detail.setState({
       workers: 3,
@@ -567,7 +570,7 @@ const SEAM_PAD = 18
  */
 export function buildSeam(kind: TileKind, seed: number, outside: TileKind = 'grass', cliff = false): StageBuilder {
   return (app: Application): StageScene => {
-    const painter = new TilePainter(app.renderer)
+    const painter = new TilePainter(app.renderer, SCRAP_YARD_PACK)
     const expanded = {
       x: SEAM_VIEW.x - 40,
       y: SEAM_VIEW.y - 40,
@@ -751,7 +754,7 @@ export function buildLayout(): StageScene {
 /** The whole yard as the game paints it, with the shared lighting layer on top. */
 export function buildLightingWorld(initialTime: number): StageBuilder {
   return (app: Application): StageScene => {
-    const painter = new TilePainter(app.renderer)
+    const painter = new TilePainter(app.renderer, SCRAP_YARD_PACK)
     const root = new Container()
     const decor = new Graphics()
     paintWorldGrounds(painter, root, decor)
@@ -846,7 +849,7 @@ const STUDIO_SCHEDULE_SPEED = 8
 /** Like `buildLightingWorld` but with ambience + the real weather layer (and audio). */
 export function buildWeatherWorld(initialTime: number): StageBuilder {
   return (app: Application): StageScene => {
-    const painter = new TilePainter(app.renderer)
+    const painter = new TilePainter(app.renderer, SCRAP_YARD_PACK)
     const root = new Container()
     const decor = new Graphics()
     paintWorldGrounds(painter, root, decor)

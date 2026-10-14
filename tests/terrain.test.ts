@@ -5,7 +5,7 @@ import {
   TERRAIN_PAIRS,
   TILE_KINDS,
   terrainTones,
-} from '@ui/scene/tiles/terrain'
+} from '@ground/packs/scrapYard/terrains'
 
 describe('terrain tables', () => {
   it('gives every previewable terrain its own tone entry', () => {

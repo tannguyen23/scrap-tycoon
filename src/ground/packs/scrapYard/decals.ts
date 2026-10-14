@@ -1,5 +1,5 @@
-import { makeRandom } from '../random'
-import type { GroundCanvas, Point } from './groundCanvas'
+import { makeRandom } from '@ground/core/random'
+import type { GroundCanvas, Point } from '@ground/core/groundCanvas'
 
 /**
  * Ground "usage traces": the decals that make a dirt clearing read as a place

@@ -1,11 +1,13 @@
 /**
  * Layer rules:
  *   core      -> (nothing inside the repo)
+ *   ground    -> core, ui, i18n        (the tile kit; `ground/core` is self-contained,
+ *                                       `ground/packs/*` bind the kit to a project)
  *   i18n      -> core
  *   domain    -> core, i18n
  *   content   -> domain, i18n, core
  *   platform  -> core
- *   ui        -> core, domain, i18n   (must NOT import content or app)
+ *   ui        -> core, ground, domain, i18n   (must NOT import content or app)
  *   app       -> everything
  *
  * Content is injected into the UI through React context from app; only app + tests import @content.
@@ -52,11 +54,25 @@ module.exports = {
       to: { pathNot: '^src/(platform|core)/' },
     },
     {
+      name: 'ground-core-is-self-contained',
+      severity: 'error',
+      comment: 'the tile kit engine must not import a pack, the game or any other layer — that is what makes it liftable',
+      from: { path: '^src/ground/core/' },
+      to: { pathNot: '^src/ground/core/' },
+    },
+    {
+      name: 'ground-packs-bind-core-to-a-project',
+      severity: 'error',
+      comment: 'a pack may use the kit and its own project, nothing else',
+      from: { path: '^src/ground/packs/' },
+      to: { pathNot: '^src/(ground|ui|core|domain|i18n)/' },
+    },
+    {
       name: 'ui-does-not-import-content-or-app',
       severity: 'error',
       comment: 'content is injected via context from app; ui must stay a pure consumer',
       from: { path: '^src/ui/' },
-      to: { pathNot: '^src/(ui|core|domain|i18n)/' },
+      to: { pathNot: '^src/(ui|ground|core|domain|i18n)/' },
     },
     {
       name: 'no-ui-deps-in-pure-layers',
@@ -71,9 +87,9 @@ module.exports = {
     {
       name: 'studio-imports-ui',
       severity: 'error',
-      comment: 'the asset studio is a viewer: it may only read ui/domain/core/i18n',
+      comment: 'the asset studio is a viewer: it may only read ui/ground/domain/core/i18n',
       from: { path: '^src/studio/' },
-      to: { pathNot: '^src/(studio|ui|core|domain|i18n)/' },
+      to: { pathNot: '^src/(studio|ui|ground|core|domain|i18n)/' },
     },
   ],
   options: {

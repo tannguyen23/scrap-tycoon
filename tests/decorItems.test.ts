@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { DECOR_SPECIMENS } from '@ui/scene/decorItems'
-import type { GroundCanvas } from '@ui/scene/tiles/groundCanvas'
+import type { GroundCanvas } from '@ground/core/groundCanvas'
 
 interface Draw {
   kind: 'rect' | 'ellipse'

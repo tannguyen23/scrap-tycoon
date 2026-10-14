@@ -13,7 +13,7 @@ import {
   polygonCentroid,
   rectContour,
   scaleAboutCentroid,
-} from '@ui/scene/tiles/edgeGeometry'
+} from '@ground/core/edgeGeometry'
 
 const TILE = 16
 /** The same scales `paintEdgeTile` fills with (AO wash → lip → rim → base). */

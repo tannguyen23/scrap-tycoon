@@ -1,6 +1,6 @@
 import { ZONE_LAYOUTS, type ZoneRect } from '../../zoneLayout'
 import { Container, Graphics } from 'pixi.js'
-import type { TilePainter } from '../../tiles/painter'
+import type { TilePainter } from '@ground/core/painter'
 import {
   paintDragMarks,
   paintFootprints,
@@ -8,7 +8,7 @@ import {
   paintRuts,
   paintStain,
   paintWearPath,
-} from '../../tiles/dirtDetail'
+} from '@ground/packs/scrapYard/decals'
 import { drawZoneFence } from '../fence'
 import { Particles } from '../parts'
 import { createPopups } from '../popups'

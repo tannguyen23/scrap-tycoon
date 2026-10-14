@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { sampleAmbient } from '@ui/scene/lighting'
-import { PRIMARY_TERRAINS, type TileKind } from '@ui/scene/tiles/terrain'
+import { PRIMARY_TERRAINS, type TileKind } from '@ground/packs/scrapYard/terrains'
 import { SOUND_GROUPS, SOUND_GROUP_LABELS, SOUND_IDS, SOUND_LIBRARY } from '@ui/sound/library'
 import { sound } from '@ui/sound/player'
 import { DEFAULT_SOUND_SETTINGS } from '@ui/sound/settings'

@@ -2,11 +2,10 @@
  * Pure contour geometry for the edge tiles — no rendering imports, so the
  * clipping/scaling maths and the clearing masks can be unit-tested directly.
  */
-import { makeRandom } from '../random'
-import { TILE_SIZE } from './terrain'
-import type { ZoneRect } from '../zoneLayout'
+import { makeRandom } from './random'
+import { TILE_SIZE, type Rect } from './metrics'
 
-export { TILE_SIZE } from './terrain'
+export { TILE_SIZE } from './metrics'
 
 /** Radial roughening of a clearing outline, in px (see `blobContour`). */
 export const CONTOUR_JITTER = 7
@@ -165,7 +164,7 @@ const cutY =
  * grid only stops cutting a flat edge if the outline moves ~a tile within a couple
  * of tiles of length, which needs a roughening on the scale of a tile, not 4px.
  */
-export function blobContour(rect: ZoneRect, pad: number, seed: number): number[] {
+export function blobContour(rect: Rect, pad: number, seed: number): number[] {
   const rnd = makeRandom(seed * 17 + 3)
   const cx = rect.x + rect.width / 2
   const cy = rect.y + rect.height / 2
@@ -239,7 +238,7 @@ export function blobContour(rect: ZoneRect, pad: number, seed: number): number[]
  * and slabs stay at 0.
  */
 export function rectContour(
-  rect: ZoneRect,
+  rect: Rect,
   flare = 0,
   ramp = flare,
   mouths: 'both' | 'top' | 'bottom' = 'both',

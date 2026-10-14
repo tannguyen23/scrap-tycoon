@@ -1,4 +1,4 @@
-import type { GroundCanvas } from './tiles/groundCanvas'
+import type { GroundCanvas } from '@ground/core/groundCanvas'
 import type { ZoneRect } from './zoneLayout'
 
 /**

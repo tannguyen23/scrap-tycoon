@@ -11,9 +11,10 @@ import type { DetailScene } from './focus/types'
 import { createLighting } from './lighting'
 import { createMicroDetails } from './microDetails'
 import { createNanoDetails } from './nanoDetails'
-import { TilePainter } from './tiles/painter'
+import { TilePainter } from '@ground/core/painter'
+import { SCRAP_YARD_PACK } from '@ground/packs/scrapYard/pack'
 import { CALM_WIND, createWeather } from './weather'
-import { paintWorldGrounds } from './worldGrounds'
+import { paintWorldGrounds } from '@ground/packs/scrapYard/worldGrounds'
 import {
   CANVAS_SCALE,
   VIEW_HEIGHT,
@@ -108,7 +109,7 @@ export async function mountScene(
   app.stage.addChild(world)
 
   // ---- grounds painted from the generated tile set -------------------------
-  const painter = new TilePainter(app.renderer)
+  const painter = new TilePainter(app.renderer, SCRAP_YARD_PACK)
   const groundLayer = new Container()
   const decorArt = new Graphics()
   paintWorldGrounds(painter, groundLayer, decorArt)

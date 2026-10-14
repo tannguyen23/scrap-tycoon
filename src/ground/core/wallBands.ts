@@ -1,6 +1,6 @@
 import { cliffBandEdges } from './edgeGeometry'
 import type { GroundCanvas } from './groundCanvas'
-import { terrainTones, type EdgeTones, type TileKind } from './terrain'
+import type { EdgeTones } from './terrain'
 
 const AO = 0x2f2418
 /** Wall depth on south / east edges of a raised plateau, in px. */
@@ -15,8 +15,8 @@ const SIDE_DEPTH = 4
  * polygon-accurate (the tile grid would step it), which is what lets the crest
  * line, the strata and the cast shadow stay continuous.
  */
-export function paintWallBands(g: GroundCanvas, points: readonly number[], inside: TileKind): void {
-  const inner: EdgeTones = terrainTones(inside)
+export function paintWallBands(g: GroundCanvas, points: readonly number[], tones: EdgeTones): void {
+  const inner: EdgeTones = tones
 
   for (const band of cliffBandEdges(points, FACE_DEPTH, SIDE_DEPTH)) {
     const dx = band.x2 - band.x1

@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { Container, Graphics } from 'pixi.js'
 import { COURIER_RUNS } from '@ui/scene/couriers'
-import { PRIMARY_TERRAINS } from '@ui/scene/tiles/terrain'
-import { paintWorldGrounds, SCATTER_SKIP_RECTS } from '@ui/scene/worldGrounds'
-import type { TilePainter } from '@ui/scene/tiles/painter'
+import { PRIMARY_TERRAINS } from '@ground/packs/scrapYard/terrains'
+import { paintWorldGrounds, SCATTER_SKIP_RECTS } from '@ground/packs/scrapYard/worldGrounds'
+import type { TilePainter } from '@ground/core/painter'
 import {
   CLEARINGS,
   CONNECTORS,

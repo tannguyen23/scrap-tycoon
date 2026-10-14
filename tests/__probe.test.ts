@@ -1,6 +1,6 @@
 import { describe, it } from 'vitest'
-import { TILE_SIZE } from '@ui/scene/tiles/terrain'
-import { boundaryDitherWeight, groundVariant, variantBoundaryBlend } from '@ui/scene/tiles/variety'
+import { TILE_SIZE } from '@ground/core/metrics'
+import { boundaryDitherWeight, groundVariant, variantBoundaryBlend } from '@ground/core/variety'
 
 const WORLD_W = 1280
 const WORLD_H = 720

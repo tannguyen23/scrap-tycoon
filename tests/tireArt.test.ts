@@ -8,7 +8,7 @@ import {
   drawLeaningTire,
   drawTireStack,
 } from '@ui/scene/focus/alley/sprites'
-import type { GroundCanvas } from '@ui/scene/tiles/groundCanvas'
+import type { GroundCanvas } from '@ground/core/groundCanvas'
 
 interface Draw {
   kind: 'rect' | 'ellipse'

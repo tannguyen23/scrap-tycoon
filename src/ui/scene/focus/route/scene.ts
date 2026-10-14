@@ -1,6 +1,6 @@
 import type { ZoneRect } from '../../zoneLayout'
 import { Container, Graphics } from 'pixi.js'
-import type { TilePainter } from '../../tiles/painter'
+import type { TilePainter } from '@ground/core/painter'
 import { Particles, SHADOW } from '../parts'
 import type { DetailScene, DetailSceneState } from '../types'
 import { createRouteVehicle, type VehicleActor } from './actors'

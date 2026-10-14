@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { blobContour } from '@ui/scene/tiles/edgeGeometry'
-import { paintShore } from '@ui/scene/tiles/waterDetail'
-import type { GroundCanvas } from '@ui/scene/tiles/groundCanvas'
+import { blobContour } from '@ground/core/edgeGeometry'
+import { paintShore } from '@ground/packs/scrapYard/shore'
+import type { GroundCanvas } from '@ground/core/groundCanvas'
 
 interface Draw {
   kind: 'rect' | 'ellipse'

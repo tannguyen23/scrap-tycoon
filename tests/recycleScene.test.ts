@@ -5,7 +5,7 @@ import { Particles } from '@ui/scene/focus/parts'
 import { createPopups } from '@ui/scene/focus/popups'
 import type { Spot } from '@ui/scene/focus/types'
 import { createRecycleDetail } from '@ui/scene/focus/recycle/scene'
-import { TilePainter } from '@ui/scene/tiles/painter'
+import { TilePainter } from '@ground/core/painter'
 
 /** Popup labels draw through a stub in node — the real one needs a DOM canvas. */
 function stubLabel(text: string): Container {

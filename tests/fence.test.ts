@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { drawZoneFence } from '@ui/scene/focus/fence'
-import type { GroundCanvas } from '@ui/scene/tiles/groundCanvas'
+import type { GroundCanvas } from '@ground/core/groundCanvas'
 import type { FenceOpening } from '@ui/scene/zoneLayout'
 
 interface Draw {

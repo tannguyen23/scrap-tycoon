@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { TILE_KINDS } from '@ui/scene/tiles/terrain'
-import { tileBaseTone, tileVariantCount } from '@ui/scene/tiles/tileSet'
+import { validateGroundPack } from '@ground/core/pack'
+import { SCRAP_YARD_PACK } from '@ground/packs/scrapYard/pack'
 import {
   boundaryDitherWeight,
   groundTint,
@@ -9,7 +9,7 @@ import {
   scatterMix,
   variantBoundaryBlend,
   variantField,
-} from '@ui/scene/tiles/variety'
+} from '@ground/core/variety'
 
 const COUNT = 8
 const SEED = 7
@@ -122,19 +122,12 @@ describe('low-frequency tile variety', () => {
 })
 
 describe('tile palettes', () => {
-  it('orders variants as a brightness ramp so tone band edges step little', () => {
-    // The tone field quantises into bands that follow the variant index, so the
-    // array order decides the step at every band edge. Scattering the hues
-    // (the old order) put an 18/255 jump at one edge, which drew visible
-    // rectangles along the alley lane.
-    for (const kind of TILE_KINDS) {
-      const count = tileVariantCount(kind)
-      expect(count, kind).toBeGreaterThan(0)
-      for (let i = 0; i + 1 < count; i++) {
-        const step = channelDelta(tileBaseTone(kind, i), tileBaseTone(kind, i + 1))
-        expect(step, `${kind}: variant ${i} -> ${i + 1}`).toBeLessThanOrEqual(10)
-      }
-    }
+  it('passes the pack validation (ramp order, ids, pairs, surfaces)', () => {
+    // The tone-ramp rule lives in validateGroundPack now: variant indexes are what
+    // the quantised tone field steps through, so two neighbours in a palette end
+    // up side by side on screen and any step larger than ~10/255 reads as a
+    // blocky seam along the band edge (the old order stepped 18/255 on the lane).
+    expect(validateGroundPack(SCRAP_YARD_PACK)).toEqual([])
   })
 })
 

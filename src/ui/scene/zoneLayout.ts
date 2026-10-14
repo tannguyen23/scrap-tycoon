@@ -1,5 +1,5 @@
 import type { ZoneId } from '@domain/types'
-import type { TileKind } from './tiles/terrain'
+import type { TileKind } from '@ground/packs/scrapYard/terrains'
 
 /**
  * Design-space grid. The art is authored at double density (1 design px has

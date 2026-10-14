@@ -6,8 +6,8 @@ import {
   paintRuts,
   paintStain,
   paintWearPath,
-} from '@ui/scene/tiles/dirtDetail'
-import type { GroundCanvas } from '@ui/scene/tiles/groundCanvas'
+} from '@ground/packs/scrapYard/decals'
+import type { GroundCanvas } from '@ground/core/groundCanvas'
 
 interface Draw {
   kind: 'rect' | 'ellipse'

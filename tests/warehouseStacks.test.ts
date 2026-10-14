@@ -7,7 +7,7 @@ import { drawCrateStack } from '@ui/scene/focus/gate/sprites'
 import { createRouteDetail } from '@ui/scene/focus/route/scene'
 import { drawBilletStack } from '@ui/scene/focus/route/sprites'
 import type { DetailScene } from '@ui/scene/focus/types'
-import type { TilePainter } from '@ui/scene/tiles/painter'
+import type { TilePainter } from '@ground/core/painter'
 
 const painter = {
   paintBlob: () => {},

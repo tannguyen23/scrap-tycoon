@@ -1,5 +1,5 @@
 import { cornerHash } from './edgeGeometry'
-import { TILE_SIZE } from './terrain'
+import { TILE_SIZE } from './metrics'
 
 /**
  * Low-frequency tile variety — the fix for "checkerboard ground".

@@ -1,5 +1,5 @@
-import { cornerHash } from '../tiles/edgeGeometry'
-import type { GroundCanvas } from '../tiles/groundCanvas'
+import { cornerHash } from '@ground/core/edgeGeometry'
+import type { GroundCanvas } from '@ground/core/groundCanvas'
 import type { FenceOpening } from '../zoneLayout'
 
 /**

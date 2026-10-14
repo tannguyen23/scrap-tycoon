@@ -4,7 +4,7 @@ import { createAlleyDetail } from '@ui/scene/focus/alley/scene'
 import { createPorterSprite } from '@ui/scene/focus/alley/sprites'
 import { Particles } from '@ui/scene/focus/parts'
 import type { Spot } from '@ui/scene/focus/types'
-import type { TilePainter } from '@ui/scene/tiles/painter'
+import type { TilePainter } from '@ground/core/painter'
 
 const PILE: Spot = { x: 192, y: 246 }
 const HAUL_OUT: Spot = { x: 340, y: 76 }

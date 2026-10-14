@@ -1,13 +1,13 @@
 import { ZONE_LAYOUTS, type ZoneRect } from '../../zoneLayout'
 import { Container, Graphics } from 'pixi.js'
-import type { TilePainter } from '../../tiles/painter'
+import type { TilePainter } from '@ground/core/painter'
 import {
   paintFootprints,
   paintPuddle,
   paintRuts,
   paintStain,
   paintWearPath,
-} from '../../tiles/dirtDetail'
+} from '@ground/packs/scrapYard/decals'
 import { drawZoneFence } from '../fence'
 import { Particles, SHADOW, createSack } from '../parts'
 import type { DetailScene, DetailSceneState, Spot } from '../types'

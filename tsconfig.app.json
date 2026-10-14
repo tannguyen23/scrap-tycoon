@@ -19,6 +19,7 @@
     /* Layer aliases — enforced by dependency-cruiser */
     "paths": {
       "@core/*": ["./src/core/*"],
+      "@ground/*": ["./src/ground/*"],
       "@domain/*": ["./src/domain/*"],
       "@content/*": ["./src/content/*"],
       "@ui/*": ["./src/ui/*"],

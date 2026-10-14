@@ -10,6 +10,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@core': layer('./src/core'),
+      '@ground': layer('./src/ground'),
       '@domain': layer('./src/domain'),
       '@content': layer('./src/content'),
       '@ui': layer('./src/ui'),

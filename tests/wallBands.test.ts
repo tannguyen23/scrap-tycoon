@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { blobContour } from '@ui/scene/tiles/edgeGeometry'
-import type { GroundCanvas } from '@ui/scene/tiles/groundCanvas'
-import { paintWallBands } from '@ui/scene/tiles/wallBands'
+import { blobContour } from '@ground/core/edgeGeometry'
+import type { GroundCanvas } from '@ground/core/groundCanvas'
+import { paintWallBands } from '@ground/core/wallBands'
+import { terrainTones } from '@ground/packs/scrapYard/terrains'
 
 interface Draw {
   x: number
@@ -38,7 +39,7 @@ describe('plateau wall', () => {
     // A square contour: south edge at y = 16, north edge at y = 0.
     const square = [0, 0, 16, 0, 16, 16, 0, 16]
     const { canvas, draws } = recorder()
-    paintWallBands(canvas, square, 'dirt')
+    paintWallBands(canvas, square, terrainTones('dirt'))
 
     // Wall + base line + cast shadow on the south side.
     expect(draws.some((draw) => draw.y >= 16 && draw.y <= 25)).toBe(true)
@@ -53,7 +54,7 @@ describe('plateau wall', () => {
   it('follows a wobbly clearing outline without gaps', () => {
     const contour = blobContour({ x: 200, y: 150, width: 120, height: 70 }, 12, 17)
     const { canvas, draws } = recorder()
-    paintWallBands(canvas, contour, 'dirt')
+    paintWallBands(canvas, contour, terrainTones('dirt'))
 
     expect(draws.length).toBeGreaterThan(100)
     for (const draw of draws) {
@@ -66,14 +67,14 @@ describe('plateau wall', () => {
     const a = recorder()
     const b = recorder()
     const contour = blobContour({ x: 10, y: 10, width: 60, height: 40 }, 8, 3)
-    paintWallBands(a.canvas, contour, 'dirt')
-    paintWallBands(b.canvas, contour, 'dirt')
+    paintWallBands(a.canvas, contour, terrainTones('dirt'))
+    paintWallBands(b.canvas, contour, terrainTones('dirt'))
     expect(a.draws.length).toBe(b.draws.length)
     expect(a.draws[0]).toEqual(b.draws[0])
 
     const empty = recorder()
-    paintWallBands(empty.canvas, [], 'dirt')
-    paintWallBands(empty.canvas, [4, 4], 'dirt')
+    paintWallBands(empty.canvas, [], terrainTones('dirt'))
+    paintWallBands(empty.canvas, [4, 4], terrainTones('dirt'))
     expect(empty.draws.length).toBe(0)
   })
 })

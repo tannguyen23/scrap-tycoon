@@ -1,24 +1,14 @@
 import { Container, Graphics, Sprite, type Renderer, type Texture } from 'pixi.js'
-import { makeRandom } from '../random'
-import { insideAnyRect, type ZoneRect } from '../zoneLayout'
-import { paintDragMarks, paintPuddle } from './dirtDetail'
+import { makeRandom } from './random'
+import { insideAnyRect, type Rect } from './metrics'
 import { generateEdgeTiles } from './edgeTiles'
 import { TILE_SIZE, blobContour, cornerHash, cornerMask, rectContour } from './edgeGeometry'
 import { paintWallBands } from './wallBands'
 import { contourSteps } from './groundCanvas'
-import {
-  DEBRIS_KINDS,
-  drawDebrisItem,
-  drawFloraItem,
-  drawWaterItem,
-  pickDebrisKind,
-  pickFloraKind,
-  pickWaterKind,
-} from './groundItems'
-import { EDGE_TONES, terrainTones, type TileKind } from './terrain'
+import { DEFAULT_FRINGE, type FringePalette, type GroundPack } from './pack'
+import { terrainMap, type TerrainDef, type TerrainId } from './terrain'
 import { generateTileSet, tileBaseTone, type TileSet } from './tileSet'
 import { boundaryDitherWeight, groundTint, groundVariant, scatterDensity, scatterMix, variantBoundaryBlend } from './variety'
-import { paintShore } from './waterDetail'
 
 export interface MaskedOptions {
   /** Draw the thin border stroke around the rect (roads keep theirs). */
@@ -39,23 +29,6 @@ const DITHER_MAX_DENSITY = 0.35
 const DITHER_ALPHA = 0.6
 
 /**
- * Terrains whose textures are isotropic, so rotating/flipping a cell hides
- * repetition. Grass and the fringe kinds keep blades pointing up, so they are
- * excluded.
- */
-const ORIENTABLE: Record<TileKind, boolean> = {
-  grass: false,
-  dirt: true,
-  water: true,
-  gravel: true,
-  asphalt: true,
-  concrete: true,
-  dirtFringe: false,
-  grassFringe: false,
-  gravelFringe: false,
-}
-
-/**
  * Paints regions from a generated TileSet.
  *
  * - `paint` / `paintMasked`: straight areas (roads, slabs) with an optional stroke.
@@ -66,21 +39,39 @@ const ORIENTABLE: Record<TileKind, boolean> = {
  *   gets tonal patches, litter along its edge and grass overhang, so dirt reads
  *   as a dug-out clearing instead of a flat brown shape.
  * - `patchwork` / `scatter`: large tonal variation and dense per-cell detail.
+ *
+ * Everything terrain-specific (palettes, tile styles, specimens, decals, shore)
+ * comes from the injected `GroundPack` — the kit never imports a pack.
  */
 export class TilePainter {
   private readonly renderer: Renderer
+  private readonly pack: GroundPack
+  private readonly defs: Map<TerrainId, TerrainDef>
+  private readonly fringe: FringePalette
   private readonly set: TileSet
   private readonly edgeCache = new Map<string, (Texture[] | undefined)[]>()
 
-  constructor(renderer: Renderer, set?: TileSet) {
+  constructor(renderer: Renderer, pack: GroundPack, set?: TileSet) {
     this.renderer = renderer
-    this.set = set ?? generateTileSet(renderer)
+    this.pack = pack
+    this.defs = terrainMap(pack.terrains)
+    this.fringe = {
+      weed: { ...DEFAULT_FRINGE.weed, ...pack.fringe?.weed },
+      pebble: { ...DEFAULT_FRINGE.pebble, ...pack.fringe?.pebble },
+    }
+    this.set = set ?? generateTileSet(renderer, pack)
+  }
+
+  private defOf(kind: TerrainId): TerrainDef {
+    const def = this.defs.get(kind)
+    if (!def) throw new Error(`unknown terrain "${kind}" in ground pack "${this.pack.id}"`)
+    return def
   }
 
   /** Fills `rect` with tiles, aligned to the tile grid. Partial cells overflow. */
-  paint(container: Container, rect: ZoneRect, kind: TileKind, seed: number): void {
+  paint(container: Container, rect: Rect, kind: TerrainId, seed: number): void {
     const textures = this.set[kind]
-    if (textures.length === 0) return
+    if (!textures || textures.length === 0) return
 
     const dither = new Graphics()
     const startX = Math.floor(rect.x / TILE_SIZE) * TILE_SIZE
@@ -97,7 +88,7 @@ export class TilePainter {
   }
 
   /** Straight-edged area (roads, slabs) with optional border stroke. */
-  paintMasked(root: Container, rect: ZoneRect, kind: TileKind, seed: number, options: MaskedOptions = {}): void {
+  paintMasked(root: Container, rect: Rect, kind: TerrainId, seed: number, options: MaskedOptions = {}): void {
     const layer = new Container()
     const mask = new Graphics().rect(rect.x, rect.y, rect.width, rect.height).fill(0xffffff)
     root.addChild(layer, mask)
@@ -126,11 +117,11 @@ export class TilePainter {
    */
   paintBlob(
     root: Container,
-    rect: ZoneRect,
-    kind: TileKind,
+    rect: Rect,
+    kind: TerrainId,
     seed: number,
     pad = 10,
-    outside: TileKind = 'grass',
+    outside: TerrainId = 'grass',
     elevation = 0,
   ): void {
     const points = blobContour(rect, pad, seed)
@@ -140,6 +131,7 @@ export class TilePainter {
     this.paintTiles(tileLayer, rect, pad, points, seed, kind, outside)
 
     // Tông nền, cụm chi tiết, rác mép, chuyện nền: cắt theo đa giác nên không tràn ra.
+    const def = this.defOf(kind)
     const dressed = new Container()
     const clip = new Graphics().poly(points).fill(0xffffff)
     root.addChild(dressed, clip)
@@ -148,17 +140,17 @@ export class TilePainter {
     this.clustersInside(dressed, rect, pad, seed, kind)
     this.litterInside(dressed, points, seed, kind)
     this.groundStories(dressed, rect, pad, seed, kind)
-    if (kind === 'water') this.scatter(dressed, rect, seed * 7 + 3, 'water', 26)
+    if (def.aquatic) this.scatter(dressed, rect, seed * 7 + 3, 'water', 26)
 
     if (elevation > 0) {
       const wall = new Graphics()
-      paintWallBands(wall, points, kind)
+      paintWallBands(wall, points, def.tones)
       root.addChild(wall)
     }
 
-    if (kind === 'water') {
+    if (def.aquatic) {
       const shore = new Graphics()
-      paintShore(shore, points, seed)
+      this.pack.shore(shore, points, seed)
       root.addChild(shore)
     } else {
       this.fringeInside(root, points, seed, outside, kind)
@@ -180,10 +172,10 @@ export class TilePainter {
    */
   paintPath(
     root: Container,
-    rect: ZoneRect,
-    kind: TileKind,
+    rect: Rect,
+    kind: TerrainId,
     seed: number,
-    outside: TileKind = 'grass',
+    outside: TerrainId = 'grass',
     flare = 0,
     ramp = flare,
     mouths: 'both' | 'top' | 'bottom' = 'both',
@@ -209,12 +201,12 @@ export class TilePainter {
   /** Lays the ground tiles for a region, using `points` to pick the edge cases. */
   private paintTiles(
     container: Container,
-    rect: ZoneRect,
+    rect: Rect,
     pad: number,
     points: readonly number[],
     seed: number,
-    kind: TileKind,
-    outside: TileKind,
+    kind: TerrainId,
+    outside: TerrainId,
   ): void {
     // Same terrain on both sides means the "edge" is between two stretches of one
     // material (a zone floor inside the patch of the same dirt): transition tiles
@@ -248,7 +240,7 @@ export class TilePainter {
   }
 
   /** Large soft tonal patches so grass reads as terrain, not one flat mass. */
-  patchwork(container: Container, rect: ZoneRect, seed: number, block = 96): void {
+  patchwork(container: Container, rect: Rect, seed: number, block = 96): void {
     const rnd = makeRandom(seed)
     const g = new Graphics()
     for (let y = rect.y; y < rect.y + rect.height; y += block) {
@@ -279,11 +271,11 @@ export class TilePainter {
    */
   scatter(
     container: Container,
-    rect: ZoneRect,
+    rect: Rect,
     seed: number,
     variant: ScatterVariant = 'debris',
     cell = 22,
-    skip: readonly ZoneRect[] = [],
+    skip: readonly Rect[] = [],
   ): void {
     const rnd = makeRandom(seed)
     const g = new Graphics()
@@ -302,27 +294,21 @@ export class TilePainter {
           if (i > 0 && rnd() > density) break
           const px = i === 0 ? cx : Math.round(cx + (rnd() - 0.5) * cell * 0.8)
           const py = i === 0 ? cy : Math.round(cy + (rnd() - 0.5) * cell * 0.8)
-          const kind =
-            variant === 'flora'
-              ? pickFloraKind(mix, rnd)
-              : variant === 'water'
-                ? pickWaterKind(mix, rnd)
-                : pickDebrisKind(mix, rnd)
+          const specimens = this.pack.specimens[variant]
+          const kind = specimens.pick(mix, rnd)
           if (insideAnyRect(skip, px, py)) continue
-          if (variant === 'flora') drawFloraItem(g, px, py, kind, rnd)
-          else if (variant === 'water') drawWaterItem(g, px, py, kind, rnd)
-          else drawDebrisItem(g, px, py, kind, rnd)
+          specimens.draw(g, px, py, kind, rnd)
         }
       }
     }
     container.addChild(g)
   }
 
-  private edgesFor(kind: TileKind, outside: TileKind): (Texture[] | undefined)[] {
+  private edgesFor(kind: TerrainId, outside: TerrainId): (Texture[] | undefined)[] {
     const key = `${kind}|${outside}`
     let edges = this.edgeCache.get(key)
     if (!edges) {
-      edges = generateEdgeTiles(this.renderer, kind, outside)
+      edges = generateEdgeTiles(this.renderer, this.defOf(kind), this.defOf(outside))
       this.edgeCache.set(key, edges)
     }
     return edges
@@ -338,17 +324,19 @@ export class TilePainter {
     container.addChild(sprite)
   }
 
-  private addTile(container: Container, dither: Graphics, kind: TileKind, x: number, y: number, seed: number): void {
+  private addTile(container: Container, dither: Graphics, kind: TerrainId, x: number, y: number, seed: number): void {
+    const def = this.defOf(kind)
     const textures = this.set[kind]
+    if (!textures) return
     const count = textures.length
-    const salt = seed + KIND_OFFSET[kind]
+    const salt = seed + def.salt
     const variant = groundVariant(x, y, count, salt)
     const texture = textures[variant]
     if (!texture) return
 
     const sprite = new Sprite(texture)
     sprite.tint = groundTint(x, y, salt)
-    if (ORIENTABLE[kind]) {
+    if (def.orientable) {
       // Xoay/lật hạt để cùng một texture không bao giờ lặp y hệt.
       const h = cornerHash(x, y, seed * 7919 + 11)
       sprite.pivot.set(TILE_SIZE / 2, TILE_SIZE / 2)
@@ -382,7 +370,7 @@ export class TilePainter {
    */
   private ditherBorder(
     dither: Graphics,
-    kind: TileKind,
+    kind: TerrainId,
     x: number,
     y: number,
     count: number,
@@ -392,7 +380,7 @@ export class TilePainter {
     const blend = variantBoundaryBlend(x, y, count, salt)
     if (!blend || blend.amount <= 0.05) return
 
-    const tone = tileBaseTone(kind, blend.variant)
+    const tone = tileBaseTone(this.pack, kind, blend.variant)
     const rnd = makeRandom(cornerHash(x, y, salt * 457 + 31))
     const specks = Math.round(TILE_SIZE * TILE_SIZE * DITHER_MAX_DENSITY * blend.amount)
     for (let i = 0; i < specks; i++) {
@@ -409,9 +397,10 @@ export class TilePainter {
    * dense regions get a tight cluster of pebbles/stones. Keeps the two passes
    * from stacking into uniform clutter.
    */
-  private clustersInside(layer: Container, rect: ZoneRect, pad: number, seed: number, kind: TileKind): void {
-    if (kind !== 'dirt' && kind !== 'gravel') return
-    const tones = EDGE_TONES[kind]
+  private clustersInside(layer: Container, rect: Rect, pad: number, seed: number, kind: TerrainId): void {
+    const def = this.defOf(kind)
+    if (!def.dressing) return
+    const tones = def.tones
     const rnd = makeRandom(seed * 91 + 13)
     const g = new Graphics()
     const region = 52
@@ -428,12 +417,13 @@ export class TilePainter {
         }
         if (density < 0.55 || rnd() > 0.7) continue
         const count = 3 + Math.floor(rnd() * 4)
+        const specimens = this.pack.specimens.debris
         for (let i = 0; i < count; i++) {
-          drawDebrisItem(
+          specimens.draw(
             g,
             cx + Math.round((rnd() - 0.5) * 14),
             cy + Math.round((rnd() - 0.5) * 10),
-            Math.floor(rnd() * DEBRIS_KINDS),
+            Math.floor(rnd() * specimens.count),
             rnd,
           )
         }
@@ -444,8 +434,8 @@ export class TilePainter {
   }
 
   /** Generic stories every clearing gets: a puddle in a dip and drag marks. */
-  private groundStories(layer: Container, rect: ZoneRect, pad: number, seed: number, kind: TileKind): void {
-    if (kind !== 'dirt' && kind !== 'gravel') return
+  private groundStories(layer: Container, rect: Rect, pad: number, seed: number, kind: TerrainId): void {
+    if (!this.defOf(kind).dressing) return
     const rnd = makeRandom(seed * 37 + 29)
     const g = new Graphics()
     const spanX = rect.width + pad * 2
@@ -453,7 +443,7 @@ export class TilePainter {
 
     const puddles = 1 + Math.floor(rnd() * 2)
     for (let i = 0; i < puddles; i++) {
-      paintPuddle(
+      this.pack.decals.puddle(
         g,
         Math.round(rect.x - pad + rnd() * spanX),
         Math.round(rect.y - pad + rnd() * spanY),
@@ -468,7 +458,7 @@ export class TilePainter {
       const y = Math.round(rect.y - pad + rnd() * spanY)
       const length = 8 + rnd() * 10
       const dir = rnd() < 0.5 ? 1 : -1
-      paintDragMarks(g, [{ x, y }, { x: x + length * dir, y: y + (rnd() - 0.5) * 4 }], {
+      this.pack.decals.dragMarks(g, [{ x, y }, { x: x + length * dir, y: y + (rnd() - 0.5) * 4 }], {
         seed: seed + 5,
         strength: 0.55,
       })
@@ -478,9 +468,8 @@ export class TilePainter {
   }
 
   /** Tonal patches inside a clearing so the inside is not one flat mass. */
-  private tonesInside(layer: Container, rect: ZoneRect, pad: number, seed: number, kind: TileKind): void {
-    const tones = EDGE_TONES[kind]
-    if (!tones) return
+  private tonesInside(layer: Container, rect: Rect, pad: number, seed: number, kind: TerrainId): void {
+    const tones = this.defOf(kind).tones
     const rnd = makeRandom(seed * 53 + 19)
     const g = new Graphics()
     const step = 48
@@ -499,9 +488,10 @@ export class TilePainter {
   }
 
   /** Pebbles and twigs gathering just inside the contour (dirt terrains only). */
-  private litterInside(layer: Container, points: readonly number[], seed: number, kind: TileKind): void {
-    if (kind !== 'dirt' && kind !== 'gravel') return
-    const tones = EDGE_TONES[kind]
+  private litterInside(layer: Container, points: readonly number[], seed: number, kind: TerrainId): void {
+    const def = this.defOf(kind)
+    if (!def.dressing) return
+    const tones = def.tones
     const rnd = makeRandom(seed * 71 + 23)
     const g = new Graphics()
     for (const spot of contourSteps(points, 10)) {
@@ -535,14 +525,14 @@ export class TilePainter {
     root: Container,
     points: readonly number[],
     seed: number,
-    outside: TileKind,
-    innerKind: TileKind,
+    outside: TerrainId,
+    innerKind: TerrainId,
   ): void {
     const rnd = makeRandom(seed * 31 + 7)
     const g = new Graphics()
-    const grassLike = outside === 'grass' || outside === 'grassFringe'
-    const tones = terrainTones(outside)
-    const inner = terrainTones(innerKind)
+    const grassLike = this.defOf(outside).grassLike === true
+    const tones = this.defOf(outside).tones
+    const inner = this.defOf(innerKind).tones
 
     for (const spot of contourSteps(points, 4)) {
       // Cụm cỏ mọc lấn vào trong mép (2–3 lá so le).
@@ -583,16 +573,16 @@ export class TilePainter {
         const y = Math.round(spot.y + spot.inwardY * d)
         const size = rnd()
         if (size < 0.45) {
-          g.rect(x, y, 1, 1).fill({ color: 0x8d8b7e, alpha: 0.85 })
+          g.rect(x, y, 1, 1).fill({ color: this.fringe.pebble.base, alpha: 0.85 })
         } else if (size < 0.75) {
-          g.rect(x, y, 2, 1).fill({ color: 0x9c9a8c, alpha: 0.9 })
-          g.rect(x, y - 1, 1, 1).fill({ color: 0xb5b3a4, alpha: 0.85 })
-          g.rect(x, y + 1, 2, 1).fill({ color: 0x5b5346, alpha: 0.3 })
+          g.rect(x, y, 2, 1).fill({ color: this.fringe.pebble.base2, alpha: 0.9 })
+          g.rect(x, y - 1, 1, 1).fill({ color: this.fringe.pebble.light, alpha: 0.85 })
+          g.rect(x, y + 1, 2, 1).fill({ color: this.fringe.pebble.edge, alpha: 0.3 })
         } else {
-          g.rect(x, y, 3, 2).fill({ color: 0x8a8779, alpha: 0.95 })
-          g.rect(x, y - 1, 2, 1).fill({ color: 0xafad9e, alpha: 0.9 })
-          g.rect(x + 2, y + 1, 1, 1).fill({ color: 0x5b5346, alpha: 0.45 })
-          g.rect(x, y + 2, 3, 1).fill({ color: 0x4a4436, alpha: 0.22 })
+          g.rect(x, y, 3, 2).fill({ color: this.fringe.pebble.base3, alpha: 0.95 })
+          g.rect(x, y - 1, 2, 1).fill({ color: this.fringe.pebble.light2, alpha: 0.9 })
+          g.rect(x + 2, y + 1, 1, 1).fill({ color: this.fringe.pebble.edge, alpha: 0.45 })
+          g.rect(x, y + 2, 3, 1).fill({ color: this.fringe.pebble.shadow, alpha: 0.22 })
         }
       }
       // Cục đất vụn của nền trong, rơi lấm tấm qua ranh giới.
@@ -610,23 +600,13 @@ export class TilePainter {
         const d = rnd() * 3
         const x = Math.round(spot.x + spot.inwardX * d)
         const y = Math.round(spot.y + spot.inwardY * d)
-        g.rect(x, y - 2, 1, 2).fill({ color: 0x4d6b33, alpha: 0.9 })
-        g.rect(x + 1, y - 3, 1, 3).fill({ color: 0x628a3f, alpha: 0.85 })
-        if (rnd() < 0.5) g.rect(x + 2, y - 2, 1, 2).fill({ color: 0x4d6b33, alpha: 0.85 })
+        g.rect(x, y - 2, 1, 2).fill({ color: this.fringe.weed.base, alpha: 0.9 })
+        g.rect(x + 1, y - 3, 1, 3).fill({ color: this.fringe.weed.light, alpha: 0.85 })
+        if (rnd() < 0.5) g.rect(x + 2, y - 2, 1, 2).fill({ color: this.fringe.weed.base, alpha: 0.85 })
       }
     }
     root.addChild(g)
   }
 }
 
-const KIND_OFFSET: Record<TileKind, number> = {
-  grass: 1,
-  dirt: 2,
-  water: 3,
-  gravel: 4,
-  asphalt: 5,
-  concrete: 6,
-  dirtFringe: 7,
-  grassFringe: 8,
-  gravelFringe: 9,
-}
+

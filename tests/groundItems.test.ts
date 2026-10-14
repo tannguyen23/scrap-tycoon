@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { makeRandom } from '@ui/scene/random'
-import type { GroundCanvas } from '@ui/scene/tiles/groundCanvas'
+import type { GroundCanvas } from '@ground/core/groundCanvas'
 import {
   DEBRIS_KINDS,
   FLORA_KINDS,
@@ -9,7 +9,7 @@ import {
   drawFloraItem,
   drawWaterItem,
   pickWaterKind,
-} from '@ui/scene/tiles/groundItems'
+} from '@ground/packs/scrapYard/specimens'
 
 interface Draw {
   kind: 'rect' | 'ellipse'

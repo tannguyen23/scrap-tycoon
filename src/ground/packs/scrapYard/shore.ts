@@ -1,5 +1,5 @@
-import { makeRandom } from '../random'
-import { contourSteps, type GroundCanvas } from './groundCanvas'
+import { makeRandom } from '@ground/core/random'
+import { contourSteps, type GroundCanvas } from '@ground/core/groundCanvas'
 
 const FOAM = 0xcfe4f5
 const WET_MUD = 0x8a7550

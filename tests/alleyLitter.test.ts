@@ -7,7 +7,7 @@ import {
   drawTrashBag,
 } from '@ui/scene/focus/alley/sprites'
 import type { Spot } from '@ui/scene/focus/types'
-import type { GroundCanvas } from '@ui/scene/tiles/groundCanvas'
+import type { GroundCanvas } from '@ground/core/groundCanvas'
 
 interface Draw {
   kind: 'rect' | 'ellipse'

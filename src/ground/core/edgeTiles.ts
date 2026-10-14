@@ -1,5 +1,5 @@
 import { Container, Graphics, Rectangle, type Renderer, type Texture } from 'pixi.js'
-import { makeRandom } from '../random'
+import { makeRandom } from './random'
 import {
   EDGE_SHAPES,
   TILE_SIZE,
@@ -7,7 +7,7 @@ import {
   polygonCentroid,
   scaleAboutCentroid,
 } from './edgeGeometry'
-import { terrainTones, type TileKind } from './terrain'
+import type { TerrainDef } from './terrain'
 
 const AO_COLOR = 0x2f2418
 
@@ -24,8 +24,8 @@ const AO_COLOR = 0x2f2418
  */
 export function generateEdgeTiles(
   renderer: Renderer,
-  inside: TileKind,
-  outside: TileKind = 'grass',
+  inside: TerrainDef,
+  outside: TerrainDef,
   variants = 2,
 ): (Texture[] | undefined)[] {
   const result: (Texture[] | undefined)[] = []
@@ -50,14 +50,14 @@ export function generateEdgeTiles(
 
 function paintEdgeTile(
   shapes: readonly (readonly number[])[],
-  inside: TileKind,
-  outside: TileKind,
+  inside: TerrainDef,
+  outside: TerrainDef,
   seed: number,
   variant: number,
 ): Container {
   const rnd = makeRandom(seed * 7919)
-  const inner = terrainTones(inside)
-  const outer = terrainTones(outside)
+  const inner = inside.tones
+  const outer = outside.tones
   const tile = new Container()
 
   // Nền ngoài (cỏ hoặc bùn) + hạt đặc trưng của chính nền đó.
@@ -67,7 +67,7 @@ function paintEdgeTile(
     const y = Math.floor(rnd() * (TILE_SIZE - 1))
     back.rect(x, y, 1, 1).fill({ color: i % 2 === 0 ? outer.speckA : outer.speckB, alpha: 0.8 })
   }
-  if (outside === 'grass' || outside === 'grassFringe') {
+  if (outside.grassLike) {
     for (let i = 0; i < 2; i++) {
       const x = Math.floor(rnd() * (TILE_SIZE - 2))
       const y = Math.floor(rnd() * (TILE_SIZE - 4))

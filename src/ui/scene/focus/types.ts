@@ -1,6 +1,6 @@
 import type { WorkerAction } from '@domain/types'
 import type { Container } from 'pixi.js'
-import type { TilePainter } from '../tiles/painter'
+import type { TilePainter } from '@ground/core/painter'
 import type { Wind } from '../weather'
 import type { ZoneRect } from '../zoneLayout'
 

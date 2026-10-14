@@ -1,4 +1,4 @@
-import type { GroundCanvas } from './groundCanvas'
+import type { GroundCanvas } from '@ground/core/groundCanvas'
 
 /**
  * Ground scatter specimens — the small decorations the scatter pass sprinkles
