@@ -124,6 +124,14 @@ export function drawRockCluster(g: GroundCanvas, x: number, y: number): void {
   drawRock(g, x + 1, y - 2, 1.15)
 }
 
+/** Tông sáng hơn cho MẶT TRÊN (bậc "mặt trên > mặt nam") — giữ hue, nâng sáng ~18%. */
+function litTone(color: number): number {
+  const r = Math.min(255, Math.round(((color >> 16) & 0xff) * 1.18))
+  const g = Math.min(255, Math.round(((color >> 8) & 0xff) * 1.18))
+  const b = Math.min(255, Math.round((color & 0xff) * 1.18))
+  return (r << 16) | (g << 8) | b
+}
+
 /** Steel drum: shaded cylinder, lit rim on the top ellipse, two ribs. */
 export function drawBarrel(g: GroundCanvas, x: number, y: number, tone = 0x5d8a74): void {
   footing(g, x, y, 8)
@@ -132,7 +140,8 @@ export function drawBarrel(g: GroundCanvas, x: number, y: number, tone = 0x5d8a7
   g.rect(x + 3, y - 18, 4, 18).fill({ color: 0x000000, alpha: 0.16 })
   g.rect(x - 7, y - 12, 14, 1.5).fill({ color: 0x000000, alpha: 0.22 })
   g.rect(x - 7, y - 5, 14, 1.5).fill({ color: 0x000000, alpha: 0.22 })
-  g.ellipse(x, y - 18, 7, 2.6).fill({ color: tone, alpha: 1 })
+  // mặt trên (nắp thùng) phải SÁNG HƠN thân — nắng trên-trái
+  g.ellipse(x, y - 18, 7, 2.6).fill({ color: litTone(tone), alpha: 1 })
   g.ellipse(x, y - 18.5, 5.4, 1.6).fill({ color: 0x000000, alpha: 0.35 })
   g.ellipse(x - 1, y - 19, 3, 0.8).fill({ color: 0xffffff, alpha: 0.22 })
   g.rect(x - 7, y - 1, 14, 1).fill(UNDER_EDGE)
@@ -180,7 +189,9 @@ export function drawTireStack(g: GroundCanvas, x: number, y: number): void {
       const edge = ty - ry + 0.6 + ry * Math.sqrt(1 - u * u)
       g.rect(x + u * rx - 0.7, edge - 1.4, 1.4, 1.4).fill(TIRE_TREAD)
     }
-    g.ellipse(x, ty - ry - 0.6, rx, ry).fill(TIRE_FACE)
+    // Lốp TRÊN CÙNG hứng nắng nên mặt trên sáng hơn (bậc mặt trên > mặt nam);
+    // các lốp dưới bị lốp trên che nên giữ tông tối.
+    g.ellipse(x, ty - ry - 0.6, rx, ry).fill(i === 2 ? TIRE_LIT : TIRE_FACE)
     g.rect(x - rx * 0.5, ty - ry - 0.6 - ry * 0.9, rx, 1).fill({ color: TIRE_LIT, alpha: 0.8 })
     g.ellipse(x, ty - ry - 0.6, rx * 0.5, ry * 0.45).fill(TIRE_HOLE)
     g.rect(x - rx * 0.28, ty - ry - 0.6 - ry * 0.36, rx * 0.56, 0.85).fill(TIRE_RIM)
