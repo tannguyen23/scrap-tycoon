@@ -13,8 +13,12 @@ import { drawCrateStack } from './sprites'
 
 const CAP = 2
 const MAX_CRATES = 8
-/** Chồng kiện chờ bốc lên xe ở cổng bắc (local; world 942, 572). */
-const CRATE_STACK = { x: 82, y: 24 }
+/**
+ * Chồng kiện chờ bốc lên xe ở cổng bắc (local; world 942, 572) — đúng chỗ courier
+ * kho→cổng thả hàng xuống. Xuất cả sang test để khoá bất biến "xe lùi vào sao cho
+ * cửa cuốn ở đuôi xe đứng ngay cạnh chồng kiện".
+ */
+export const CRATE_STACK = { x: 82, y: 24 }
 
 /** Detailed city gate: booth, waving flags, boom barrier + trucks loading/departing. */
 export function createGateDetail(rect: ZoneRect, tiles: TilePainter): DetailScene {
@@ -127,6 +131,8 @@ export function createGateDetail(rect: ZoneRect, tiles: TilePainter): DetailScen
 
   const trucks: TruckActor[] = []
   let desired = 0
+  /** Xe đang giữ lượt dùng dock/làn (một xe một lượt, xem vòng update). */
+  let turn = 0
   let lastFlagFrame = -1
   let ambient: Wind = CALM_WIND
 
@@ -167,13 +173,22 @@ export function createGateDetail(rect: ZoneRect, tiles: TilePainter): DetailScen
     }
 
     let anyDeparting = false
+    let anyArriving = false
     for (let i = 0; i < desired; i++) {
       const truck = trucks[i]
       if (!truck) continue
-      truck.update(dt, particles, popups, ambient)
-      if (truck.getPhase() === 'depart' && truck.getX() > 80) anyDeparting = true
+      truck.update(dt, particles, popups, ambient, i === turn)
+      const phase = truck.getPhase()
+      // Xe lùi vào sân cũng đi qua trạm, nên thanh chắn phải mở cho cả chiều vào.
+      if (phase === 'arrive' && truck.getX() < width) anyArriving = true
+      if (phase === 'depart' && truck.getX() > 80) anyDeparting = true
     }
-    drawBarrier(anyDeparting)
+    // Một dock, một làn vào/ra: xe đang giữ lượt nhường cho xe kế khi đã ra khỏi map
+    // ('wait') — xe kế lúc đó mới rời bìa map, nên hai thùng xe không bao giờ chồng nhau.
+    const holder = trucks[turn]
+    if (holder && holder.getPhase() === 'wait') turn = (turn + 1) % Math.max(1, desired)
+    if (turn >= desired) turn = 0
+    drawBarrier(anyDeparting || anyArriving)
     particles.update(dt)
     popups.update(dt)
   }
