@@ -1,9 +1,27 @@
 import { Container, Graphics } from 'pixi.js'
 import { SHADOW, createSack, createScrapBit, createSpokeWheel, drawCabDriver, type SpokeWheel } from '../parts'
+import { createBillet } from '../recycle/sprites'
 
 export interface VehicleSprite {
   container: Container
   wheels: SpokeWheel[]
+}
+
+/**
+ * Chồng phôi chờ ba gác ở ngã ba làn xưởng → mặt đường: đây là "kho" nhìn thấy
+ * được của khu `route` (tồn `billet`), vẽ lại theo độ đầy thật.
+ */
+export function drawBilletStack(stack: Container, x: number, baseY: number, count: number): void {
+  for (const child of stack.removeChildren()) {
+    child.destroy()
+  }
+  for (let i = 0; i < count; i++) {
+    const row = Math.floor(i / 4)
+    const col = i % 4
+    const bar = createBillet()
+    bar.position.set(x - 15 + col * 10 + (row % 2) * 3, baseY - row * 4.5)
+    stack.addChild(bar)
+  }
 }
 
 /** One livery per colour variant — the accent + tarp + driver stay a matched set. */

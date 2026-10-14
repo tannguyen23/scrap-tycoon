@@ -9,8 +9,12 @@ import { Particles, SHADOW } from '../parts'
 import { createPopups } from '../popups'
 import type { DetailScene, DetailSceneState } from '../types'
 import { LANE_Y, createTruck, type TruckActor } from './actors'
+import { drawCrateStack } from './sprites'
 
 const CAP = 2
+const MAX_CRATES = 8
+/** Chồng kiện chờ bốc lên xe ở cổng bắc (local; world 942, 572). */
+const CRATE_STACK = { x: 82, y: 24 }
 
 /** Detailed city gate: booth, waving flags, boom barrier + trucks loading/departing. */
 export function createGateDetail(rect: ZoneRect, tiles: TilePainter): DetailScene {
@@ -110,6 +114,17 @@ export function createGateDetail(rect: ZoneRect, tiles: TilePainter): DetailScen
   const popups = createPopups()
   root.addChild(actors, particles.container, popups.container)
 
+  // Kho của khu: chồng kiện bên cổng bắc, lớn dần theo tồn `crate` thật; dấu đỏ
+  // nhấp nháy khi bin đầy (chặng đóng hàng phía trước bị nghẽn).
+  const warehouse = new Container()
+  warehouse.label = 'warehouse'
+  root.addChild(warehouse)
+  const crateFullMark = new Graphics().rect(CRATE_STACK.x - 2, CRATE_STACK.y - 46, 4, 4).fill(0xd9534f)
+  crateFullMark.visible = false
+  root.addChild(crateFullMark)
+  let crateLevel = -1
+  let stock01 = -1
+
   const trucks: TruckActor[] = []
   let desired = 0
   let lastFlagFrame = -1
@@ -127,9 +142,18 @@ export function createGateDetail(rect: ZoneRect, tiles: TilePainter): DetailScen
       const truck = trucks[i]
       if (truck) truck.sprite.container.visible = i < desired
     }
+
+    stock01 = state.stock01
+    const crateGoal = stock01 < 0 ? 0 : Math.max(0, Math.min(MAX_CRATES, Math.ceil(stock01 * MAX_CRATES)))
+    if (crateGoal !== crateLevel) {
+      drawCrateStack(warehouse, CRATE_STACK.x, CRATE_STACK.y, crateGoal)
+      crateLevel = crateGoal
+    }
+    crateFullMark.visible = stock01 >= 0.99
   }
 
   const update = (dt: number, elapsed: number): void => {
+    crateFullMark.visible = stock01 >= 0.99 && Math.floor(elapsed * 2) % 2 === 0
     // Gió mạnh thì cờ vẫy nhanh hơn — vẫn đúng 2 frame như cũ.
     const flagFrame = Math.floor(elapsed * 2.5 * (1 + ambient.strength * 1.6)) % 2
     if (flagFrame !== lastFlagFrame) {

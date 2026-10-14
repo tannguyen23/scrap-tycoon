@@ -4,8 +4,12 @@ import type { TilePainter } from '../../tiles/painter'
 import { Particles, SHADOW } from '../parts'
 import type { DetailScene, DetailSceneState } from '../types'
 import { createRouteVehicle, type VehicleActor } from './actors'
+import { drawBilletStack } from './sprites'
 
 const CAP = 5
+const MAX_BARS = 12
+/** Chồng phôi ở ngã ba làn xưởng → mặt đường (local; world 724, 374). */
+const BILLET_STACK = { x: 724, y: -6 }
 
 /** Detailed cart route: sidewalks, road wear and carts looping both lanes. */
 export function createRouteDetail(rect: ZoneRect, tiles: TilePainter): DetailScene {
@@ -66,9 +70,20 @@ export function createRouteDetail(rect: ZoneRect, tiles: TilePainter): DetailSce
   const particles = new Particles()
   root.addChild(actors, particles.container)
 
+  // Kho của khu: chồng phôi ở ngã ba làn, lớn dần theo tồn `billet` thật; dấu đỏ
+  // nhấp nháy khi bin đầy (chặng rèn phía trước bị nghẽn).
+  const warehouse = new Container()
+  warehouse.label = 'warehouse'
+  root.addChild(warehouse)
+  const fullMark = new Graphics().rect(BILLET_STACK.x - 17, BILLET_STACK.y - 22, 4, 4).fill(0xd9534f)
+  fullMark.visible = false
+  root.addChild(fullMark)
+
   const vehicles: VehicleActor[] = []
   let desired = 0
   let tier = 0
+  let stackLevel = -1
+  let stock01 = -1
 
   const ensureVehicles = (): void => {
     while (vehicles.length < desired) {
@@ -92,9 +107,18 @@ export function createRouteDetail(rect: ZoneRect, tiles: TilePainter): DetailSce
       vehicles.length = 0
     }
     ensureVehicles()
+
+    stock01 = state.stock01
+    const level = stock01 < 0 ? 0 : Math.max(0, Math.min(MAX_BARS, Math.ceil(stock01 * MAX_BARS)))
+    if (level !== stackLevel) {
+      drawBilletStack(warehouse, BILLET_STACK.x, BILLET_STACK.y, level)
+      stackLevel = level
+    }
+    fullMark.visible = stock01 >= 0.99
   }
 
-  const update = (dt: number): void => {
+  const update = (dt: number, elapsed: number): void => {
+    fullMark.visible = stock01 >= 0.99 && Math.floor(elapsed * 2) % 2 === 0
     for (let i = 0; i < desired; i++) {
       vehicles[i]?.update(dt, particles)
     }

@@ -13,9 +13,13 @@ import { Particles, SHADOW, createSack } from '../parts'
 import type { DetailScene, DetailSceneState, Spot } from '../types'
 import { createHauler, type HaulerActor } from './actors'
 import { createDepotLife } from './life'
+import { drawPalletStack } from './sprites'
 
 const CAP = 5
 const MAX_PILE_SACKS = 18
+const MAX_PALLETS = 8
+/** Chồng pallet phôi xe ba gác trút xuống cạnh cổng kho (local; world 284, 586). */
+const PALLET_STACK = { x: 204, y: 26 }
 
 /** Detailed depot yard: warehouse, scale, lamp, sack pile + haulers at work. */
 export function createDepotDetail(rect: ZoneRect, tiles: TilePainter): DetailScene {
@@ -72,6 +76,17 @@ export function createDepotDetail(rect: ZoneRect, tiles: TilePainter): DetailSce
   root.addChild(pile)
   let pileLevel = -1
 
+  // Kho của khu: chồng pallet bên cổng bắc, lớn dần theo tồn `pallet` thật; dấu
+  // đỏ nhấp nháy khi bin đầy (chặng ba gác phía trước bị nghẽn).
+  const palletStack = new Container()
+  palletStack.label = 'warehouse'
+  root.addChild(palletStack)
+  const palletFullMark = new Graphics().rect(PALLET_STACK.x - 2, PALLET_STACK.y - 34, 4, 4).fill(0xd9534f)
+  palletFullMark.visible = false
+  root.addChild(palletFullMark)
+  let palletLevel = -1
+  let stock01 = -1
+
   const life = createDepotLife({ x: 210, y: 60 })
   root.addChild(life.container)
 
@@ -99,11 +114,20 @@ export function createDepotDetail(rect: ZoneRect, tiles: TilePainter): DetailSce
       drawPile(pile, dropoff.x, dropoff.y + 12, level)
       pileLevel = level
     }
+
+    stock01 = state.stock01
+    const palletGoal = stock01 < 0 ? 0 : Math.max(0, Math.min(MAX_PALLETS, Math.ceil(stock01 * MAX_PALLETS)))
+    if (palletGoal !== palletLevel) {
+      drawPalletStack(palletStack, PALLET_STACK.x, PALLET_STACK.y, palletGoal)
+      palletLevel = palletGoal
+    }
+    palletFullMark.visible = stock01 >= 0.99
   }
 
   const update = (dt: number, elapsed: number): void => {
     glow.alpha = 0.12 + 0.1 * (0.5 + 0.5 * Math.sin(elapsed * 1.8))
     blink.visible = Math.floor(elapsed * 1.4) % 2 === 0
+    palletFullMark.visible = stock01 >= 0.99 && Math.floor(elapsed * 2) % 2 === 0
     for (let i = 0; i < desired; i++) {
       haulers[i]?.update(dt, particles)
     }

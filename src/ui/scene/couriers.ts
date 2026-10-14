@@ -35,10 +35,15 @@ export interface CourierRun {
   readonly cargo: CargoKind
   readonly hat: 'straw' | 'cap'
   readonly path: readonly Spot[]
+  /**
+   * World point where delivered cargo lands — the destination zone's visible
+   * warehouse stack (see the zone scenes). Defaults to the path end.
+   */
+  readonly drop?: Spot
 }
 
 export const COURIER_RUNS: Record<string, CourierRun> = {
-  // Dirt path {x:384, y:100, w:224, h:48}: alley east gate → forge west gate.
+  // Dirt path {x:384, y:100, w:224, h:48}: alley east gate → the forge sack stack.
   'alley>recycle': {
     kind: 'walk',
     speed: 30,
@@ -47,10 +52,13 @@ export const COURIER_RUNS: Record<string, CourierRun> = {
     hat: 'cap',
     path: [
       { x: 388, y: 124 },
-      { x: 620, y: 124 },
+      { x: 596, y: 124 },
+      { x: 648, y: 112 },
     ],
+    drop: { x: 650, y: 112 },
   },
-  // Forge south lane {x:700, y:184, w:48, h:196}: the billet stack down to the road.
+  // Forge south lane {x:700, y:184, w:48, h:196}: the billet stack down to the
+  // roadside stack at the lane junction (the route zone's warehouse).
   'recycle>route': {
     kind: 'walk',
     speed: 28,
@@ -59,10 +67,12 @@ export const COURIER_RUNS: Record<string, CourierRun> = {
     hat: 'straw',
     path: [
       { x: 724, y: 168 },
-      { x: 724, y: 398 },
+      { x: 724, y: 374 },
     ],
+    drop: { x: 724, y: 372 },
   },
-  // Westbound lane of the road band, then down the depot driveway {x:216, y:444, w:36, h:116}.
+  // Westbound lane of the road band, then the depot driveway {x:216, y:444, w:36, h:116}
+  // into the yard where the pallet stack waits.
   'route>depot': {
     kind: 'drive',
     speed: 52,
@@ -73,10 +83,13 @@ export const COURIER_RUNS: Record<string, CourierRun> = {
       { x: 724, y: 418 },
       { x: 252, y: 418 },
       { x: 234, y: 436 },
-      { x: 234, y: 556 },
+      { x: 234, y: 552 },
+      { x: 258, y: 562 },
     ],
+    drop: { x: 280, y: 584 },
   },
-  // Depot driveway up to the road, east along the south walk, down to the gate.
+  // Depot driveway up to the road, east along the south walk, down to the gate
+  // where the crate stack waits.
   'depot>gate': {
     kind: 'walk',
     speed: 34,
@@ -88,8 +101,9 @@ export const COURIER_RUNS: Record<string, CourierRun> = {
       { x: 234, y: 447 },
       { x: 240, y: 441 },
       { x: 942, y: 441 },
-      { x: 942, y: 544 },
+      { x: 942, y: 552 },
     ],
+    drop: { x: 942, y: 560 },
   },
 }
 
@@ -201,12 +215,15 @@ export function createWalkerCourier(run: CourierRun, variant: number): WalkerCou
         pause = 0.5
         if (carrying) {
           setCarrying(false)
-          const spot = samplePath(path, dist)
-          particles.spawn(createCargo(run.cargo), spot.x + facing * 3, spot.y - 10, {
-            vx: facing * 10,
-            vy: -10,
-            life: 0.4,
-            gravity: 48,
+          // The load lands on the destination zone's warehouse stack and rests
+          // there briefly — the pile itself grows from the zone's real stock.
+          const spot = run.drop ?? samplePath(path, dist)
+          const jitter = ((variant * 7) % 13) - 6
+          particles.spawn(createCargo(run.cargo), spot.x + jitter, spot.y - 9, {
+            vx: 0,
+            vy: -7,
+            life: 0.8,
+            gravity: 38,
           })
           playSound('sack-drop')
         }
@@ -301,6 +318,15 @@ export function createDriveCourier(run: CourierRun, tier: number, variant: numbe
         dir = -1
         pause = 0.8
         setLoaded(false)
+        // Unload at the destination warehouse stack, then turn around.
+        const spot = run.drop ?? samplePath(path, dist)
+        const jitter = ((variant * 5) % 11) - 5
+        particles.spawn(createPalletLoad(0.7), spot.x + jitter, spot.y - 4, {
+          vx: 0,
+          vy: -8,
+          life: 0.7,
+          gravity: 40,
+        })
         playSound('vehicle-turn')
       } else if (dir === -1 && dist <= 0) {
         dist = 0

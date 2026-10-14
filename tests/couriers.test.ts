@@ -77,23 +77,24 @@ describe('sack run (alley → forge)', () => {
 
     expect(loads).toBeGreaterThanOrEqual(2)
     expect(drops).toBeGreaterThanOrEqual(2)
-    // The whole round trip stays on the dirt path between the two gates.
+    // The whole round trip stays on the dirt path, into the forge sack stack.
     expect(minX).toBeGreaterThanOrEqual(384)
-    expect(maxX).toBeLessThanOrEqual(624)
+    expect(maxX).toBeLessThanOrEqual(652)
     expect(minY).toBeGreaterThanOrEqual(100)
     expect(maxY).toBeLessThanOrEqual(148)
   })
 })
 
 describe('pallet run (route → depot)', () => {
-  it('drives the road lane and the depot driveway only', () => {
+  it('drives the road lane and the depot driveway, ending in the yard', () => {
     const run = COURIER_RUNS['route>depot']
     if (!run) throw new Error('missing the route>depot run')
     const driver = createDriveCourier(run, 0, 0)
     const particles = new Particles()
     const road = ZONE_LAYOUTS['route']?.rect
     const driveway = CONNECTORS[0]
-    if (!road || !driveway) throw new Error('missing route layout data')
+    const depot = ZONE_LAYOUTS['depot']?.rect
+    if (!road || !driveway || !depot) throw new Error('missing route layout data')
 
     let reachedDepot = false
     let reachedRoad = false
@@ -102,13 +103,41 @@ describe('pallet run (route → depot)', () => {
       driver.update(1 / 60, particles)
       particles.update(1 / 60)
       const { x, y } = driver.container
-      expect(insideAnyRect([road, driveway], x, y), `cart left the lane at ${x},${y}`).toBe(true)
-      if (y > 520) reachedDepot = true
+      expect(insideAnyRect([road, driveway, depot], x, y), `cart left the lane at ${x},${y}`).toBe(true)
+      if (y > 540) reachedDepot = true
       if (x > 700 && y < 430) reachedRoad = true
     }
 
     expect(reachedDepot).toBe(true)
     expect(reachedRoad).toBe(true)
+  })
+})
+
+describe('crate run (depot → gate)', () => {
+  it('carries the crate to the gate stack without leaving painted ground', () => {
+    const run = COURIER_RUNS['depot>gate']
+    if (!run) throw new Error('missing the depot>gate run')
+    const walker = createWalkerCourier(run, 0)
+    const particles = new Particles()
+    const ground: ZoneRect[] = [
+      ...Object.values(ZONE_LAYOUTS).map((layout) => layout.rect),
+      ...COURIER_GROUND,
+    ]
+
+    let reachedGate = false
+    let carriedEastbound = false
+
+    for (let frame = 0; frame < 60 * 120; frame++) {
+      walker.update(1 / 60, particles)
+      particles.update(1 / 60)
+      const { x, y } = walker.container
+      expect(insideAnyRect(ground, x, y), `crate carrier left painted ground at ${x},${y}`).toBe(true)
+      if (x > 930 && y > 540) reachedGate = true
+      if (walker.cargo.visible && x > 500) carriedEastbound = true
+    }
+
+    expect(reachedGate).toBe(true)
+    expect(carriedEastbound).toBe(true)
   })
 })
 

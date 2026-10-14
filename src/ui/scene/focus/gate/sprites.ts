@@ -1,11 +1,28 @@
 import { Container, Graphics } from 'pixi.js'
-import { SHADOW, createSpokeWheel, drawCabDriver, type SpokeWheel } from '../parts'
+import { SHADOW, createCrateBox, createSpokeWheel, drawCabDriver, type SpokeWheel } from '../parts'
 
 export interface TruckSprite {
   container: Container
   wheels: SpokeWheel[]
   doorClosed: Graphics
   doorOpen: Graphics
+}
+
+/**
+ * Chồng kiện chờ bốc lên xe ở cổng bắc: "kho" nhìn thấy được của khu `gate`
+ * (tồn `crate`), vẽ lại theo độ đầy thật.
+ */
+export function drawCrateStack(stack: Container, x: number, baseY: number, count: number): void {
+  for (const child of stack.removeChildren()) {
+    child.destroy()
+  }
+  for (let i = 0; i < count; i++) {
+    const row = Math.floor(i / 2)
+    const col = i % 2
+    const crate = createCrateBox(1)
+    crate.position.set(x + col * 12 + (row % 2) * 2, baseY - 8.5 - row * 8)
+    stack.addChild(crate)
+  }
 }
 
 /** Container shells — weathered paint per variant. */
