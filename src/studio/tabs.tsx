@@ -403,7 +403,7 @@ export function LayoutTab() {
   return (
     <StageFrame
       caption="Sơ đồ khu & các mối nối"
-      note="Vùng đất 960×540. Xám = đường nối asphalt (2 driveway xuống kho/cổng + làn xuất bên phải cổng) — khai báo trong zoneLayout.CONNECTORS nên game và studio vẽ từ cùng một nguồn. Xanh = 4 ao nước trong zoneLayout.WATER_AREAS (vẽ bằng paintBlob('water') với đủ bờ autotile + bọt + lau sậy)."
+      note="Vùng đất 1280×720. Xám = đường nối asphalt (2 driveway xuống kho/cổng + làn xuất bên phải cổng) — khai báo trong zoneLayout.CONNECTORS nên game và studio vẽ từ cùng một nguồn. Xanh = 4 ao nước trong zoneLayout.WATER_AREAS (vẽ bằng paintBlob('water') với đủ bờ autotile + bọt + lau sậy). Viền đậm = mảng có cao độ (nhãn 'cao độ N'). Xanh lá = tuyến courier đi bộ, vàng = tuyến xe — mỗi tuyến có điểm xuất phát + mũi tên chiều giao hàng, nhãn 'khu → khu · hàng'; bảng COURIER_RUNS trong ui/scene/couriers.ts là nơi DUY NHẤT quyết định cặp khu nào được nối."
       build={buildLayout}
     />
   )

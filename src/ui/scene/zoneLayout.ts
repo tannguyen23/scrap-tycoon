@@ -147,12 +147,13 @@ export interface PatchArea {
 }
 
 /**
- * Ground patches on the open map: phase-2 room, the muddy wallow around a pond,
- * the gravel heap dug into one of the dirt clearings and a raised dirt platform
- * by the alley (the elevation demo).
+ * Ground patches on the open map: the raised dirt mound (the elevation demo,
+ * parked in the open grass — its blob + wall band must stay clear of every
+ * courier walkway, see the layout test), the muddy wallow around a pond, the
+ * gravel heap dug into one of the dirt clearings and a second raised heap.
  */
 export const CLEARINGS: readonly PatchArea[] = [
-  { rect: { x: 480, y: 60, width: 120, height: 70 }, elevation: 1 },
+  { rect: { x: 845, y: 292, width: 90, height: 44 }, elevation: 1 },
   { rect: { x: 1030, y: 300, width: 130, height: 80 } },
   { rect: { x: 620, y: 470, width: 100, height: 60 } },
   { rect: { x: 960, y: 620, width: 90, height: 54 } },

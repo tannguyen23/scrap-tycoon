@@ -678,6 +678,73 @@ export function buildLayout(): StageScene {
     )
     cells.push({ label: zoneId, x: rect.x + 8, y: rect.y + 8, width: rect.width - 16, height: 16 })
   }
+
+  // Tuyến courier được phép chạy giữa hai khu (`ui/scene/couriers.ts`): path + điểm
+  // xuất phát + mũi tên chiều giao hàng + nhãn "khu → khu · hàng". Xanh = đi bộ,
+  // vàng = xe. Đây là bảng duy nhất quyết định khu nào nối khu nào.
+  const CARGO_LABELS: Record<string, string> = { sack: 'bao', billet: 'phôi', pallet: 'pallet', crate: 'kiện' }
+  for (const [key, run] of Object.entries(COURIER_RUNS)) {
+    const first = run.path[0]
+    if (!first) continue
+    const [from = '', to = ''] = key.split('>')
+    const color = run.kind === 'drive' ? 0xf0b45a : 0x86e3ad
+    const line = new Graphics().moveTo(first.x, first.y)
+    for (let i = 1; i < run.path.length; i++) {
+      const point = run.path[i]
+      if (point) line.lineTo(point.x, point.y)
+    }
+    line.stroke({ width: run.kind === 'drive' ? 3 : 2, color, alpha: 0.95 })
+    root.addChild(line)
+    root.addChild(new Graphics().circle(first.x, first.y, 4).fill({ color, alpha: 0.95 }))
+
+    const last = run.path[run.path.length - 1]
+    const prev = run.path[run.path.length - 2]
+    if (last && prev) {
+      const angle = Math.atan2(last.y - prev.y, last.x - prev.x)
+      const size = 8
+      const arrow = new Graphics()
+      arrow.moveTo(last.x, last.y)
+      arrow.lineTo(last.x - Math.cos(angle - 0.55) * size, last.y - Math.sin(angle - 0.55) * size)
+      arrow.lineTo(last.x - Math.cos(angle + 0.55) * size, last.y - Math.sin(angle + 0.55) * size)
+      arrow.closePath()
+      arrow.fill({ color, alpha: 0.95 })
+      root.addChild(arrow)
+    }
+
+    // Nhãn đặt ở giữa path để không đè lên cổng khu.
+    const lengths: number[] = []
+    let total = 0
+    for (let i = 1; i < run.path.length; i++) {
+      const a = run.path[i - 1]
+      const b = run.path[i]
+      const span = a && b ? Math.hypot(b.x - a.x, b.y - a.y) : 0
+      lengths.push(span)
+      total += span
+    }
+    let walked = 0
+    let mid = first
+    for (let i = 1; i < run.path.length; i++) {
+      const a = run.path[i - 1]
+      const b = run.path[i]
+      const span = lengths[i - 1] ?? 0
+      if (!a || !b) continue
+      if (walked + span >= total / 2) {
+        const t = span > 0 ? (total / 2 - walked) / span : 0
+        mid = { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t }
+        break
+      }
+      walked += span
+    }
+    const drive = run.kind === 'drive' ? ' (xe)' : ''
+    cells.push({
+      label: `${from} → ${to} · ${CARGO_LABELS[run.cargo] ?? run.cargo}${drive}`,
+      x: mid.x - 80,
+      y: mid.y - 22,
+      width: 160,
+      height: 14,
+      kind: 'label',
+    })
+  }
   return { root, width: WORLD_WIDTH, height: WORLD_HEIGHT, cells }
 }
 

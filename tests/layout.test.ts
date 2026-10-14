@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { COURIER_RUNS } from '@ui/scene/couriers'
 import { PRIMARY_TERRAINS } from '@ui/scene/tiles/terrain'
 import { SCATTER_SKIP_RECTS } from '@ui/scene/worldGrounds'
 import {
@@ -108,6 +109,47 @@ describe('map layout', () => {
       expect(Number.isInteger(patch.elevation), 'elevation is a whole step').toBe(true)
       expect(patch.elevation).toBeGreaterThanOrEqual(1)
       expect(patch.elevation).toBeLessThanOrEqual(3)
+    }
+  })
+
+  it('keeps raised plateaus clear of every courier walkway and yard', () => {
+    // Blob + pad + the wall band spill ~40px past the rect; that influence must
+    // never cover a courier path (characters would walk over a ledge) nor a zone
+    // rect — the road band is a zone too, so it is exempt.
+    for (const patch of CLEARINGS) {
+      if (!(patch.elevation ?? 0)) continue
+      const influence: ZoneRect = {
+        x: patch.rect.x - 40,
+        y: patch.rect.y - 40,
+        width: patch.rect.width + 80,
+        height: patch.rect.height + 80,
+      }
+      for (const { id, rect } of zones) {
+        if (id === 'route') continue
+        expect(overlaps(influence, rect), `raised patch ${patch.rect.x},${patch.rect.y} into ${id}`).toBe(false)
+      }
+      for (const connector of CONNECTORS) {
+        expect(overlaps(influence, connector), `raised patch ${patch.rect.x},${patch.rect.y} over a connector`).toBe(false)
+      }
+      for (const [key, run] of Object.entries(COURIER_RUNS)) {
+        for (let i = 0; i + 1 < run.path.length; i++) {
+          const a = run.path[i]
+          const b = run.path[i + 1]
+          if (!a || !b) continue
+          const steps = Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / 8)
+          for (let step = 0; step <= steps; step++) {
+            const t = steps === 0 ? 0 : step / steps
+            const x = a.x + (b.x - a.x) * t
+            const y = a.y + (b.y - a.y) * t
+            const hits =
+              x >= influence.x &&
+              x <= influence.x + influence.width &&
+              y >= influence.y &&
+              y <= influence.y + influence.height
+            expect(hits, `${key} crosses the raised patch at ${x},${y}`).toBe(false)
+          }
+        }
+      }
     }
   })
 
