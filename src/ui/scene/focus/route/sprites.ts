@@ -29,6 +29,11 @@ interface FleetPalette {
   accent: number
   tarp: number
   body: number
+  /**
+   * Tông mặt ĐUÔI (mặt tây hơi lộ). Xe bị lật `scale.x` khi chạy chiều ngược nên
+   * đừng tô chênh mạnh so với `body`: để gần nhau để cả hai chiều đều không phản
+   * chủ về sáng-tối (xem luật hình trong AGENTS).
+   */
   bodyDark: number
   cabin: number
   driverShirt: number
@@ -40,7 +45,7 @@ const DEFAULT_PALETTE: FleetPalette = {
   accent: 0xc2493d,
   tarp: 0x4f7fc2,
   body: 0x79b4d9,
-  bodyDark: 0x5387ab,
+  bodyDark: 0x74afd3,
   cabin: 0xe8e4da,
   driverShirt: 0x7a6a9f,
   driverShirtDark: 0x625483,
@@ -53,7 +58,7 @@ const PALETTES: readonly FleetPalette[] = [
     accent: 0x3f8f7a,
     tarp: 0xb8534a,
     body: 0xd08a5a,
-    bodyDark: 0xa5693f,
+    bodyDark: 0xc98554,
     cabin: 0xe0d8c8,
     driverShirt: 0x6a7a9f,
     driverShirtDark: 0x556380,
@@ -63,7 +68,7 @@ const PALETTES: readonly FleetPalette[] = [
     accent: 0xd9a23f,
     tarp: 0x5f9e52,
     body: 0x8fbf6f,
-    bodyDark: 0x6d9a52,
+    bodyDark: 0x8aba69,
     cabin: 0xd8d2e0,
     driverShirt: 0x8f6a5a,
     driverShirtDark: 0x745548,
@@ -77,7 +82,8 @@ function paletteOf(variant: number): FleetPalette {
 
 const WOOD_TOPS = [0xb0905c, 0x9d7d4c, 0xbba478]
 const WOOD_SIDE = 0x8a6a3e
-const WOOD_BACK = 0x76592f
+/** Mặt đuôi xe cút kít — gần tông hông (xe lật hai chiều, xem `bodyDark`). */
+const WOOD_BACK = 0x82633f
 const TAILLIGHT = 0xd94b3a
 const PLATE = 0xe8d67a
 const GLASS = 0xcfe0ef

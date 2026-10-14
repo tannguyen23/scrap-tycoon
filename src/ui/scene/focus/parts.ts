@@ -5,8 +5,9 @@ export const SHADOW = { color: 0x000000, alpha: 0.18 } as const
 /** Detailed gunnysack with tie and wrinkles (origin = top-left). */
 export function createSack(scale = 1): Container {
   const sack = new Container()
+  // Bậc sáng: mặt nam xám ngà, DẢI TRÊN phải SÁNG HƠN (mặt trên > mặt nam).
   const body = new Graphics().rect(0, 1, 10, 8).fill(0xe0c79c)
-  const top = new Graphics().rect(1, 0, 8, 3).fill(0xcdb184)
+  const top = new Graphics().rect(1, 0, 8, 3).fill(0xf2e0bd)
   const tie = new Graphics().rect(3, 0, 4, 1).fill(0xa3804f)
   const wrinkle = new Graphics().rect(2, 5, 6, 1).fill({ color: 0xb08a5e, alpha: 0.6 })
   sack.addChild(body, top, tie, wrinkle)

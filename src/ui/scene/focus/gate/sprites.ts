@@ -28,14 +28,20 @@ export function drawCrateStack(stack: Container, x: number, baseY: number, count
 /** Container shells — weathered paint per variant. */
 interface Shell {
   body: number
+  /** Viền/gờ tối quanh thùng (đỉnh, chân, trụ góc). */
   dark: number
+  /**
+   * Mặt đuôi tây hơi lộ. Xe tải bị lật `scale.x` khi chạy chiều ngược nên mặt này
+   * phải gần tông `body` — lệch mạnh là chiều lật nào cũng sai sáng-tối.
+   */
+  end: number
 }
 
-const DEFAULT_SHELL: Shell = { body: 0xc2604f, dark: 0x9c4a3d }
+const DEFAULT_SHELL: Shell = { body: 0xc2604f, dark: 0x9c4a3d, end: 0xbd5c4c }
 const SHELLS: readonly Shell[] = [
   DEFAULT_SHELL,
-  { body: 0x4f7fc2, dark: 0x3d66a0 },
-  { body: 0x5f9e52, dark: 0x4a7f41 },
+  { body: 0x4f7fc2, dark: 0x3d66a0, end: 0x4a79bb },
+  { body: 0x5f9e52, dark: 0x4a7f41, end: 0x5a9850 },
 ]
 
 const CABIN = 0x7fa4d9
@@ -101,7 +107,7 @@ export function createTruckSprite(variant: number): TruckSprite {
   body.rect(-26, -22.4, 1.8, 1.6).fill(shell.dark)
   body.rect(8.2, -22.4, 1.8, 1.6).fill(shell.dark)
   // đuôi container (mặt tây hơi lộ) — nền cho cửa cuốn
-  body.rect(-28.4, -22.4, 2.4, 15.8).fill(shell.dark)
+  body.rect(-28.4, -22.4, 2.4, 15.8).fill(shell.end)
   body.rect(-28.4, -22.4, 2.4, 0.7).fill({ color: 0xffffff, alpha: 0.12 })
   // gầm chạy hết chiều dài: dải xám → gầm đặc chạm bánh → viền gầm + bình dầu + chắn bùn
   body.rect(-28.8, -8.6, 52.8, 2.2).fill(METAL_DARK)
