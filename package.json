@@ -7,12 +7,13 @@
     "dev": "vite",
     "dev:studio": "vite --config studio/vite.config.ts",
     "build": "tsc -b && vite build",
+    "build:studio": "vite build --config studio/vite.config.ts",
     "preview": "vite preview",
     "lint": "oxlint",
     "depcheck": "depcruise src studio",
     "test": "vitest run",
     "test:watch": "vitest",
-    "check": "tsc -b && oxlint && depcruise src studio && vitest run"
+    "check": "tsc -b && oxlint && depcruise src studio && npm run build:studio && vitest run"
   },
   "dependencies": {
     "@fontsource/jetbrains-mono": "^5.3.0",
