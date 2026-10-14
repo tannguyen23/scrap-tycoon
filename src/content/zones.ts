@@ -7,10 +7,10 @@ import type { ZoneDef } from '@domain/types'
 export const ZONES: Record<string, ZoneDef> = {
   alley: {
     id: 'alley',
-    name: { vi: 'Ngõ nhặt', en: 'Picking Alley' },
+    name: { vi: 'Khu ve chai', en: 'Scrap Alley' },
     actionDesc: {
-      vi: 'Người nhặt ve chai đi bộ quanh bãi, chọt lon và sắt vụn bỏ vào thùng; nhân viên bốc vác đóng bao chở sang xưởng.',
-      en: 'Scavengers poke cans and scrap into the alley bin; porters bag it up and haul it to the forge.',
+      vi: 'Người nhặt ve chai chọt lon, sắt vụn từ các đống rồi gom hết về một đống giữa bãi; nhân viên bốc vác vác bao ra cổng đông chở sang xưởng tái chế.',
+      en: 'Scavengers poke cans and scrap out of the heaps and gather them into one pile; porters haul the sacks out the east gate to the forge.',
     },
   },
   recycle: {

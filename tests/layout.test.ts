@@ -159,7 +159,7 @@ describe('map layout', () => {
   })
 
   it('opens each yard fence exactly where a lane crosses the edge', () => {
-    // Lane/lối đi thật trên map: làn đất ngõ→đường (worldGrounds) và hai làn nhựa
+    // Lane/lối đi thật trên map: làn đất khu ve chai→đường (worldGrounds) và hai làn nhựa
     // của `CONNECTORS`. `slack` = số px cho phép mở rộng thêm mỗi phía.
     const cases = [
       { zone: 'alley', edge: 'south', lane: [206, 278], slack: 0 },

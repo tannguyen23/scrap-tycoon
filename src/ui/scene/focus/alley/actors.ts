@@ -3,10 +3,15 @@ import { createSack, createScrapBit, dustPuff, type Particles } from '../parts'
 import { POKE, restPose, walkPose } from '../poses'
 import type { Popups } from '../popups'
 import type { Spot } from '../types'
-import { createScavengerSprite, type ScavengerSprite } from './sprites'
+import { createPorterSprite, createScavengerSprite, type PorterSprite, type ScavengerSprite } from './sprites'
 
 const WALK_SPEED = 34
+const PORTER_SPEED = 32
 const BITS_PER_TRIP = 3
+
+/** Arms hug the sack while it is carried out front (matches the depot hauler). */
+const CARRY_ARM_L = -3.6
+const CARRY_ARM_R = 0.8
 
 export interface PickerActor {
   update(dt: number, particles: Particles, popups: Popups): void
@@ -117,6 +122,105 @@ export function createPicker(variant: number, piles: Spot[], dropoff: Spot): Pic
         playSound('sack-drop')
         pickNextPile()
         mode = 'walk'
+      }
+    }
+
+    container.scale.x = facing
+    container.x = Math.round(x)
+    container.y = Math.round(y)
+  }
+
+  return { sprite, update }
+}
+
+export interface PorterActor {
+  update(dt: number, particles: Particles): void
+  sprite: PorterSprite
+}
+
+/**
+ * Haul behaviour: walk to the gathered pile, lift a sack, carry it out through
+ * the east gate onto the forge road, dump it there and walk back for the next
+ * one. The round trip is what ties the pile to the forge: `scrap` drains out of
+ * the alley as sacks pile up across the way.
+ */
+export function createPorter(variant: number, pile: Spot, haulOut: Spot): PorterActor {
+  const sprite = createPorterSprite(variant)
+  let seed = (variant * 40503 + 11) >>> 0 || 1
+  const rnd = (): number => {
+    seed = (seed * 1664525 + 1013904223) >>> 0
+    return seed / 4294967296
+  }
+
+  // Offsets so several porters stand around the pile and the mouth instead of
+  // forming a single conga line.
+  const around = (spot: Spot, radius: number): Spot => ({
+    x: spot.x + (rnd() - 0.5) * radius * 2,
+    y: spot.y + (rnd() - 0.5) * radius,
+  })
+
+  let x = pile.x + (haulOut.x - pile.x) * rnd()
+  let y = pile.y + (haulOut.y - pile.y) * rnd()
+  let carrying = false
+  let target = around(pile, 10)
+  let pause = 0
+  let clock = rnd() * 5
+  let dustTimer = 0
+  let facing = 1
+
+  const update = (dt: number, particles: Particles): void => {
+    clock += dt
+    const container = sprite.container
+
+    if (pause > 0) {
+      pause -= dt
+      sprite.body.y = Math.sin(clock * 3) * 0.5
+      if (pause <= 0) {
+        carrying = !carrying
+        sprite.sack.visible = carrying
+        if (carrying) {
+          target = around(haulOut, 9)
+          sprite.armsL.x = CARRY_ARM_L
+          sprite.armsR.x = CARRY_ARM_R
+          playSound('sack-lift')
+        } else {
+          target = around(pile, 10)
+          particles.spawn(createSack(0.8), x + facing * 4, y - 10, {
+            vx: facing * 12,
+            vy: -12,
+            life: 0.4,
+            gravity: 52,
+          })
+          playSound('sack-drop')
+        }
+      }
+    } else {
+      const dx = target.x - x
+      const dy = target.y - y
+      const dist = Math.hypot(dx, dy)
+      if (dist < 2) {
+        restPose(sprite)
+        pause = carrying ? 0.5 : 0.45
+        if (carrying) {
+          sprite.armsL.x = CARRY_ARM_L
+          sprite.armsR.x = CARRY_ARM_R
+        }
+      } else {
+        x += (dx / dist) * PORTER_SPEED * dt
+        y += (dy / dist) * PORTER_SPEED * dt
+        if (Math.abs(dx) > 3) facing = dx < 0 ? -1 : 1
+        sprite.face.visible = !(dy < 0 && Math.abs(dy) > Math.abs(dx))
+        walkPose(sprite, clock, { swingArms: !carrying })
+        dustTimer -= dt
+        if (dustTimer <= 0) {
+          dustTimer = 0.5
+          particles.spawn(dustPuff(), x - facing * 4, y + 1, {
+            vx: -facing * 10,
+            vy: -2,
+            life: 0.4,
+            gravity: 8,
+          })
+        }
       }
     }
 

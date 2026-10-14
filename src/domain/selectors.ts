@@ -163,7 +163,7 @@ export function recipeOutputPerSecond(
 
 /**
  * The item whose stock represents a zone on the map/HUD: the input of the zone's
- * first transport/processing worker (e.g. the alley bin holds `scrap` for the
+ * first transport/processing worker (e.g. the alley pile holds `scrap` for the
  * porters), falling back to the output of its first worker.
  */
 export function zoneStockItem(content: GameContent, zoneId: ZoneId): ItemId | null {

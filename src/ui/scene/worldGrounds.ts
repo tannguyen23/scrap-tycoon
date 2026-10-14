@@ -49,14 +49,14 @@ export function paintWorldGrounds(painter: TilePainter, ground: Container, decor
   painter.patchwork(ground, WORLD, 31)
   painter.scatter(ground, WORLD, 41, 'flora', 22, SCATTER_SKIP_RECTS)
 
-  // Đường đất nối ngõ xuống đường ba gác: làn 72px rộng ĐỀU (đủ rộng để không
-  // thành cổ chai), chỉ loe ở ĐẦU NGÕ (`mouths: 'top'`) và loe ngay bên trong mảng
-  // đất ngõ nên phần loe bị sàn khu phủ. Đầu dưới kết thúc ĐÚNG mép đường (y 380):
+  // Đường đất nối khu ve chai xuống đường ba gác: làn 72px rộng ĐỀU (đủ rộng để
+  // không thành cổ chai), chỉ loe ở ĐẦU BÃI (`mouths: 'top'`) và loe ngay bên trong
+  // mảng đất khu nên phần loe bị sàn khu phủ. Đầu dưới kết thúc ĐÚNG mép đường (y 380):
   // vành tile của làn vươn 16px lên mặt nhựa nhưng asphalt của khu `route` được vẽ
   // sau worldGrounds nên phủ mất phần đó — chỗ gặp chỉ còn vành cỏ phía trên.
   painter.paintPath(ground, { x: 206, y: 150, width: 72, height: 230 }, 'dirt', 12, 'grass', 44, 50, 'top')
 
-  // Lối mòn đất ngõ → xưởng tái chế: làn 48px chạy ngang từ mép đông ngõ (x 384)
+  // Lối mòn đất khu ve chai → xưởng tái chế: làn 48px chạy ngang từ mép đông khu (x 384)
   // sang mép tây xưởng (x 608). Không loe (flare 0) vì hai đầu đều cắm vào sàn khu.
   painter.paintPath(ground, { x: 384, y: 100, width: 224, height: 48 }, 'dirt', 17, 'grass', 0)
 

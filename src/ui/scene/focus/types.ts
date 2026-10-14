@@ -1,3 +1,4 @@
+import type { WorkerAction } from '@domain/types'
 import type { Container } from 'pixi.js'
 import type { TilePainter } from '../tiles/painter'
 import type { Wind } from '../weather'
@@ -12,6 +13,12 @@ export interface Spot {
 /** Data the focused-zone scenes need on every store sync. */
 export interface DetailSceneState {
   workers: number
+  /**
+   * Worker head-count per behaviour inside the zone (`{ pick: 3, haul: 1 }`).
+   * A zone with several crewing behaviours picks which actor to spawn from
+   * here — `workers` alone cannot say who hauls and who picks.
+   */
+  actions: Readonly<Partial<Record<WorkerAction, number>>>
   earnedLog10: number
   /** Vehicle/prop tier raised by owned upgrades (0 = base art). */
   tier: number

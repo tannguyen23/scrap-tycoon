@@ -533,7 +533,14 @@ export function buildZone(zoneId: string, scale: number, tier = 0): StageBuilder
     if (!layout || !factory) throw new Error(`no detail scene for zone "${zoneId}"`)
     const painter = new TilePainter(app.renderer)
     const detail = factory(layout.rect, painter)
-    detail.setState({ workers: 3, earnedLog10: 5, tier, labels: STUDIO_LABELS, stock01: 0.6 })
+    detail.setState({
+      workers: 3,
+      actions: { pick: 2, haul: 1 },
+      earnedLog10: 5,
+      tier,
+      labels: STUDIO_LABELS,
+      stock01: 0.6,
+    })
     const root = new Container()
     root.addChild(detail.root)
     root.scale.set(scale)
@@ -688,7 +695,14 @@ export function buildLightingWorld(initialTime: number): StageBuilder {
       const factory = detailSceneFor(zoneId as ZoneId)
       if (!layout || !factory) continue
       const detail = factory(layout.rect, painter)
-      detail.setState({ workers: 2, earnedLog10: 6, tier: 0, labels: STUDIO_LABELS, stock01: 0.6 })
+      detail.setState({
+        workers: 2,
+        actions: { pick: 1, haul: 1 },
+        earnedLog10: 6,
+        tier: 0,
+        labels: STUDIO_LABELS,
+        stock01: 0.6,
+      })
       root.addChild(detail.root)
       details.push(detail)
     }
@@ -776,7 +790,14 @@ export function buildWeatherWorld(initialTime: number): StageBuilder {
       const factory = detailSceneFor(zoneId as ZoneId)
       if (!layout || !factory) continue
       const detail = factory(layout.rect, painter)
-      detail.setState({ workers: 2, earnedLog10: 6, tier: 0, labels: STUDIO_LABELS, stock01: 0.6 })
+      detail.setState({
+        workers: 2,
+        actions: { pick: 1, haul: 1 },
+        earnedLog10: 6,
+        tier: 0,
+        labels: STUDIO_LABELS,
+        stock01: 0.6,
+      })
       root.addChild(detail.root)
       details.push(detail)
     }

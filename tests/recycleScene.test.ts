@@ -70,6 +70,7 @@ describe('recycle detail scene', () => {
 
     scene.setState({
       workers: 2,
+      actions: {},
       earnedLog10: 5,
       tier: 0,
       labels: { produced: 'Phôi tái chế', money: 'Tiền' },
@@ -78,7 +79,12 @@ describe('recycle detail scene', () => {
     for (let i = 0; i < 60 * 20; i++) scene.update(1 / 60, i / 60)
 
     // Empty stock, then a full bin (blinking marker) — both must be safe.
-    const base = { earnedLog10: 5, tier: 0, labels: { produced: 'Phôi tái chế', money: 'Tiền' } }
+    const base = {
+      actions: {},
+      earnedLog10: 5,
+      tier: 0,
+      labels: { produced: 'Phôi tái chế', money: 'Tiền' },
+    }
     scene.setState({ ...base, workers: 0, stock01: 0 })
     scene.update(1 / 60, 0)
     scene.setState({ ...base, workers: 3, stock01: 1 })

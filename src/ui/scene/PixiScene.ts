@@ -1,6 +1,6 @@
 import type { ObservableStore } from '@core/store'
 import { stockRatio, zoneStockItem, zoneTiers } from '@domain/selectors'
-import type { GameContent, GameState, ZoneId } from '@domain/types'
+import type { GameContent, GameState, WorkerAction, ZoneId } from '@domain/types'
 import type { LocaleStore } from '@i18n/locale'
 import { t, type Locale } from '@i18n/types'
 import { Application, Container, Graphics, TextureSource } from 'pixi.js'
@@ -165,6 +165,7 @@ export async function mountScene(
     const state = store.getSnapshot()
     const zoneCounts = new Map<ZoneId, number>()
     const zoneItems = new Map<ZoneId, string>()
+    const zoneActions = new Map<ZoneId, Partial<Record<WorkerAction, number>>>()
 
     for (const branch of Object.values(content.branches)) {
       const branchState = state.branches[branch.id]
@@ -172,9 +173,14 @@ export async function mountScene(
       for (const worker of branch.workers) {
         const count = branchState.workers[worker.id] ?? 0
         if (count <= 0) continue
-        zoneCounts.set(worker.visual.zone, (zoneCounts.get(worker.visual.zone) ?? 0) + count)
-        if (!zoneItems.has(worker.visual.zone)) {
-          zoneItems.set(worker.visual.zone, worker.output.item)
+        const zone = worker.visual.zone
+        zoneCounts.set(zone, (zoneCounts.get(zone) ?? 0) + count)
+        const action = worker.visual.action
+        const byAction = zoneActions.get(zone)
+        if (byAction) byAction[action] = (byAction[action] ?? 0) + count
+        else zoneActions.set(zone, { [action]: count })
+        if (!zoneItems.has(zone)) {
+          zoneItems.set(zone, worker.output.item)
         }
       }
     }
@@ -196,6 +202,7 @@ export async function mountScene(
       const ratio = stockItem ? stockRatio(state, content, stockItem) : null
       detail.setState({
         workers: zoneCounts.get(zoneId) ?? 0,
+        actions: zoneActions.get(zoneId) ?? {},
         earnedLog10,
         tier: tiers.get(zoneId) ?? 0,
         labels: { produced: itemLabel(zoneItems.get(zoneId)), money: moneyLabel },

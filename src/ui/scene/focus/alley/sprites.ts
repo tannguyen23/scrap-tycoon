@@ -1,7 +1,7 @@
-import type { Graphics } from 'pixi.js'
+import { Container, type Graphics } from 'pixi.js'
 import type { GroundCanvas } from '../../tiles/groundCanvas'
 import { equipItems, type HeldItem } from '../heldItems'
-import { SHADOW, createPersonSprite, type PersonSprite } from '../parts'
+import { SHADOW, createPersonSprite, createSack, type PersonSprite } from '../parts'
 import { POKE_ITEMS } from '../poses'
 
 export interface ScavengerSprite extends PersonSprite {
@@ -20,6 +20,22 @@ export function createScavengerSprite(variant: number): ScavengerSprite {
   const person = createPersonSprite(variant, 'straw')
   const gear = equipItems(person, POKE_ITEMS)
   return { ...person, bag: gear.bag, poker: gear.stick }
+}
+
+export interface PorterSprite extends PersonSprite {
+  /** Sack carried out front, hidden until one is lifted off the pile. */
+  sack: Container
+}
+
+/** ¾-view porter: cap and a sack in front, heading for the forge. */
+export function createPorterSprite(variant: number): PorterSprite {
+  const person = createPersonSprite(variant, 'cap')
+  const sack = new Container()
+  sack.addChild(createSack(0.85))
+  sack.position.set(3, -11)
+  sack.visible = false
+  person.container.addChild(sack)
+  return { ...person, sack }
 }
 
 /**

@@ -70,12 +70,12 @@ const ANCHOR = { x: 100, y: 100 }
 
 const TIRE_DRAWERS = [
   {
-    name: 'lốp nằm (khu ngõ)',
+    name: 'lốp nằm (khu ve chai)',
     count: 1,
     draw: (g: GroundCanvas) => drawFlatTire(g, ANCHOR.x, ANCHOR.y, 10),
   },
   {
-    name: 'lốp dựng tựa (khu ngõ)',
+    name: 'lốp dựng tựa (khu ve chai)',
     count: 1,
     draw: (g: GroundCanvas) => drawLeaningTire(g, ANCHOR.x, ANCHOR.y, 7),
   },
@@ -85,7 +85,7 @@ const TIRE_DRAWERS = [
     draw: (g: GroundCanvas) => drawTire(g, ANCHOR.x, ANCHOR.y),
   },
   {
-    name: 'chồng lốp (khu ngõ)',
+    name: 'chồng lốp (khu ve chai)',
     count: 3,
     draw: (g: GroundCanvas) => drawTireStack(g, ANCHOR.x, ANCHOR.y, 3),
   },

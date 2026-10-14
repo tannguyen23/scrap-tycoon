@@ -11,7 +11,7 @@ export type SoundGroup = (typeof SOUND_GROUPS)[number]
 export const SOUND_GROUP_LABELS: Record<SoundGroup, L10n> = {
   ui: { vi: 'Giao diện', en: 'UI' },
   gate: { vi: 'Cổng ra vào', en: 'Gate' },
-  alley: { vi: 'Ngõ nhặt', en: 'Alley' },
+  alley: { vi: 'Khu ve chai', en: 'Scrap Alley' },
   recycle: { vi: 'Xưởng tái chế', en: 'Forge' },
   depot: { vi: 'Nơi đóng hàng', en: 'Packing House' },
   route: { vi: 'Tuyến xe', en: 'Route' },
@@ -238,7 +238,7 @@ export const SOUND_LIBRARY: Record<SoundId, SoundSpec> = {
     group: 'alley',
     label: { vi: 'Chọt lon', en: 'Poke' },
     description: {
-      vi: 'Cây chọt trúng lon trong đống phế liệu (ngõ nhặt).',
+      vi: 'Cây chọt trúng lon trong đống phế liệu (khu ve chai).',
       en: 'The stick pokes a can out of the pile (alley).',
     },
     volume: 0.35,
@@ -254,7 +254,7 @@ export const SOUND_LIBRARY: Record<SoundId, SoundSpec> = {
     group: 'depot',
     label: { vi: 'Thả bao', en: 'Sack drop' },
     description: {
-      vi: 'Vứt/buông bao xuống — điểm đổ ở ngõ và sàn kho.',
+      vi: 'Vứt/buông bao xuống — điểm gom ở khu ve chai và sàn kho.',
       en: 'Sack tossed/released — alley drop-off and depot floor.',
     },
     volume: 0.45,

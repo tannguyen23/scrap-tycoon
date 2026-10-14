@@ -125,8 +125,8 @@ export const SCRAP_BRANCH: BranchDef = {
     },
     {
       id: 'big-bin',
-      name: { vi: 'Mở rộng thùng ngõ', en: 'Expand the Alley Bin' },
-      desc: { vi: 'x2 sức chứa Sắt vụn ở ngõ', en: 'x2 scrap capacity at the alley' },
+      name: { vi: 'Mở rộng chỗ chứa', en: 'Expand the Scrap Heap' },
+      desc: { vi: 'x2 sức chứa Sắt vụn ở khu ve chai', en: 'x2 scrap capacity in the scrap alley' },
       cost: new Decimal(200),
       effects: [{ target: itemCapacity(SCRAP_ITEM), kind: 'mult', value: new Decimal(2) }],
     },

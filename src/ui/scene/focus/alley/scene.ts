@@ -14,7 +14,7 @@ import { Particles } from '../parts'
 import { createPopups } from '../popups'
 import type { DetailScene, DetailSceneState, Spot } from '../types'
 import { CALM_WIND, type Wind } from '../../weather'
-import { createPicker, type PickerActor } from './actors'
+import { createPicker, createPorter, type PickerActor, type PorterActor } from './actors'
 import { createAlleyLife } from './life'
 import {
   drawBagPile,
@@ -38,17 +38,19 @@ import {
   drawWeedTuft,
 } from './sprites'
 
-const CAP = 8
+const PICKER_CAP = 8
+const PORTER_CAP = 4
 
 /**
- * Bãi rác của khu ngõ nhặt: bảy đống phế liệu so le cỡ, thùng rác công nghiệp, hai
- * thùng nhựa xanh (một nắp mở), một thùng đổ nghiêng, đống bao + bao vứt lẻ, chai lọ
- * lăn quanh, xác tủ lạnh/máy giặt, lốp, pallet và hai món đổ nghiêng. Sàn đất do
- * `worldGrounds` vẽ (một nguồn cho cả map lẫn studio) — ở đây chỉ thêm lớp của khu.
+ * Bãi rác của khu ve chai: bảy đống phế liệu so le cỡ, thùng rác công nghiệp, hai
+ * thùng nhựa xanh (một nắp mở), một thùng đổ nghiêng, bao vứt lẻ, chai lọ lăn quanh,
+ * xác tủ lạnh/máy giặt, lốp, pallet và hai món đổ nghiêng. Sàn đất do `worldGrounds`
+ * vẽ (một nguồn cho cả map lẫn studio) — ở đây chỉ thêm lớp của khu.
  *
- * Pickers đi từ điểm đổ (đầu làn ra, chỗ bao được vứt lại) toả ra từng đống, chọt
- * lon rồi mang bao về. Bãi trông thật vì các đống LỆCH nhau: cỡ lấy từ bảng trong
- * `sprites.ts`, vị trí thì so le chứ không chia đều.
+ * Vòng logistics nhìn thấy được: pickers toả từ các đống chọt lon rồi mang bao GOM
+ * VỀ MỘT MỐI tại điểm đổ (đống bao lớn dần theo tồn `scrap`); porters bốc bao từ đống
+ * đó vác ra cổng đông — đúng lối mòn sang xưởng tái chế. Bãi trông thật vì các đống
+ * LỆCH nhau: cỡ lấy từ bảng trong `sprites.ts`, vị trí thì so le chứ không chia đều.
  */
 export function createAlleyDetail(rect: ZoneRect, tiles: TilePainter): DetailScene {
   const root = new Container()
@@ -70,6 +72,8 @@ export function createAlleyDetail(rect: ZoneRect, tiles: TilePainter): DetailSce
     { x: 280, y: 214 },
   ]
   const dropoff: Spot = { x: 192, y: 246 }
+  /** Lỗ cổng đông mở đúng lối mòn sang xưởng tái chế (local y 52..100) — porter vác bao ra đây. */
+  const haulOut: Spot = { x: 340, y: 76 }
 
   // Chỗ rác tươi: thùng nhựa xanh cạnh thùng công nghiệp, một thùng đổ nghiêng trên
   // mảng sỏi, bao vứt lẻ rải quanh bãi — ruồi tụ quanh đây chứ không tụ ở đống sắt.
@@ -92,6 +96,8 @@ export function createAlleyDetail(rect: ZoneRect, tiles: TilePainter): DetailSce
   paintWearPath(decals, [piles[0] ?? dropoff, piles[6] ?? dropoff], { seed: 131, strength: 0.8 })
   paintFootprints(decals, [dropoff, piles[0] ?? dropoff], { seed: 141, strength: 0.9 })
   paintFootprints(decals, [dropoff, piles[4] ?? dropoff], { seed: 142, strength: 0.8 })
+  // Đường vác bao: porter đi từ đống gom ra cổng đông suốt ngày.
+  paintWearPath(decals, [dropoff, haulOut], { seed: 133, strength: 0.5 })
   paintDragMarks(decals, [{ x: 258, y: 62 }, piles[2] ?? dropoff], { seed: 151, strength: 0.6 })
   paintRuts(decals, [{ x: 196, y: 238 }, { x: 188, y: 116 }], { seed: 152, strength: 0.7 })
   paintStain(decals, { x: 166, y: 82 }, { radius: 14, soot: true, seed: 161 })
@@ -116,7 +122,6 @@ export function createAlleyDetail(rect: ZoneRect, tiles: TilePainter): DetailSce
   drawDrum(props, 24, 118, 0x9c5a48, 0xba7059)
   drawTippedDrum(props, 316, 244, 0x9c5a48, 0xba7059)
   drawBrokenTv(props, 66, 216)
-  drawBagPile(props, dropoff.x, dropoff.y - 2, 5)
   drawGreenBin(props, binA.x, binA.y)
   drawGreenBin(props, binB.x, binB.y, true)
   drawTippedBin(props, tippedBin.x, tippedBin.y)
@@ -145,10 +150,15 @@ export function createAlleyDetail(rect: ZoneRect, tiles: TilePainter): DetailSce
   }
   root.addChild(props)
 
-  // Hàng rào bao bãi, cổng mở đúng chỗ làn đất ngõ → đường cắt qua cạnh nam.
+  // Hàng rào bao bãi, cổng mở đúng chỗ làn đất bãi → đường cắt qua cạnh nam.
   const fence = new Graphics()
   drawZoneFence(fence, rect, ZONE_LAYOUTS.alley?.fenceOpenings)
   root.addChild(fence)
+
+  // Đống gom MỘT MỐI: bao thợ nhặt mang về chất tại điểm đổ, lớn dần theo tồn `scrap`
+  // (đầy = thợ nhặt đứng chờ, porter hết bao để vác). Vẽ dưới lớp actors.
+  const scrapPile = new Graphics()
+  root.addChild(scrapPile)
 
   const life = createAlleyLife(piles, [
     binA,
@@ -165,44 +175,57 @@ export function createAlleyDetail(rect: ZoneRect, tiles: TilePainter): DetailSce
   root.addChild(actors, particles.container, popups.container)
 
   const pickers: PickerActor[] = []
-  let desired = 0
+  const porters: PorterActor[] = []
+  let desiredPickers = 0
+  let desiredPorters = 0
   let ambient: Wind = CALM_WIND
   let stock01 = -1
-  let binLevel = -1
+  let pileLevel = -1
 
-  // Thùng ngõ: bao xếp đầy dần theo tồn kho `scrap` (đầy = thợ nhặt phải đứng chờ).
-  const binPile = new Graphics()
-  root.addChild(binPile)
-  const binFullMark = new Graphics().rect(binA.x - 4, binA.y - 18, 4, 4).fill(0xd9534f)
-  binFullMark.visible = false
-  root.addChild(binFullMark)
+  const pileFullMark = new Graphics().rect(dropoff.x - 2, dropoff.y - 32, 4, 4).fill(0xd9534f)
+  pileFullMark.visible = false
+  root.addChild(pileFullMark)
 
   const setState = (state: DetailSceneState): void => {
     popups.setLabels(state.labels)
-    desired = Math.min(state.workers, CAP)
-    while (pickers.length < desired) {
+    desiredPickers = Math.min(state.actions.pick ?? 0, PICKER_CAP)
+    while (pickers.length < desiredPickers) {
       const picker = createPicker(pickers.length, piles, dropoff)
       pickers.push(picker)
       actors.addChild(picker.sprite.container)
     }
     for (let i = 0; i < pickers.length; i++) {
       const picker = pickers[i]
-      if (picker) picker.sprite.container.visible = i < desired
+      if (picker) picker.sprite.container.visible = i < desiredPickers
+    }
+
+    desiredPorters = Math.min(state.actions.haul ?? 0, PORTER_CAP)
+    while (porters.length < desiredPorters) {
+      const porter = createPorter(porters.length, dropoff, haulOut)
+      porters.push(porter)
+      actors.addChild(porter.sprite.container)
+    }
+    for (let i = 0; i < porters.length; i++) {
+      const porter = porters[i]
+      if (porter) porter.sprite.container.visible = i < desiredPorters
     }
 
     stock01 = state.stock01
     const level = stock01 < 0 ? 0 : Math.max(0, Math.min(8, Math.ceil(stock01 * 8)))
-    if (level !== binLevel) {
-      binPile.clear()
-      drawBagPile(binPile, binA.x + 2, binA.y + 10, level)
-      binLevel = level
+    if (level !== pileLevel) {
+      scrapPile.clear()
+      drawBagPile(scrapPile, dropoff.x, dropoff.y - 2, level)
+      pileLevel = level
     }
   }
 
   const update = (dt: number, elapsed: number): void => {
-    binFullMark.visible = stock01 >= 0.99 && Math.floor(elapsed * 2) % 2 === 0
-    for (let i = 0; i < desired; i++) {
+    pileFullMark.visible = stock01 >= 0.99 && Math.floor(elapsed * 2) % 2 === 0
+    for (let i = 0; i < desiredPickers; i++) {
       pickers[i]?.update(dt, particles, popups)
+    }
+    for (let i = 0; i < desiredPorters; i++) {
+      porters[i]?.update(dt, particles)
     }
     life.update(dt, elapsed, ambient)
     particles.update(dt)

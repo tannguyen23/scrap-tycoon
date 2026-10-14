@@ -211,7 +211,7 @@ export function ScatterTab() {
       />
       <StageFrame
         caption="Dấu vết sử dụng trên nền đất (×2)"
-        note="Các decal trong tiles/dirtDetail.ts được gọi bằng anchor thật của từng khu (piles/dropoff ở ngõ, pickup/dropoff ở kho, chỗ xe tải đỗ ở cổng) nên lối mòn luôn khớp nơi nhân công làm việc; vệt kéo bao + cụm sỏi + vũng nước chung do paintBlob rải cho mọi mảng đất."
+        note="Các decal trong tiles/dirtDetail.ts được gọi bằng anchor thật của từng khu (piles/dropoff ở khu ve chai, pickup/dropoff ở kho, chỗ xe tải đỗ ở cổng) nên lối mòn luôn khớp nơi nhân công làm việc; vệt kéo bao + cụm sỏi + vũng nước chung do paintBlob rải cho mọi mảng đất."
         build={buildTraces}
       />
     </>
@@ -315,7 +315,7 @@ export function PropsTab() {
 }
 
 const ZONE_PREVIEWS = [
-  { id: 'alley', caption: 'Khu: Ngõ nhặt ve chai (×2)', scale: 2 },
+  { id: 'alley', caption: 'Khu: Ve chai (×2)', scale: 2 },
   { id: 'recycle', caption: 'Khu: Xưởng tái chế — đe & búa (×2)', scale: 2 },
   { id: 'route', caption: 'Khu: Tuyến xe chạy (×1)', scale: 1 },
   { id: 'depot', caption: 'Khu: Nơi đóng hàng (×2)', scale: 2 },

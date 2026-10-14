@@ -65,7 +65,7 @@ export const ZONE_LAYOUTS: Record<string, ZoneLayout> = {
     // đã dời sang (490,210), bên trái là mép canvas. Cạnh vẫn bám lưới 16 để lớp
     // sàn vẽ ở toạ độ local của khu trùng lưới tile với bản đồ.
     rect: { x: 48, y: 48, width: 336, height: 272 },
-    // Cổng ngõ: làn đất ngõ → đường rộng 72px cắt qua cạnh nam (world x 206..278),
+    // Cổng nam: làn đất khu → đường rộng 72px cắt qua cạnh nam (world x 206..278),
     // và lối mòn đất sang xưởng tái chế ở cạnh đông (world y 100..148).
     fenceOpenings: [
       { edge: 'south', from: 158, to: 230 },
@@ -75,10 +75,10 @@ export const ZONE_LAYOUTS: Record<string, ZoneLayout> = {
   recycle: {
     style: { color: 0xd08a4a, css: '#d08a4a' },
     // Xưởng tái chế: 16.5×11 ô ở khoảng trống phía bắc giữa map — chặng nối giữa
-    // ngõ nhặt (tây-bắc) và nơi đóng hàng (nam-tây). Cạnh bắc chừa 8px để rào
+    // khu ve chai (tây-bắc) và nơi đóng hàng (nam-tây). Cạnh bắc chừa 8px để rào
     // không chạm mép canvas; cạnh nam (y 184) chừa 196px xuống mặt đường.
     rect: { x: 608, y: 8, width: 264, height: 176 },
-    // Hai cổng: lối mòn đất từ ngõ (world y 100..148) ở cạnh tây, làn nhựa ra
+    // Hai cổng: lối mòn đất từ khu ve chai (world y 100..148) ở cạnh tây, làn nhựa ra
     // tuyến ba gác (world x 700..748) ở cạnh nam.
     fenceOpenings: [
       { edge: 'west', from: 92, to: 140 },
