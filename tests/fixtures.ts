@@ -1,5 +1,5 @@
 import { Decimal } from '@core/num'
-import { branchRecipeOutput, branchWorkerOutput } from '@domain/statKeys'
+import { branchRecipeOutput, branchWorkerOutput, workerStepOutput } from '@domain/statKeys'
 import type { BranchDef, BranchState, GameContent, GameState, WeatherProfile } from '@domain/types'
 import { weatherWorkMultiplier } from '@domain/weather'
 import { expect } from 'vitest'
@@ -182,6 +182,13 @@ export const TEST_CHAIN_CONTENT: GameContent = {
           desc: { vi: '+50% giá bán tiền', en: '+50% money value' },
           cost: new Decimal(200),
           effects: [{ target: branchRecipeOutput('mine'), kind: 'mult', value: new Decimal('1.5') }],
+        },
+        {
+          id: 'hauler-gear',
+          name: { vi: 'Đồ nghề vác', en: 'Hauler Gear' },
+          desc: { vi: 'x2 tốc độ người vác', en: 'x2 hauler speed' },
+          cost: new Decimal(300),
+          effects: [{ target: workerStepOutput('mine', 'hauler'), kind: 'mult', value: new Decimal(2) }],
         },
       ],
     },

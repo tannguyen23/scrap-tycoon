@@ -8,7 +8,7 @@ import {
   workerOutputPerUnit,
   zoneStockItem,
 } from '@domain/selectors'
-import { addResource, createFreshState, getResource } from '@domain/state'
+import { addResource, addStock, createFreshState, getResource, getStock } from '@domain/state'
 import { applyRates } from '@domain/systems/production'
 import { itemCapacity } from '@domain/statKeys'
 import type { GameContent } from '@domain/types'
@@ -27,12 +27,12 @@ describe('stock caps', () => {
     applyRates(state, TEST_CHAIN_CONTENT, 10)
 
     // 5/s over 10s would be 50, but the ore bin holds 10.
-    expectCloseTo(getResource(state, 'ore'), new Decimal(10))
+    expectCloseTo(getStock(state, 'mine', 'ore'), new Decimal(10))
   })
 
   it('reports fill ratio and knows which item a zone buffers', () => {
     const state = chainState()
-    addResource(state, 'ore', new Decimal(4))
+    addStock(state, 'mine', 'ore', new Decimal(4))
     expect(stockRatio(state, TEST_CHAIN_CONTENT, 'ore')).toBeCloseTo(0.4)
     expect(stockRatio(state, TEST_CHAIN_CONTENT, 'money')).toBeNull()
     expect(zoneStockItem(TEST_CHAIN_CONTENT, 'mine')).toBe('ore')
@@ -54,50 +54,83 @@ describe('transport legs (workers with input)', () => {
   it('does nothing while no legs are hired', () => {
     const state = chainState()
     branchStateOf(state, 'mine').workers['digger'] = 1
-    addResource(state, 'ore', new Decimal(5))
+    addStock(state, 'mine', 'ore', new Decimal(5))
 
     applyRates(state, TEST_CHAIN_CONTENT, 10)
 
     // Ore capped from digger production, but nothing moves it.
-    expectCloseTo(getResource(state, 'bar'), new Decimal(0))
-    expectCloseTo(getResource(state, 'ore'), new Decimal(10))
+    expectCloseTo(getStock(state, 'mine', 'bar'), new Decimal(0))
+    expectCloseTo(getStock(state, 'mine', 'ore'), new Decimal(10))
   })
 
   it('scales output proportionally when the upstream only partially feeds', () => {
     const state = chainState()
     branchStateOf(state, 'mine').workers['hauler'] = 1
-    addResource(state, 'ore', new Decimal(3))
+    addStock(state, 'mine', 'ore', new Decimal(3))
 
     applyRates(state, TEST_CHAIN_CONTENT, 10)
 
     // Wants 20 ore, only 3 available → 3 bars, bin empty.
-    expectCloseTo(getResource(state, 'bar'), new Decimal(3))
-    expectCloseTo(getResource(state, 'ore'), new Decimal(0))
+    expectCloseTo(getStock(state, 'mine', 'bar'), new Decimal(3))
+    expectCloseTo(getStock(state, 'mine', 'ore'), new Decimal(0))
   })
 
   it('never consumes when the downstream bin is full (nothing is destroyed)', () => {
     const state = chainState()
     branchStateOf(state, 'mine').workers['hauler'] = 1
-    addResource(state, 'ore', new Decimal(5))
-    addResource(state, 'bar', new Decimal(6))
+    addStock(state, 'mine', 'ore', new Decimal(5))
+    addStock(state, 'mine', 'bar', new Decimal(6))
 
     applyRates(state, TEST_CHAIN_CONTENT, 10)
 
-    expectCloseTo(getResource(state, 'ore'), new Decimal(5))
-    expectCloseTo(getResource(state, 'bar'), new Decimal(6))
+    expectCloseTo(getStock(state, 'mine', 'ore'), new Decimal(5))
+    expectCloseTo(getStock(state, 'mine', 'bar'), new Decimal(6))
+  })
+
+  it('draws each leg from the warehouse of its own zone only', () => {
+    const state = chainState()
+    branchStateOf(state, 'mine').workers['hauler'] = 1
+    // Ore misfiled into the global pool must not feed the leg — the bin in the
+    // item's zone is the only source.
+    addResource(state, 'ore', new Decimal(9))
+    addStock(state, 'mine', 'ore', new Decimal(2))
+
+    applyRates(state, TEST_CHAIN_CONTENT, 10)
+
+    expectCloseTo(getStock(state, 'mine', 'bar'), new Decimal(2))
+    expectCloseTo(getStock(state, 'mine', 'ore'), new Decimal(0))
+    expectCloseTo(getResource(state, 'ore'), new Decimal(9))
+  })
+
+  it('speeds only the worker its own step upgrade targets', () => {
+    const state = chainState()
+    branchStateOf(state, 'mine').workers['hauler'] = 1
+    branchStateOf(state, 'mine').workers['digger'] = 1
+    branchStateOf(state, 'mine').upgrades['hauler-gear'] = true
+    addStock(state, 'mine', 'ore', new Decimal(10))
+
+    expectCloseTo(workerOutputPerUnit(state, TEST_CHAIN_CONTENT, 'mine', 'hauler'), new Decimal(4))
+    expectCloseTo(workerOutputPerUnit(state, TEST_CHAIN_CONTENT, 'mine', 'digger'), new Decimal(5))
+
+    applyRates(state, TEST_CHAIN_CONTENT, 1)
+
+    // Production runs first into a full bin (nothing added), then the ×2 hauler
+    // moves 4 ore; the digger never got the multiplier.
+    expectCloseTo(getStock(state, 'mine', 'bar'), new Decimal(4))
+    expectCloseTo(getStock(state, 'mine', 'ore'), new Decimal(6))
   })
 
   it('speeds both sides of a leg with worker upgrades', () => {
     const state = chainState()
     branchStateOf(state, 'mine').workers['hauler'] = 1
     branchStateOf(state, 'mine').upgrades['belt'] = true
-    addResource(state, 'ore', new Decimal(10))
+    addStock(state, 'mine', 'ore', new Decimal(10))
 
     applyRates(state, TEST_CHAIN_CONTENT, 1)
 
     // 2/s × 2 (belt) = 4 in and 4 out.
-    expectCloseTo(getResource(state, 'ore'), new Decimal(6))
-    expectCloseTo(getResource(state, 'bar'), new Decimal(4))
+    expectCloseTo(getStock(state, 'mine', 'ore'), new Decimal(6))
+    expectCloseTo(getStock(state, 'mine', 'bar'), new Decimal(4))
   })
 
   it('applies the value markup to money outputs only', () => {
@@ -105,13 +138,13 @@ describe('transport legs (workers with input)', () => {
     branchStateOf(state, 'mine').workers['hauler'] = 1
     branchStateOf(state, 'mine').workers['seller'] = 1
     branchStateOf(state, 'mine').upgrades['scale'] = true
-    addResource(state, 'bar', new Decimal(6))
+    addStock(state, 'mine', 'bar', new Decimal(6))
 
     applyRates(state, TEST_CHAIN_CONTENT, 1)
 
     // Seller: 1 bar → 20 money ×1.5 markup. Hauler stays 1:1 (no matter conjured).
     expectCloseTo(getResource(state, 'money'), new Decimal(30))
-    expectCloseTo(getResource(state, 'bar'), new Decimal(5))
+    expectCloseTo(getStock(state, 'mine', 'bar'), new Decimal(5))
   })
 
   it('shows honest in/out readouts for the HUD', () => {
@@ -132,7 +165,7 @@ describe('transport legs (workers with input)', () => {
   it('reads a saturated chain as near-zero income', () => {
     const state = chainState()
     branchStateOf(state, 'mine').workers['digger'] = 1
-    addResource(state, 'ore', new Decimal(10))
+    addStock(state, 'mine', 'ore', new Decimal(10))
 
     // No leg to move anything: the projection must not pretend the chain earns.
     expectCloseTo(incomePerSecond(state, TEST_CHAIN_CONTENT), new Decimal(0))
@@ -158,14 +191,14 @@ describe('transport legs (workers with input)', () => {
       },
     }
     const state = createFreshState(content, new Decimal(0))
-    addResource(state, 'ore', new Decimal(10))
-    addResource(state, 'bar', new Decimal(5))
+    addStock(state, 'mine', 'ore', new Decimal(10))
+    addStock(state, 'mine', 'bar', new Decimal(5))
 
     applyRates(state, content, 10)
 
     // Room for one bar → exactly one ore consumed, despite a 20-ore appetite.
-    expectCloseTo(getResource(state, 'bar'), new Decimal(6))
-    expectCloseTo(getResource(state, 'ore'), new Decimal(9))
+    expectCloseTo(getStock(state, 'mine', 'bar'), new Decimal(6))
+    expectCloseTo(getStock(state, 'mine', 'ore'), new Decimal(9))
   })
 
   it('detects when content needs chunked offline', () => {

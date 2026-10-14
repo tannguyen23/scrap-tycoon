@@ -3,8 +3,9 @@ import { itemCapFor } from './capacity'
 import { bulkCost, maxAffordable, unitCost } from './curves'
 import { findBranch, findWorker } from './lookup'
 import { applyModifiers, collectModifiers, mergeModifiers } from './modifiers'
-import { cloneState, getResource } from './state'
-import { GLOBAL_WORKER_OUTPUT, branchRecipeOutput, branchWorkerOutput } from './statKeys'
+import { cloneState, getResource, getStock } from './state'
+import { itemZones, zoneOfItem } from './zones'
+import { GLOBAL_WORKER_OUTPUT, branchRecipeOutput, branchWorkerOutput, workerStepOutput } from './statKeys'
 import { applyRates } from './systems/production'
 import { weatherAt } from './weather'
 import type { GameContent, GameState, ItemId, WeatherKindDef, ZoneId } from './types'
@@ -96,15 +97,16 @@ export function workerOutputPerUnit(
   if (!worker) return D0
   const mods = collectModifiers(state, content)
   const global = mods.get(GLOBAL_WORKER_OUTPUT)
+  const stepMods = mergeModifiers(mods.get(branchWorkerOutput(branchId)), mods.get(workerStepOutput(branchId, workerId)))
   if (worker.input) {
-    const speed = applyModifiers(D1, mergeModifiers(mods.get(branchWorkerOutput(branchId)), global))
+    const speed = applyModifiers(D1, mergeModifiers(stepMods, global))
     const ratio = worker.output.ratePerUnit.div(worker.input.ratePerUnit)
     const value = worker.output.item === content.currencyItemId
       ? applyModifiers(D1, mods.get(branchRecipeOutput(branchId)))
       : D1
     return worker.input.ratePerUnit.mul(speed).mul(ratio).mul(value)
   }
-  const outputMods = mergeModifiers(mods.get(branchWorkerOutput(branchId)), global)
+  const outputMods = mergeModifiers(stepMods, global)
   return applyModifiers(worker.output.ratePerUnit, outputMods)
 }
 
@@ -121,16 +123,22 @@ export function workerInputPerUnit(
   const mods = collectModifiers(state, content)
   const speed = applyModifiers(
     D1,
-    mergeModifiers(mods.get(branchWorkerOutput(branchId)), mods.get(GLOBAL_WORKER_OUTPUT)),
+    mergeModifiers(
+      mergeModifiers(mods.get(branchWorkerOutput(branchId)), mods.get(workerStepOutput(branchId, workerId))),
+      mods.get(GLOBAL_WORKER_OUTPUT),
+    ),
   )
   return worker.input.ratePerUnit.mul(speed)
 }
 
-/** How full an item's stock is (0..1), or null when that item is uncapped. */
+/**
+ * How full an item's stock is (0..1), or null when that item is uncapped.
+ * The stock lives in the warehouse of the item's zone.
+ */
 export function stockRatio(state: GameState, content: GameContent, itemId: ItemId): number | null {
   const cap = itemCapFor(content, itemId, collectModifiers(state, content))
   if (!cap || cap.lte(0)) return null
-  return Math.min(1, getResource(state, itemId).div(cap).toNumber())
+  return Math.min(1, itemAmount(state, content, itemId).div(cap).toNumber())
 }
 
 /** Amount + cap of one stock, for HUD readouts (null when the item is uncapped). */
@@ -141,7 +149,41 @@ export function stockInfo(
 ): { amount: Decimal; cap: Decimal } | null {
   const cap = itemCapFor(content, itemId, collectModifiers(state, content))
   if (!cap || cap.lte(0)) return null
-  return { amount: getResource(state, itemId), cap }
+  return { amount: itemAmount(state, content, itemId), cap }
+}
+
+/** One warehouse row of a zone, for the HUD zone card. */
+export interface ZoneStockRow {
+  itemId: ItemId
+  amount: Decimal
+  /** null when the item is uncapped. */
+  cap: Decimal | null
+  /** 0..1 fill ratio, or null when uncapped. */
+  ratio: number | null
+}
+
+/** Every stock row in a zone's warehouse (usually exactly one item). */
+export function zoneStock(state: GameState, content: GameContent, zoneId: ZoneId): ZoneStockRow[] {
+  const mods = collectModifiers(state, content)
+  const rows: ZoneStockRow[] = []
+  for (const itemId of Object.keys(state.stock[zoneId] ?? {})) {
+    const amount = getStock(state, zoneId, itemId)
+    const cap = itemCapFor(content, itemId, mods)
+    const bounded = cap && cap.gt(0) ? cap : null
+    rows.push({
+      itemId,
+      amount,
+      cap: bounded,
+      ratio: bounded ? Math.min(1, amount.div(bounded).toNumber()) : null,
+    })
+  }
+  return rows
+}
+
+/** Amount of an item in the warehouse of its zone (falls back to the global pool). */
+function itemAmount(state: GameState, content: GameContent, itemId: ItemId): Decimal {
+  const zone = zoneOfItem(content, itemId)
+  return zone ? getStock(state, zone, itemId) : getResource(state, itemId)
 }
 
 /**
@@ -162,20 +204,12 @@ export function recipeOutputPerSecond(
 }
 
 /**
- * The item whose stock represents a zone on the map/HUD: the input of the zone's
- * first transport/processing worker (e.g. the alley pile holds `scrap` for the
- * porters), falling back to the output of its first worker.
+ * The item whose stock represents a zone on the map/HUD — the first item the
+ * zone's warehouse holds (e.g. the alley pile holds `scrap` for the porters).
  */
 export function zoneStockItem(content: GameContent, zoneId: ZoneId): ItemId | null {
-  for (const branch of Object.values(content.branches)) {
-    for (const worker of branch.workers) {
-      if (worker.visual.zone === zoneId && worker.input) return worker.input.item
-    }
-  }
-  for (const branch of Object.values(content.branches)) {
-    for (const worker of branch.workers) {
-      if (worker.visual.zone === zoneId) return worker.output.item
-    }
+  for (const [itemId, zone] of itemZones(content)) {
+    if (zone === zoneId) return itemId
   }
   return null
 }

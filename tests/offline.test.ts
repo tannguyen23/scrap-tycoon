@@ -1,5 +1,5 @@
 import { Decimal } from '@core/num'
-import { createFreshState, getResource } from '@domain/state'
+import { createFreshState, getResource, getStock } from '@domain/state'
 import { applyOfflineProgress } from '@domain/systems/offline'
 import { runTick } from '@domain/tick'
 import { describe, expect, it } from 'vitest'
@@ -104,8 +104,8 @@ describe('offline progress', () => {
     // dependent — a 1s chunk can fill or drain a small bin within one step — so
     // assert the steady bands instead of exact levels.
     expectCloseTo(getResource(offlineState, 'money'), getResource(tickedState, 'money'), 0.02)
-    const ore = getResource(offlineState, 'ore').toNumber()
-    const bar = getResource(offlineState, 'bar').toNumber()
+    const ore = getStock(offlineState, 'mine', 'ore').toNumber()
+    const bar = getStock(offlineState, 'mine', 'bar').toNumber()
     expect(ore).toBeGreaterThan(6)
     expect(ore).toBeLessThanOrEqual(10)
     expect(bar).toBeGreaterThan(3)

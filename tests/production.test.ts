@@ -1,7 +1,7 @@
 import { Decimal } from '@core/num'
 import { buyUpgrade } from '@domain/commands'
 import { incomePerSecond } from '@domain/selectors'
-import { createFreshState, getResource } from '@domain/state'
+import { createFreshState, getResource, getStock } from '@domain/state'
 import { applyRates } from '@domain/systems/production'
 import type { GameContent } from '@domain/types'
 import { describe, expect, it } from 'vitest'
@@ -15,7 +15,7 @@ describe('production system', () => {
     const deltas = applyRates(state, TEST_CONTENT, 1)
 
     // 2 ore/s produced, sold the same tick, 1 ore = 0.5 money.
-    expectCloseTo(getResource(state, 'ore'), new Decimal(0))
+    expectCloseTo(getStock(state, 'mine', 'ore'), new Decimal(0))
     expectCloseTo(getResource(state, 'money'), new Decimal(1))
     expectCloseTo(deltas.get('money') ?? new Decimal(0), new Decimal(1))
   })
@@ -56,7 +56,7 @@ describe('production system', () => {
     applyRates(state, content, 10)
 
     // 50 ore produced, throughput capped at 1/s over 10s.
-    expectCloseTo(getResource(state, 'ore'), new Decimal(40))
+    expectCloseTo(getStock(state, 'mine', 'ore'), new Decimal(40))
     expectCloseTo(getResource(state, 'money'), new Decimal(20))
   })
 

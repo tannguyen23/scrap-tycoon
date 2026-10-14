@@ -2,10 +2,22 @@ export type Migration = (save: Record<string, unknown>) => Record<string, unknow
 
 /**
  * Key N migrates a save of schema version N to version N + 1.
- * Empty at v1 — the runner is here so future content/state changes never
- * break existing player saves.
+ *
+ * v1 → v2: the single `resources` pool splits into global `resources` plus a
+ * flat `stock` warehouse section. This layer sits below content and cannot know
+ * which item belongs to which zone, so it moves the entries verbatim; the
+ * domain hydrate step routes them into zone buckets using the content mapping.
  */
-export const migrations: Record<number, Migration> = {}
+export const migrations: Record<number, Migration> = {
+  1: (save) => {
+    const state = isRecord(save['state']) ? save['state'] : {}
+    const resources = isRecord(state['resources']) ? state['resources'] : {}
+    return {
+      ...save,
+      state: { ...state, resources: {}, stock: { ...resources } },
+    }
+  },
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null

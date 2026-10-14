@@ -1,5 +1,5 @@
 import { Decimal } from '@core/num'
-import { branchRecipeOutput, branchWorkerOutput, itemCapacity } from '@domain/statKeys'
+import { branchRecipeOutput, branchWorkerOutput, itemCapacity, workerStepOutput } from '@domain/statKeys'
 import type { BranchDef } from '@domain/types'
 import { BILLET_ITEM, CRATE_ITEM, MONEY_ITEM, PALLET_ITEM, SACK_ITEM, SCRAP_ITEM } from '../items'
 
@@ -158,6 +158,64 @@ export const SCRAP_BRANCH: BranchDef = {
       cost: new Decimal(25000),
       effects: [{ target: branchWorkerOutput(BRANCH_ID), kind: 'mult', value: new Decimal(2) }],
       visual: { zone: 'route', tier: 2 },
+    },
+    // Nâng cấp riêng từng chặng (stat key `branch.<branch>.worker.<id>.output`):
+    // chỉ chặng đó nhanh hơn, tách khỏi băng chuyền chung ở trên.
+    {
+      id: 'handcart',
+      name: { vi: 'Xe cút kít', en: 'Handcart' },
+      desc: { vi: '+50% tốc độ bốc vác', en: '+50% porter speed' },
+      cost: new Decimal(150),
+      effects: [{ target: workerStepOutput(BRANCH_ID, 'porter'), kind: 'mult', value: new Decimal('1.5') }],
+    },
+    {
+      id: 'sack-shed',
+      name: { vi: 'Kho bao', en: 'Sack Shed' },
+      desc: { vi: 'x2 sức chứa Bao phế liệu ở xưởng', en: 'x2 sack capacity at the forge' },
+      cost: new Decimal(700),
+      effects: [{ target: itemCapacity(SACK_ITEM), kind: 'mult', value: new Decimal(2) }],
+    },
+    {
+      id: 'bellows',
+      name: { vi: 'Bễ lò đôi', en: 'Twin Bellows' },
+      desc: { vi: '+50% tốc độ thợ rèn', en: '+50% smelter speed' },
+      cost: new Decimal(500),
+      effects: [{ target: workerStepOutput(BRANCH_ID, 'smelter'), kind: 'mult', value: new Decimal('1.5') }],
+    },
+    {
+      id: 'billet-rack',
+      name: { vi: 'Giá phôi', en: 'Billet Rack' },
+      desc: { vi: 'x2 sức chứa Phôi tái chế trên tuyến', en: 'x2 billet capacity at the route' },
+      cost: new Decimal(1800),
+      effects: [{ target: itemCapacity(BILLET_ITEM), kind: 'mult', value: new Decimal(2) }],
+    },
+    {
+      id: 'cart-tune',
+      name: { vi: 'Chỉnh máy ba gác', en: 'Tuned Carts' },
+      desc: { vi: '+50% tốc độ ba gác', en: '+50% cart speed' },
+      cost: new Decimal(2500),
+      effects: [{ target: workerStepOutput(BRANCH_ID, 'cart'), kind: 'mult', value: new Decimal('1.5') }],
+    },
+    {
+      id: 'pack-bench',
+      name: { vi: 'Bàn đóng kiện', en: 'Packing Bench' },
+      desc: { vi: '+50% tốc độ đóng hàng', en: '+50% packing speed' },
+      cost: new Decimal(9000),
+      effects: [{ target: workerStepOutput(BRANCH_ID, 'depot'), kind: 'mult', value: new Decimal('1.5') }],
+    },
+    {
+      id: 'crate-slot',
+      name: { vi: 'Bãi kiện', en: 'Crate Slot' },
+      desc: { vi: 'x2 sức chứa Kiện hàng ở cổng', en: 'x2 crate capacity at the gate' },
+      cost: new Decimal(9000),
+      effects: [{ target: itemCapacity(CRATE_ITEM), kind: 'mult', value: new Decimal(2) }],
+    },
+    {
+      id: 'fleet',
+      name: { vi: 'Đội xe dự phòng', en: 'Spare Fleet' },
+      desc: { vi: '+50% tốc độ xe tải xuất', en: '+50% export truck speed' },
+      cost: new Decimal(40000),
+      effects: [{ target: workerStepOutput(BRANCH_ID, 'truck'), kind: 'mult', value: new Decimal('1.5') }],
     },
   ],
 }

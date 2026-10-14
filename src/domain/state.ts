@@ -1,13 +1,25 @@
 import { D0, Decimal } from '@core/num'
 import type { SerializedState } from '@core/save/schema'
-import type { GameContent, GameState } from './types'
+import type { GameContent, GameState, ItemId, ZoneId } from './types'
+import { itemZones } from './zones'
 
-export function getResource(state: GameState, itemId: string): Decimal {
+/** Global pool: the currency and any item not tied to a zone warehouse. */
+export function getResource(state: GameState, itemId: ItemId): Decimal {
   return state.resources[itemId] ?? D0
 }
 
-export function addResource(state: GameState, itemId: string, amount: Decimal): void {
+export function addResource(state: GameState, itemId: ItemId, amount: Decimal): void {
   state.resources[itemId] = getResource(state, itemId).add(amount)
+}
+
+/** One warehouse row: how much of `itemId` sits in `zoneId`'s stock. */
+export function getStock(state: GameState, zoneId: ZoneId, itemId: ItemId): Decimal {
+  return state.stock[zoneId]?.[itemId] ?? D0
+}
+
+export function addStock(state: GameState, zoneId: ZoneId, itemId: ItemId, amount: Decimal): void {
+  const bucket = state.stock[zoneId] ?? (state.stock[zoneId] = {})
+  bucket[itemId] = (bucket[itemId] ?? D0).add(amount)
 }
 
 /** Deep-enough clone for projections (UI income previews, offline math on copies). */
@@ -19,8 +31,13 @@ export function cloneState(state: GameState): GameState {
       upgrades: { ...branchState.upgrades },
     }
   }
+  const stock: GameState['stock'] = {}
+  for (const [zoneId, bucket] of Object.entries(state.stock)) {
+    stock[zoneId] = { ...bucket }
+  }
   return {
     resources: { ...state.resources },
+    stock,
     branches,
     stats: { ...state.stats },
   }
@@ -28,8 +45,20 @@ export function cloneState(state: GameState): GameState {
 
 export function createFreshState(content: GameContent, startMoney: Decimal): GameState {
   const resources: GameState['resources'] = {}
+  const stock: GameState['stock'] = {}
+  for (const zoneId of Object.keys(content.zones)) {
+    stock[zoneId] = {}
+  }
+
+  const zones = itemZones(content)
   for (const itemId of Object.keys(content.items)) {
-    resources[itemId] = D0
+    const zone = zones.get(itemId)
+    if (zone) {
+      const bucket = stock[zone] ?? (stock[zone] = {})
+      bucket[itemId] = D0
+    } else {
+      resources[itemId] = D0
+    }
   }
   resources[content.currencyItemId] = startMoney
 
@@ -38,13 +67,23 @@ export function createFreshState(content: GameContent, startMoney: Decimal): Gam
     branches[branch.id] = { workers: {}, upgrades: {} }
   }
 
-  return { resources, branches, stats: { totalEarned: D0, playTimeS: 0 } }
+  return { resources, stock, branches, stats: { totalEarned: D0, playTimeS: 0 } }
 }
 
 export function stateToSerialized(state: GameState): SerializedState {
   const resources: Record<string, string> = {}
   for (const [itemId, amount] of Object.entries(state.resources)) {
     resources[itemId] = amount.toString()
+  }
+
+  // Zone warehouses flatten to item ids on disk — the zone each item lives in
+  // is content, not save data, so moving an item between zones can never make
+  // an old save load it into the wrong bin.
+  const stock: Record<string, string> = {}
+  for (const bucket of Object.values(state.stock)) {
+    for (const [itemId, amount] of Object.entries(bucket)) {
+      stock[itemId] = amount.toString()
+    }
   }
 
   const branches: SerializedState['branches'] = {}
@@ -57,6 +96,7 @@ export function stateToSerialized(state: GameState): SerializedState {
 
   return {
     resources,
+    stock,
     branches,
     stats: {
       totalEarned: state.stats.totalEarned.toString(),
@@ -73,7 +113,10 @@ export interface HydrateResult {
 /**
  * Rebuilds a live state from a save. Ids that no longer exist in content are
  * pruned and missing ones are filled with defaults, so content edits never
- * break existing saves (definition ↔ instance separation).
+ * break existing saves (definition ↔ instance separation). Both the flat
+ * `stock` entries and legacy `resources` entries are routed by the content
+ * mapping: zone items land in their zone's bucket, global items (money) stay
+ * in `resources`.
  */
 export function stateFromSerialized(
   serialized: SerializedState,
@@ -82,19 +125,36 @@ export function stateFromSerialized(
 ): HydrateResult {
   const state = createFreshState(content, startMoney)
   const warnings: string[] = []
+  const zones = itemZones(content)
 
-  const rawResources: Record<string, unknown> = isRecord(serialized.resources) ? serialized.resources : {}
-  for (const [itemId, rawValue] of Object.entries(rawResources)) {
+  const assign = (itemId: string, rawValue: unknown): void => {
     if (!(itemId in content.items)) {
       warnings.push(`pruned unknown item "${itemId}"`)
-      continue
+      return
     }
     const amount = parseAmount(rawValue)
     if (amount === null) {
       warnings.push(`dropped invalid amount for item "${itemId}"`)
-      continue
+      return
     }
-    state.resources[itemId] = amount
+    const zone = zones.get(itemId)
+    if (zone) {
+      const bucket = state.stock[zone] ?? (state.stock[zone] = {})
+      bucket[itemId] = amount
+    } else {
+      state.resources[itemId] = amount
+    }
+  }
+
+  // Legacy `resources` entries first, then `stock` — a v2 save may only carry
+  // the currency in `resources`, and stock wins if both somehow hold an item.
+  const rawResources: Record<string, unknown> = isRecord(serialized.resources) ? serialized.resources : {}
+  for (const [itemId, rawValue] of Object.entries(rawResources)) {
+    assign(itemId, rawValue)
+  }
+  const rawStock: Record<string, unknown> = isRecord(serialized.stock) ? serialized.stock : {}
+  for (const [itemId, rawValue] of Object.entries(rawStock)) {
+    assign(itemId, rawValue)
   }
 
   const rawBranches: Record<string, unknown> = isRecord(serialized.branches) ? serialized.branches : {}

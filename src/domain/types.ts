@@ -151,7 +151,14 @@ export interface BranchState {
 }
 
 export interface GameState {
+  /** Global pool: the currency and any item not tied to a zone warehouse. */
   resources: Record<ItemId, Decimal>
+  /**
+   * Per-zone warehouses. Which zone holds an item is derived from content
+   * (`domain/zones.ts` — the bin in front of the worker that consumes it), so
+   * item ↔ zone edits never need a save migration.
+   */
+  stock: Record<ZoneId, Record<ItemId, Decimal>>
   branches: Record<BranchId, BranchState>
   stats: {
     totalEarned: Decimal

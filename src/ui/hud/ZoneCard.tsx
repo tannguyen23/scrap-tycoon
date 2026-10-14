@@ -1,5 +1,5 @@
 import { formatShort } from '@core/format'
-import { stockInfo, stockRatio, zoneStockItem } from '@domain/selectors'
+import { zoneStock } from '@domain/selectors'
 import type { GameState, WorkerDef } from '@domain/types'
 import { UI } from '@i18n/text'
 import { useContent, useSceneBridge, useText } from '@ui/hooks'
@@ -24,11 +24,8 @@ export function ZoneCard({ zoneId, branchId, workers, state }: ZoneCardProps) {
   const zone = content.zones[zoneId]
   const style = { '--zone-color': zoneStyle(zoneId).css } as CSSProperties
 
-  const stockItemId = zoneStockItem(content, zoneId)
-  const stockItem = stockItemId ? content.items[stockItemId] : undefined
-  const stock = stockItemId ? stockInfo(state, content, stockItemId) : null
-  const ratio = stockItemId ? stockRatio(state, content, stockItemId) : null
-  const isFull = ratio !== null && ratio >= 0.99
+  const rows = zoneStock(state, content, zoneId)
+  const isFull = rows.some((row) => row.ratio !== null && row.ratio >= 0.99)
 
   return (
     <article
@@ -48,11 +45,17 @@ export function ZoneCard({ zoneId, branchId, workers, state }: ZoneCardProps) {
         {isFull && <span className="zone-full">{text(UI.full)}</span>}
       </header>
       {zone && <p className="zone-desc">{text(zone.actionDesc)}</p>}
-      {stockItemId && stockItem && stock && (
-        <p className={`zone-stock${isFull ? ' is-full' : ''}`}>
-          {text(UI.stock)} {text(stockItem.name)}: {formatShort(stock.amount)}/{formatShort(stock.cap)}
-        </p>
-      )}
+      {rows.map((row) => {
+        const item = content.items[row.itemId]
+        if (!item) return null
+        const full = row.ratio !== null && row.ratio >= 0.99
+        return (
+          <p key={row.itemId} className={`zone-stock${full ? ' is-full' : ''}`}>
+            {text(UI.stock)} {text(item.name)}: {formatShort(row.amount)}
+            {row.cap ? `/${formatShort(row.cap)}` : ''}
+          </p>
+        )
+      })}
       <ul className="worker-list">
         {workers.map((worker) => (
           <WorkerRow key={worker.id} branchId={branchId} worker={worker} state={state} />
