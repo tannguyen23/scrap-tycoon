@@ -1,7 +1,8 @@
 import type { OfflineReport } from '@domain/systems/offline'
 import { UI } from '@i18n/text'
 import { SceneBridgeContext, useContent, useEngine, useGameState, useLocaleStore, useText, type SceneBridge } from '@ui/hooks'
-import { ZOOM_LEVELS, mountScene, type SceneHandle } from '@ui/scene/PixiScene'
+import { ZOOM_LEVELS } from '@scene/core/scene'
+import { mountGameScene, type SceneHandle } from '@ui/scene/PixiScene'
 import { playSound } from '@ui/sound/player'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { BranchPanel } from './BranchPanel'
@@ -48,7 +49,7 @@ export function App({ initialOfflineReport }: AppProps) {
     let cancelled = false
     let handle: SceneHandle | null = null
 
-    mountScene(host, engine.store, content, { onZoomLevelChange: setZoomLevel, localeStore })
+    mountGameScene(host, engine.store, content, { onZoomLevelChange: setZoomLevel, localeStore })
       .then((mounted) => {
         handle = mounted
         if (cancelled) mounted.destroy()

@@ -12,7 +12,7 @@ import {
   WORLD_WIDTH,
   ZONE_LAYOUTS,
   type ZoneRect,
-} from '@ui/scene/zoneLayout'
+} from '@ground/packs/scrapYard/worldLayout'
 
 const zones = Object.entries(ZONE_LAYOUTS).map(([id, layout]) => ({ id, rect: layout.rect }))
 const ponds = WATER_AREAS.map((area) => area.rect)

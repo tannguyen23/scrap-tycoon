@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { drawZoneFence } from '@ui/scene/focus/fence'
 import type { GroundCanvas } from '@ground/core/groundCanvas'
-import type { FenceOpening } from '@ui/scene/zoneLayout'
+import type { FenceOpening } from '@ground/packs/scrapYard/worldLayout'
 
 interface Draw {
   kind: 'rect' | 'ellipse'

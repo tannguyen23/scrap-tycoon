@@ -21,6 +21,13 @@ export interface BlobCall {
   readonly pad?: number
 }
 
+/**
+ * Pad a blob grows past its rect when nothing else is declared. Shared so anyone
+ * recomputing a blob's contour (the scene kit's water layer, the seam lab) derives
+ * the very same waterline the map painted.
+ */
+export const DEFAULT_BLOB_PAD = 10
+
 export interface PathCall {
   readonly rect: Rect
   readonly kind: TerrainId
@@ -131,7 +138,7 @@ export function paintGrounds(
       area.rect,
       area.kind ?? map.base,
       area.seed,
-      area.pad ?? 10,
+      area.pad ?? DEFAULT_BLOB_PAD,
       area.outside ?? map.base,
       area.elevation ?? 0,
     )

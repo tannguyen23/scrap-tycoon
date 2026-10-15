@@ -4,7 +4,7 @@ import { createDepotDetail } from './depot/scene'
 import { createGateDetail } from './gate/scene'
 import { createRecycleDetail } from './recycle/scene'
 import { createRouteDetail } from './route/scene'
-import type { DetailSceneFactory } from './types'
+import type { DetailSceneFactory } from '@scene/core/types'
 
 /**
  * Detail scene per zone id. Each zone lives in its own folder with the same
@@ -21,6 +21,9 @@ const FACTORIES: Record<ZoneId, DetailSceneFactory> = {
   depot: createDepotDetail,
   gate: createGateDetail,
 }
+
+/** The registry a `ScenePack` hands the kit. */
+export const DETAIL_SCENES: Readonly<Record<string, DetailSceneFactory>> = FACTORIES
 
 export function detailSceneFor(zoneId: ZoneId): DetailSceneFactory | undefined {
   return FACTORIES[zoneId]

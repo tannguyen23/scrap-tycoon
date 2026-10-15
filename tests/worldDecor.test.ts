@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { DECOR_SPECIMENS, decorBox } from '@ui/scene/decorItems'
-import { DECOR_PLACEMENTS } from '@ui/scene/textures'
-import { ZONE_LAYOUTS, type ZoneRect } from '@ui/scene/zoneLayout'
+import { DECOR_SPECIMENS, decorBox } from '@ground/packs/scrapYard/decorItems'
+import { DECOR_PLACEMENTS } from '@ground/packs/scrapYard/decorPlacements'
+import { ZONE_LAYOUTS, type ZoneRect } from '@ground/packs/scrapYard/worldLayout'
 
 function overlaps(a: ZoneRect, b: ZoneRect): boolean {
   return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y

@@ -1,13 +1,13 @@
-import { ZONE_LAYOUTS, type ZoneRect } from '../../zoneLayout'
+import { ZONE_LAYOUTS, type ZoneRect } from '@ground/packs/scrapYard/worldLayout'
 import { Container, Graphics } from 'pixi.js'
 import type { TilePainter } from '@ground/core/painter'
 import { paintFootprints, paintPuddle, paintStain } from '@ground/packs/scrapYard/decals'
 import { playSound } from '@ui/sound/player'
-import { CALM_WIND, type Wind } from '../../weather'
+import { CALM_WIND, type SceneWind } from '@scenery/core/ambience'
 import { drawZoneFence } from '../fence'
 import { Particles, SHADOW, depthArt, depthSlot, sortByDepth } from '../parts'
 import { createPopups } from '../popups'
-import type { DetailScene, DetailSceneState } from '../types'
+import type { DetailScene, DetailSceneState } from '@scene/core/types'
 import { LANE_Y, createTruck, type TruckActor } from './actors'
 import { drawCrateStack } from './sprites'
 
@@ -141,7 +141,7 @@ export function createGateDetail(rect: ZoneRect, tiles: TilePainter): DetailScen
   /** Xe đang giữ lượt dùng dock/làn (một xe một lượt, xem vòng update). */
   let turn = 0
   let lastFlagFrame = -1
-  let ambient: Wind = CALM_WIND
+  let ambient: SceneWind = CALM_WIND
 
   const setState = (state: DetailSceneState): void => {
     popups.setLabels(state.labels)

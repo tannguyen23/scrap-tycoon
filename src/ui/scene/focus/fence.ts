@@ -1,6 +1,6 @@
 import { cornerHash } from '@ground/core/edgeGeometry'
 import type { GroundCanvas } from '@ground/core/groundCanvas'
-import type { FenceOpening } from '../zoneLayout'
+import type { FenceOpening } from '@ground/packs/scrapYard/worldLayout'
 
 /**
  * Hàng rào bãi ghép tạm: từng tấm tôn gỉ hoặc ván gỗ mục khác cỡ, đóng lệch vào cọc
@@ -8,7 +8,7 @@ import type { FenceOpening } from '../zoneLayout'
  * cao từng tấm chọn theo hash của chỉ số tấm nên mỗi cạnh mỗi khác mà vẫn tất định.
  * Chiều cao theo hướng vẫn cùng thang với `wallBands`: nam (gần người xem) cao nhất,
  * hai hông thấp hơn, bắc xa nhất thấp nhất. Lỗ mở khai ở `fenceOpenings`
- * (zoneLayout); hai bên mỗi lỗ mở là trụ cổng thép — chỗ duy nhất của hàng rào trông
+ * (worldLayout); hai bên mỗi lỗ mở là trụ cổng thép — chỗ duy nhất của hàng rào trông
  * "được xây tử tế", còn lại là đồ nhặt về đóng lại.
  */
 

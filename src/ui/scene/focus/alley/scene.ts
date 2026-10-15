@@ -1,4 +1,4 @@
-import { ZONE_LAYOUTS, type ZoneRect } from '../../zoneLayout'
+import { ZONE_LAYOUTS, type ZoneRect } from '@ground/packs/scrapYard/worldLayout'
 import { Container, Graphics } from 'pixi.js'
 import type { TilePainter } from '@ground/core/painter'
 import {
@@ -12,8 +12,8 @@ import {
 import { drawZoneFence } from '../fence'
 import { Particles, depthArt, sortByDepth } from '../parts'
 import { createPopups } from '../popups'
-import type { DetailScene, DetailSceneState, Spot } from '../types'
-import { CALM_WIND, type Wind } from '../../weather'
+import type { DetailScene, DetailSceneState, Spot } from '@scene/core/types'
+import { CALM_WIND, type SceneWind } from '@scenery/core/ambience'
 import { createPicker, createPorter, type PickerActor, type PorterActor } from './actors'
 import { createAlleyLife } from './life'
 import {
@@ -186,7 +186,7 @@ export function createAlleyDetail(rect: ZoneRect, tiles: TilePainter): DetailSce
   const porters: PorterActor[] = []
   let desiredPickers = 0
   let desiredPorters = 0
-  let ambient: Wind = CALM_WIND
+  let ambient: SceneWind = CALM_WIND
   let stock01 = -1
   let pileLevel = -1
 

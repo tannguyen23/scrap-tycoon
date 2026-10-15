@@ -1,4 +1,4 @@
-import { ZONE_LAYOUTS, type ZoneRect } from '../../zoneLayout'
+import { ZONE_LAYOUTS, type ZoneRect } from '@ground/packs/scrapYard/worldLayout'
 import { Container, Graphics } from 'pixi.js'
 import type { TilePainter } from '@ground/core/painter'
 import {
@@ -10,7 +10,7 @@ import {
 } from '@ground/packs/scrapYard/decals'
 import { drawZoneFence } from '../fence'
 import { Particles, SHADOW, createSack, depthArt, depthSlot, sortByDepth } from '../parts'
-import type { DetailScene, DetailSceneState, Spot } from '../types'
+import type { DetailScene, DetailSceneState, Spot } from '@scene/core/types'
 import { createHauler, type HaulerActor } from './actors'
 import { createDepotLife } from './life'
 import { drawPalletStack } from './sprites'

@@ -8,7 +8,7 @@ import { createLighting } from '@scenery/core/lighting'
 import { SCRAP_SCENERY } from '@scenery/packs/scrapYard/pack'
 import type { StageBuilder, StageCell, StageScene } from '@studio/types'
 import { COURIER_RUNS, createCouriers, type CourierLeg } from '@ui/scene/couriers'
-import { DECOR_SPECIMENS } from '@ui/scene/decorItems'
+import { DECOR_SPECIMENS } from '@ground/packs/scrapYard/decorItems'
 import { detailSceneFor } from '@ui/scene/focus'
 import { createHaulerSprite } from '@ui/scene/focus/depot/sprites'
 import { createTruckFrontSprite, createTruckSprite } from '@ui/scene/focus/gate/sprites'
@@ -24,9 +24,17 @@ import {
 } from '@ui/scene/focus/parts'
 import { POKE, WORK_ACTIONS, restPose, walkPose, type WorkAction } from '@ui/scene/focus/poses'
 import { createCartSprite, createPickupSprite, createRouteTruckSprite } from '@ui/scene/focus/route/sprites'
-import type { DetailScene } from '@ui/scene/focus/types'
+import type { DetailScene } from '@scene/core/types'
+import { DEFAULT_SERVICES } from '@scene/core/services'
 import { createWeather } from '@ui/scene/weather'
-import { CLEARINGS, CONNECTORS, WATER_AREAS, WORLD_HEIGHT, WORLD_WIDTH, ZONE_LAYOUTS } from '@ui/scene/zoneLayout'
+import {
+  CLEARINGS,
+  CONNECTORS,
+  WATER_AREAS,
+  WORLD_HEIGHT,
+  WORLD_WIDTH,
+  ZONE_LAYOUTS,
+} from '@ground/packs/scrapYard/worldLayout'
 
 /** Popup wording for studio previews — the real labels come localized from content. */
 const STUDIO_LABELS = { produced: 'Sắt vụn', money: 'Tiền' }
@@ -298,7 +306,7 @@ export function buildZone(zoneId: string, scale: number, tier = 0): StageBuilder
     const factory = detailSceneFor(zoneId as ZoneId)
     if (!layout || !factory) throw new Error(`no detail scene for zone "${zoneId}"`)
     const painter = new TilePainter(app.renderer, SCRAP_YARD_PACK)
-    const detail = factory(layout.rect, painter)
+    const detail = factory(layout.rect, painter, DEFAULT_SERVICES)
     detail.setState({
       workers: 3,
       actions: { pick: 2, haul: 1 },
@@ -508,7 +516,7 @@ function zoneDetails(painter: TilePainter): DetailScene[] {
     const layout = ZONE_LAYOUTS[zoneId]
     const factory = detailSceneFor(zoneId as ZoneId)
     if (!layout || !factory) continue
-    const detail = factory(layout.rect, painter)
+    const detail = factory(layout.rect, painter, DEFAULT_SERVICES)
     detail.setState({
       workers: 2,
       actions: { pick: 1, haul: 1 },
@@ -573,9 +581,11 @@ export function buildWeatherWorld(initialTime: number): StageBuilder {
       return { workerId: key, from, to }
     })
     const couriers = createCouriers(courierLegs)
-    couriers.setCounts({
-      workers: new Map(courierLegs.map((leg) => [leg.workerId, 1])),
-      tiers: new Map(),
+    couriers.setFeed({
+      playTimeS: 0,
+      earnedLog10: 0,
+      zones: {},
+      workers: Object.fromEntries(courierLegs.map((leg) => [leg.workerId, 1])),
     })
     const weather = createWeather({ profile: STUDIO_WEATHER_PROFILE })
     const lighting = createLighting({ width: WORLD_WIDTH, height: WORLD_HEIGHT }, SCRAP_SCENERY.lights, {

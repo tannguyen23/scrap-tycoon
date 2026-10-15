@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { createSmith } from '@ui/scene/focus/recycle/actors'
 import { Particles } from '@ui/scene/focus/parts'
 import { createPopups } from '@ui/scene/focus/popups'
-import type { Spot } from '@ui/scene/focus/types'
+import type { Spot } from '@scene/core/types'
 import { createRecycleDetail } from '@ui/scene/focus/recycle/scene'
 import { TilePainter } from '@ground/core/painter'
 

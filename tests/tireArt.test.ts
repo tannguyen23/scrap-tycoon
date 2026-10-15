@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { drawTire, drawTireStack as drawDecorTireStack } from '@ui/scene/decorItems'
+import { drawTire, drawTireStack as drawDecorTireStack } from '@ground/packs/scrapYard/decorItems'
 import {
   HEAP_HALF_WIDTH,
   HEAP_HEIGHT,

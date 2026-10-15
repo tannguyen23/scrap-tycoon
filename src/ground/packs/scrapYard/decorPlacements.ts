@@ -108,6 +108,10 @@ export const DECOR_PLACEMENTS: readonly DecorPlacement[] = [
   { key: 'scrap', x: 620, y: 620 },
   { key: 'scrap', x: 390, y: 668 },
   { key: 'scrap', x: 900, y: 668 },
+
+  // Landmark: đứng ngay đông ao bắc, xa mọi tuyến courier (decor tầng map không
+  // y-sort được, nên vật cao phải ở chỗ không nhân vật nào đi qua).
+  { key: 'waterTower', x: 1120, y: 240 },
 ]
 
 /** Places every specimen of `DECOR_PLACEMENTS` (map and studio draw from one list). */

@@ -2,7 +2,8 @@ import { Graphics, type Container } from 'pixi.js'
 import type { TilePainter } from '@ground/core/painter'
 import { paintGrounds, scatterSkipRects, type GroundMap } from '@ground/core/grounds'
 import type { Rect } from '@ground/core/metrics'
-import { drawDecor } from '@ui/scene/textures'
+import { drawDecor } from './decorPlacements'
+import { SCRAP_YARD_PACK } from './pack'
 import {
   CLEARINGS,
   CONNECTORS,
@@ -10,8 +11,7 @@ import {
   WORLD_HEIGHT,
   WORLD_WIDTH,
   ZONE_LAYOUTS,
-} from '@ui/scene/zoneLayout'
-import { SCRAP_YARD_PACK } from './pack'
+} from './worldLayout'
 
 /** Sàn khu lấy ĐÚNG rect của layout — chép tay hai nơi là mầm lệch sàn. */
 function zoneRect(id: string): Rect {

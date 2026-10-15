@@ -3,7 +3,8 @@ import { weatherVisualMix } from '@domain/weather'
 import { playSound, sound } from '@ui/sound/player'
 import { Container, Graphics } from 'pixi.js'
 import { makeRandom } from './random'
-import { WATER_AREAS, WORLD_HEIGHT, WORLD_WIDTH } from './zoneLayout'
+import { WATER_AREAS, WORLD_HEIGHT, WORLD_WIDTH } from '@ground/packs/scrapYard/worldLayout'
+import type { SceneWind } from '@scenery/core/ambience'
 
 /** Mỗi "pixel" của mây vẽ trên lưới 2px cho ra dáng pixel-art chắc. */
 const CLOUD_PIXEL = 2
@@ -19,15 +20,6 @@ const SPLASH_COUNT = 24
 const RIPPLE_COUNT = 14
 const GLOOM_COLOR = 0x2c3850
 const WIND_DIRECTION = { x: 0.92, y: 0.2 }
-
-/** Gió toàn cục cho mọi thứ phản ứng theo thời tiết (mây, cờ, khói, mưa). */
-export interface Wind {
-  readonly x: number
-  readonly y: number
-  readonly strength: number
-}
-
-export const CALM_WIND: Wind = { x: 0, y: 0, strength: 0 }
 
 interface CloudDef {
   x: number
@@ -169,7 +161,7 @@ export interface Weather {
   /** Chớp sét — đặt SAU `lighting.container` để không bị grade làm tối. */
   readonly flash: Container
   update(dt: number, playTimeS: number): void
-  wind(): Wind
+  wind(): SceneWind
   /** Studio: ghim một loại thời tiết (null = chạy lại theo lịch). */
   setOverride(kind: WeatherKindDef | null): void
   /** Studio/dev: chớp một cái ngay. */

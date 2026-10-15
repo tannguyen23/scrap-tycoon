@@ -1,13 +1,13 @@
 import { Container, Graphics } from 'pixi.js'
 import { makeRandom } from '../../random'
 import { playSound } from '@ui/sound/player'
-import { CALM_WIND, type Wind } from '../../weather'
+import { CALM_WIND, type SceneWind } from '@scenery/core/ambience'
 import { Particles, SHADOW, smokePuff } from '../parts'
-import type { Spot } from '../types'
+import type { Spot } from '@scene/core/types'
 
 export interface AlleyLife {
   container: Container
-  update(dt: number, elapsed: number, wind?: Wind): void
+  update(dt: number, elapsed: number, wind?: SceneWind): void
 }
 
 /**
@@ -95,7 +95,7 @@ export function createAlleyLife(piles: Spot[], litter: Spot[] = []): AlleyLife {
   let ratTarget: Spot | null = null
   let ratDir: 1 | -1 = 1
 
-  const update = (dt: number, elapsed: number, wind: Wind = CALM_WIND): void => {
+  const update = (dt: number, elapsed: number, wind: SceneWind = CALM_WIND): void => {
     const frame = Math.floor(elapsed * 8) % 2
     flameA.visible = frame === 0
     flameB.visible = frame === 1

@@ -1,6 +1,6 @@
 import { Container, Graphics, Rectangle, type Renderer, type Texture } from 'pixi.js'
 import { TILE_SIZE } from './metrics'
-import type { TerrainId } from './terrain'
+import type { TerrainDef, TerrainId } from './terrain'
 import { makeRandom } from './random'
 import type { GroundPack } from './pack'
 
@@ -50,7 +50,7 @@ function terrainOf(pack: GroundPack, kind: TerrainId): GroundPack['terrains'][nu
   return def
 }
 
-function paintTile(def: GroundPack['terrains'][number], variant: number, seed: number): Container {
+function paintTile(def: TerrainDef, variant: number, seed: number): Container {
   const rnd = makeRandom(seed * 7919)
   const base = def.bases[variant % def.bases.length] ?? 0x808080
   const pair = def.specks[variant % def.specks.length] ?? [0x808080, 0x909090]

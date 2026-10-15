@@ -1,10 +1,11 @@
 import { Graphics } from 'pixi.js'
+import { insideAnyRect } from '@ground/core/metrics'
 import type { AmbienceSpec } from '@scenery/core/ambience'
 import { createDetailLayer, type DetailDrawer, type DetailProp } from '@scenery/core/details'
 import { DAY_LENGTH_SECONDS, type LightSource } from '@scenery/core/lighting'
 import { makeRandom } from '@scenery/core/random'
 import type { SceneryPack } from '@scenery/core/pack'
-import { WORLD_WIDTH, ZONE_LAYOUTS } from '@ui/scene/zoneLayout'
+import { WATER_AREAS, WORLD_HEIGHT, WORLD_WIDTH, ZONE_LAYOUTS } from '@ground/packs/scrapYard/worldLayout'
 
 export { DAY_LENGTH_SECONDS, createDetailLayer }
 export type { DetailDrawer, DetailProp, LightSource, SceneryPack }
@@ -21,13 +22,30 @@ const SCRAP_LIGHTS: readonly LightSource[] = [
   { x: 758, y: 64, radius: 54, color: 0xffb45a, flicker: 0.22 },
 ]
 
-/** Chimney on the depot warehouse roof + three bird lanes crossing the yard. */
+/**
+ * Smoke stacks and the birds that live on the ground. One chimney on a map of
+ * five worked zones read as a diorama; every place that burns something now
+ * smoulders, and the open ground has its own residents.
+ */
 const SCRAP_AMBIENCE: AmbienceSpec = {
-  smoke: [{ x: 164, y: 564 }],
+  smoke: [
+    { x: 164, y: 564 }, // ống khói nhà kho
+    { x: 758, y: 52 }, // ống khói lò xưởng tái chế (ngay trên miệng lò)
+    { x: 280, y: 86 }, // thùng phuy đốt ở khu ve chai
+    { x: 700, y: 320 }, // đống sắt vụn âm ỉ
+  ],
   birds: [
     { x: -60, y: 88, speed: 44 },
     { x: -300, y: 164, speed: 52 },
     { x: -560, y: 128, speed: 38 },
+  ],
+  // Open ground only: nothing on a zone floor (its scene has its own cast) or on water.
+  groundBirds: [
+    { x: 470, y: 300 },
+    { x: 980, y: 250 },
+    { x: 640, y: 560 },
+    { x: 380, y: 650 },
+    { x: 1160, y: 480 },
   ],
   worldWidth: WORLD_WIDTH,
   seed: 90210,
@@ -36,11 +54,41 @@ const SCRAP_AMBIENCE: AmbienceSpec = {
 const MICRO_PER_ZONE = 14
 const NANO_PER_ZONE = 24
 
+/**
+ * …and the same again over the open ground between the zones. Zooming into the
+ * middle of the map used to reveal nothing at all, because the props stopped at
+ * the zone borders — which are invisible to the player.
+ */
+const MICRO_OPEN = 100
+const NANO_OPEN = 160
+
+/**
+ * Nothing is dropped inside a zone (that zone's own scene dresses it) or onto a
+ * pond, where litter would read as floating.
+ */
+const OPEN_SKIP = [
+  ...Object.values(ZONE_LAYOUTS).map((layout) => layout.rect),
+  ...WATER_AREAS.map((area) => area.rect),
+]
+
 function quantize(value: number, step: number): number {
   return Math.round(value * step) / step
 }
 
-/** Positions are generated once, from the zone rects, and stay stable per seed. */
+/** Even-off spots across the whole map, skipping the zones and the water. */
+function openGround(rnd: () => number, count: number): { x: number; y: number }[] {
+  const spots: { x: number; y: number }[] = []
+  // Bounded, so growing the map can never spin this loop forever.
+  for (let tries = 0; tries < count * 40 && spots.length < count; tries++) {
+    const x = 8 + rnd() * (WORLD_WIDTH - 16)
+    const y = 8 + rnd() * (WORLD_HEIGHT - 16)
+    if (insideAnyRect(OPEN_SKIP, x, y)) continue
+    spots.push({ x, y })
+  }
+  return spots
+}
+
+/** Positions are generated once, per seed: the zones first, then the open field. */
 function microProps(): DetailProp[] {
   const props: DetailProp[] = []
   const rnd = makeRandom(20261013)
@@ -55,6 +103,9 @@ function microProps(): DetailProp[] {
         kind: Math.floor(rnd() * 5),
       })
     }
+  }
+  for (const spot of openGround(rnd, MICRO_OPEN)) {
+    props.push({ x: quantize(spot.x, 2), y: quantize(spot.y, 2), kind: Math.floor(rnd() * 5) })
   }
   return props
 }
@@ -73,6 +124,9 @@ function nanoProps(): DetailProp[] {
         kind: Math.floor(rnd() * 4),
       })
     }
+  }
+  for (const spot of openGround(rnd, NANO_OPEN)) {
+    props.push({ x: quantize(spot.x, 4), y: quantize(spot.y, 4), kind: Math.floor(rnd() * 4) })
   }
   return props
 }

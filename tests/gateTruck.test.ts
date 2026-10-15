@@ -4,7 +4,7 @@ import { LANE_Y, createTruck } from '@ui/scene/focus/gate/actors'
 import { CRATE_STACK } from '@ui/scene/focus/gate/scene'
 import { Particles } from '@ui/scene/focus/parts'
 import { createPopups } from '@ui/scene/focus/popups'
-import { CALM_WIND } from '@ui/scene/weather'
+import { CALM_WIND } from '@scenery/core/ambience'
 
 /** Popup labels draw through a stub in node — the real one needs a DOM canvas. */
 function stubLabel(text: string): Container {

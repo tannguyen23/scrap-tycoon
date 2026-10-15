@@ -17,7 +17,7 @@ import {
 } from '@ground/packs/scrapYard/decals'
 import { SCRAP_YARD_PACK, scrapTerrain } from '@ground/packs/scrapYard/pack'
 import { drawDebrisItem, drawFloraItem, drawWaterItem } from '@ground/packs/scrapYard/specimens'
-import { TILE_KINDS, type TileKind } from '@ground/packs/scrapYard/terrains'
+import type { TileKind } from '@ground/packs/scrapYard/terrains'
 import { SCRAP_MAP } from '@ground/packs/scrapYard/worldGrounds'
 import type { StageBuilder, StageCell, StageScene } from './types'
 
@@ -50,7 +50,8 @@ export function buildTiles(app: Application, pack: GroundPack = SCRAP_YARD_PACK)
   return {
     root,
     width: TILE_CELL * columns + 16,
-    height: TILE_CELL * TILE_KINDS.length + 8,
+    // Height follows the pack's own terrain list, not the scrap one.
+    height: TILE_CELL * kinds.length + 8,
     cells,
   }
 }

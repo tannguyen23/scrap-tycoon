@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest'
+import { insideAnyRect } from '@ground/core/metrics'
+import { WATER_AREAS, ZONE_LAYOUTS } from '@ground/packs/scrapYard/worldLayout'
 import { CALM_WIND, createAmbience } from '@scenery/core/ambience'
 import { createDetailLayer } from '@scenery/core/details'
 import { DAY_LENGTH_SECONDS, createLighting, sampleAmbient } from '@scenery/core/lighting'
@@ -16,12 +18,58 @@ describe('scenery kit', () => {
 
     const ambience = createAmbience(SCRAP_SCENERY.ambience)
     for (let i = 0; i < 120; i++) ambience.update(1 / 60, CALM_WIND)
-    expect(ambience.container.children.length).toBe(2)
+    // Ground birds, smoke and the sky lanes are three separate layers.
+    expect(ambience.container.children.length).toBe(3)
 
     const micro = createDetailLayer(SCRAP_SCENERY.microProps, SCRAP_SCENERY.drawMicro)
     expect(micro.children.length).toBe(1)
     expect(SCRAP_SCENERY.microProps.length).toBeGreaterThan(0)
     expect(SCRAP_SCENERY.nanoProps.length).toBeGreaterThan(0)
+  })
+
+  it('dresses the open ground too, and never floats litter on a pond', () => {
+    const zones = Object.values(ZONE_LAYOUTS).map((layout) => layout.rect)
+    const ponds = WATER_AREAS.map((area) => area.rect)
+    const all = [...SCRAP_SCENERY.microProps, ...SCRAP_SCENERY.nanoProps]
+
+    // Zooming into the middle of the map used to reveal nothing at all: the props
+    // stopped at the zone borders, which the player cannot even see.
+    const outsideZones = all.filter((prop) => !insideAnyRect(zones, prop.x, prop.y))
+    expect(outsideZones.length).toBeGreaterThan(100)
+
+    // And none of them may land on water, where a nail would read as floating.
+    for (const prop of all) {
+      expect(insideAnyRect(ponds, prop.x, prop.y), `prop at ${prop.x},${prop.y} is on a pond`).toBe(false)
+    }
+  })
+
+  it('keeps ground birds on their patch, and never on a pond', () => {
+    const ambience = createAmbience(SCRAP_SCENERY.ambience)
+    const ground = ambience.container.children[0]
+    if (!ground) throw new Error('the ambience has no ground layer')
+    const birds = ground.children
+    expect(birds.length).toBeGreaterThan(0)
+
+    const homes = birds.map((node) => ({ x: node.x, y: node.y }))
+    const ponds = WATER_AREAS.map((area) => area.rect)
+    const airborne = new Set<number>()
+
+    for (let i = 0; i < 2400; i++) {
+      ambience.update(1 / 60, CALM_WIND)
+      if (i % 5 !== 0) continue
+      birds.forEach((node, index) => {
+        const home = homes[index]
+        if (!home) return
+        // Never off its patch: the landing spot is always inside the radius, and
+        // the take-off arc only adds height.
+        expect(Math.abs(node.x - home.x), `bird ${index} strayed on x`).toBeLessThanOrEqual(20)
+        expect(Math.abs(node.y - home.y), `bird ${index} strayed on y`).toBeLessThanOrEqual(30)
+        expect(insideAnyRect(ponds, node.x, node.y), `bird ${index} is on a pond`).toBe(false)
+        if (Math.abs(node.y - home.y) > 3) airborne.add(index)
+      })
+    }
+    // And they do take off, or they are just dots on the grass.
+    expect(airborne.size).toBeGreaterThan(0)
   })
 
   it('keeps the day grade inside sane bounds', () => {

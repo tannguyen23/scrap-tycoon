@@ -1,10 +1,10 @@
 import { Container, Graphics } from 'pixi.js'
-import { CALM_WIND, type Wind } from '../../weather'
-import type { Spot } from '../types'
+import { CALM_WIND, type SceneWind } from '@scenery/core/ambience'
+import type { Spot } from '@scene/core/types'
 
 export interface ForgeLife {
   container: Container
-  update(dt: number, elapsed: number, wind?: Wind): void
+  update(dt: number, elapsed: number, wind?: SceneWind): void
 }
 
 interface Puff {
@@ -21,7 +21,7 @@ export function createForgeLife(stack: Spot): ForgeLife {
   const puffs: Puff[] = []
   let smokeTimer = 0.8
 
-  const update = (dt: number, elapsed: number, wind: Wind = CALM_WIND): void => {
+  const update = (dt: number, elapsed: number, wind: SceneWind = CALM_WIND): void => {
     smokeTimer -= dt
     if (smokeTimer <= 0) {
       smokeTimer = 1.15 + (elapsed % 1) * 0.3

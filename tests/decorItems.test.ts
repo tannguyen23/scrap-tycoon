@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DECOR_SPECIMENS } from '@ui/scene/decorItems'
+import { DECOR_SPECIMENS } from '@ground/packs/scrapYard/decorItems'
 import type { GroundCanvas } from '@ground/core/groundCanvas'
 
 interface Draw {
@@ -90,6 +90,12 @@ describe('decor specimens', () => {
       expect(drawnWidth, specimen.key).toBeGreaterThan(specimen.width * 0.3)
     })
   }
+
+  it('keeps one tall landmark, so 1× view has something for the eye to catch', () => {
+    const tallest = [...DECOR_SPECIMENS].sort((a, b) => b.height - a.height)[0]
+    // Everything else on the map is scenery-sized (trees top out at 44).
+    expect(tallest?.height, 'no landmark left: the yard reads as a flat scatter').toBeGreaterThanOrEqual(80)
+  })
 
   it('gives every specimen a distinct silhouette (no copy-paste duplicates)', () => {
     const signatures = new Set<string>()

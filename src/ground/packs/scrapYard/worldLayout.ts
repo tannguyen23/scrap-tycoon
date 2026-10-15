@@ -1,17 +1,18 @@
 import type { ZoneId } from '@domain/types'
-import type { TileKind } from '@ground/packs/scrapYard/terrains'
+import type { TileKind } from './terrains'
 
 /**
- * Design-space grid. The art is authored at double density (1 design px has
+ * The scrap-yard world plan, as data: where the zones sit, and every patch, pond
+ * and road link that dresses the ground between them. It lives in the pack — not
+ * in the UI — because the pack is what paints the map; `ui` reads it back for the
+ * camera, couriers and HUD, so a pack never reaches up into the game.
+ *
+ * Design-space grid: the art is authored at double density (1 design px has
  * become the finest feature step), so the canvas maps 1:1 and every object
  * carries twice the pixels it used to.
  */
 export const WORLD_WIDTH = 1280
 export const WORLD_HEIGHT = 720
-
-export const CANVAS_SCALE = 1
-export const VIEW_WIDTH = WORLD_WIDTH * CANVAS_SCALE
-export const VIEW_HEIGHT = WORLD_HEIGHT * CANVAS_SCALE
 
 export interface ZoneRect {
   x: number

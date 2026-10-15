@@ -2,7 +2,8 @@ import type { ZoneDef } from '@domain/types'
 
 /**
  * Map zones for the scrap branch. Zone ids are shared between content (labels,
- * descriptions), the scene layout (ui/scene/zoneLayout.ts) and the HUD cards.
+ * descriptions), the scene layout (ground/packs/scrapYard/worldLayout.ts) and the
+ * HUD cards.
  */
 export const ZONES: Record<string, ZoneDef> = {
   alley: {

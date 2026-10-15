@@ -2,7 +2,7 @@ import { playSound } from '@ui/sound/player'
 import { createScrapBit, dustPuff, type Particles } from '../parts'
 import { HAMMER, restPose, walkPose } from '../poses'
 import type { Popups } from '../popups'
-import type { Spot } from '../types'
+import type { Spot } from '@scene/core/types'
 import { createSmithSprite, type SmithSprite } from './sprites'
 
 const WALK_SPEED = 26

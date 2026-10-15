@@ -1,5 +1,5 @@
 import { playSound } from '@ui/sound/player'
-import { CALM_WIND, type Wind } from '../../weather'
+import { CALM_WIND, type SceneWind } from '@scenery/core/ambience'
 import { createSack, smokePuff, type Particles } from '../parts'
 import type { Popups } from '../popups'
 import { createTruckFrontSprite, createTruckSprite, type TruckFrontSprite, type TruckSprite } from './sprites'
@@ -17,7 +17,7 @@ const ROAD_Y = -152
 /** Service driveway down from the road into the yard (world x 924..960). */
 const DRIVEWAY_X = 78
 /**
- * The exit lane in `zoneLayout.CONNECTORS` runs past the zone's east edge all the
+ * The exit lane in `worldLayout.CONNECTORS` runs past the zone's east edge all the
  * way to the map edge — so "off-map" in the zone's local space is
  * `width + ROAD_TAIL` (world x 1280).
  */
@@ -37,7 +37,7 @@ export interface TruckActor {
   getPhase(): TruckPhase
   getX(): number
   getY(): number
-  update(dt: number, particles: Particles, popups: Popups, wind?: Wind, mayEnter?: boolean): void
+  update(dt: number, particles: Particles, popups: Popups, wind?: SceneWind, mayEnter?: boolean): void
   /** Hide/show the whole truck (crew size), independent of which view is showing. */
   setActive(active: boolean): void
   /** Side view — the roll door lives here (the load phase toggles it). */
@@ -110,7 +110,7 @@ export function createTruck(variant: number, width: number): TruckActor {
     playSound('vehicle-turn')
   }
 
-  const update = (dt: number, particles: Particles, popups: Popups, wind: Wind = CALM_WIND, mayEnter = true): void => {
+  const update = (dt: number, particles: Particles, popups: Popups, wind: SceneWind = CALM_WIND, mayEnter = true): void => {
     clock += dt
     const startX = x
     const startY = y

@@ -1,5 +1,5 @@
 import type { GroundCanvas } from '@ground/core/groundCanvas'
-import type { ZoneRect } from './zoneLayout'
+import type { ZoneRect } from './worldLayout'
 
 /**
  * Yard decor specimens — trees, rocks, logs and scrap, all drawn with the same
@@ -312,6 +312,74 @@ export function decorBox(specimen: DecorSpecimen, x: number, y: number): ZoneRec
   return { x: x - specimen.width / 2, y: y - specimen.height, width: specimen.width, height: specimen.height + SHADOW_SPILL }
 }
 
+/** Water tower tones: a galvanised tank on a rusted frame. */
+const TOWER_TONES = {
+  tank: 0x8d99a6,
+  tankLit: 0xbcc8d4,
+  tankDark: 0x5d6773,
+  frame: 0x6d5c49,
+  frameDark: 0x4b3f33,
+  brace: 0x584b3c,
+} as const
+
+/**
+ * Tháp nước — landmark cao duy nhất của bãi, thứ để mắt bám vào khi nhìn ở 1×.
+ *
+ * Nó đứng cách xa mọi tuyến courier có chủ đích: decor tầng map vẽ vào MỘT
+ * `Graphics` trước lớp courier nên không y-sort được — vật cao mà nhân vật có
+ * thể đi ra sau thì buộc phải nằm ở chỗ không ai đi qua (xem luật hình #4).
+ */
+export function drawWaterTower(g: GroundCanvas, x: number, y: number): void {
+  const t = TOWER_TONES
+  footing(g, x, y, 18)
+
+  const legTop = y - 78
+  const SEGMENTS = 6
+  const SEGMENT_H = 13
+
+  // Chân sau vẽ trước: ở xa hơn nên tối hơn và thụt vào trong.
+  for (let i = 0; i < SEGMENTS; i++) {
+    const sy = legTop + 6 + (i * 70) / SEGMENTS
+    const spread = 4 + i
+    g.rect(x - spread, sy, 2, 70 / SEGMENTS + 1).fill(t.frameDark)
+    g.rect(x + spread - 2, sy, 2, 70 / SEGMENTS + 1).fill(t.frameDark)
+  }
+
+  // Chân trước xoè dần ra tới chân: mỗi đoạn lệch 1px nên đường chéo bám lưới.
+  for (let i = 0; i < SEGMENTS; i++) {
+    const sy = legTop + i * SEGMENT_H
+    const spread = 8 + i
+    g.rect(x - spread - 2, sy, 3, SEGMENT_H).fill(t.frame)
+    g.rect(x + spread - 1, sy, 3, SEGMENT_H).fill(t.frame)
+    g.rect(x - spread - 2, sy, 1, SEGMENT_H).fill({ color: 0xffffff, alpha: 0.1 })
+    g.rect(x + spread + 1, sy, 1, SEGMENT_H).fill({ color: 0x000000, alpha: 0.18 })
+  }
+
+  // Giằng: ba vòng ngang + một thanh chéo, vẽ đè lên chân trước.
+  for (const ring of [
+    { at: 0.26, half: 11 },
+    { at: 0.58, half: 14 },
+    { at: 0.9, half: 16 },
+  ]) {
+    const sy = Math.round(legTop + 78 * ring.at)
+    g.rect(x - ring.half, sy, ring.half * 2, 2).fill(t.brace)
+    g.rect(x - ring.half, sy + 1, ring.half * 2, 1).fill({ color: 0x000000, alpha: 0.2 })
+  }
+  for (let i = 0; i < 5; i++) {
+    g.rect(x - 11 + i * 5, Math.round(legTop + 18 + i * 12), 5, 2).fill(t.brace)
+  }
+
+  // Bồn: thân trước, rồi đai, rồi hông, cuối cùng là mặt trên — sáng nhất, và là
+  // lệnh vẽ trên cùng nên bậc sáng "mặt trên > thân" tự thoả.
+  g.rect(x - 22, y - 98, 44, 20).fill(t.tank)
+  g.rect(x - 22, y - 80, 44, 3).fill(t.tankDark)
+  g.rect(x - 22, y - 91, 44, 2).fill({ color: t.tankDark, alpha: 0.55 })
+  g.rect(x - 22, y - 98, 2, 20).fill({ color: 0xffffff, alpha: 0.08 })
+  g.rect(x + 19, y - 98, 3, 20).fill({ color: 0x000000, alpha: 0.16 })
+  g.rect(x - 24, y - 102, 48, 4).fill(t.tankLit)
+  g.rect(x - 24, y - 102, 48, 1).fill({ color: 0xffffff, alpha: 0.25 })
+}
+
 /** The catalog the studio lists and the tests walk. */
 export const DECOR_SPECIMENS: readonly DecorSpecimen[] = [
   { key: 'tree0', label: 'cây sồi tối', group: 'Cây cối', width: 48, height: 44, draw: (g, x, y) => drawTree(g, x, y, 0) },
@@ -334,4 +402,12 @@ export const DECOR_SPECIMENS: readonly DecorSpecimen[] = [
   { key: 'pallets', label: 'pallet gỗ', group: 'Hàng hoá', width: 32, height: 26, draw: drawPallets },
   { key: 'crates', label: 'chồng thùng gỗ', group: 'Hàng hoá', width: 40, height: 26, draw: drawCrateStack },
   { key: 'sign', label: 'biển gỗ', group: 'Hàng hoá', width: 22, height: 34, draw: drawSign },
+  {
+    key: 'waterTower',
+    label: 'tháp nước',
+    group: 'Công trình',
+    width: 58,
+    height: 106,
+    draw: drawWaterTower,
+  },
 ]

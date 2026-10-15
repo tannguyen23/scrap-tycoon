@@ -1,6 +1,7 @@
 import type { WeatherVisual } from '@domain/types'
-import { CALM_WIND, cloudRuns, mixWeatherVisual, pickPondSpot } from '@ui/scene/weather'
-import { WATER_AREAS } from '@ui/scene/zoneLayout'
+import { CALM_WIND } from '@scenery/core/ambience'
+import { cloudRuns, mixWeatherVisual, pickPondSpot } from '@ui/scene/weather'
+import { WATER_AREAS } from '@ground/packs/scrapYard/worldLayout'
 import { describe, expect, it } from 'vitest'
 
 describe('weather visuals', () => {

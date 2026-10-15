@@ -1,8 +1,8 @@
-import type { ZoneRect } from '../../zoneLayout'
+import type { ZoneRect } from '@ground/packs/scrapYard/worldLayout'
 import { Container, Graphics } from 'pixi.js'
 import type { TilePainter } from '@ground/core/painter'
 import { Particles, SHADOW, depthArt, depthSlot, sortByDepth } from '../parts'
-import type { DetailScene, DetailSceneState } from '../types'
+import type { DetailScene, DetailSceneState } from '@scene/core/types'
 import { createRouteVehicle, type VehicleActor } from './actors'
 import { drawBilletStack } from './sprites'
 

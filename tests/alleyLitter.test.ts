@@ -6,7 +6,7 @@ import {
   drawTippedBin,
   drawTrashBag,
 } from '@ui/scene/focus/alley/sprites'
-import type { Spot } from '@ui/scene/focus/types'
+import type { Spot } from '@scene/core/types'
 import type { GroundCanvas } from '@ground/core/groundCanvas'
 
 interface Draw {

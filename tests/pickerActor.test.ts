@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { createPicker } from '@ui/scene/focus/alley/actors'
 import { Particles } from '@ui/scene/focus/parts'
 import { createPopups } from '@ui/scene/focus/popups'
-import type { Spot } from '@ui/scene/focus/types'
+import type { Spot } from '@scene/core/types'
 
 /** Popup labels draw through a stub in node — the real one needs a DOM canvas. */
 function stubLabel(text: string): Container {

@@ -2,7 +2,7 @@ import { playSound } from '@ui/sound/player'
 import { createSack, createScrapBit, dustPuff, type Particles } from '../parts'
 import { POKE, restPose, walkPose } from '../poses'
 import type { Popups } from '../popups'
-import type { Spot } from '../types'
+import type { Spot } from '@scene/core/types'
 import { createPorterSprite, createScavengerSprite, type PorterSprite, type ScavengerSprite } from './sprites'
 
 const WALK_SPEED = 34

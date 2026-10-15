@@ -8,26 +8,32 @@ import {
   createWalkerCourier,
 } from '@ui/scene/couriers'
 import { Particles } from '@ui/scene/focus/parts'
-import { CONNECTORS, ZONE_LAYOUTS, insideAnyRect, type ZoneRect } from '@ui/scene/zoneLayout'
+import { CONNECTORS, ZONE_LAYOUTS, insideAnyRect, type ZoneRect } from '@ground/packs/scrapYard/worldLayout'
+import type { SceneFeed } from '@scene/core/feed'
 import { describe, expect, it } from 'vitest'
 
 const VIEW_ALL: ZoneRect = { x: 0, y: 0, width: 1280, height: 720 }
 
+/** A feed carrying only what the courier layer reads. */
+function feed(workers: Record<string, number>): SceneFeed {
+  return { playTimeS: 0, earnedLog10: 0, zones: {}, workers }
+}
+
 describe('courier layer', () => {
   it('crews a run up to its cap and hides everyone at zero workers', () => {
     const couriers = createCouriers(courierLegsFor(GAME_CONTENT))
-    couriers.setCounts({ workers: new Map([['porter', 10]]), tiers: new Map() })
+    couriers.setFeed(feed({ porter: 10 }))
     couriers.update(1 / 60, VIEW_ALL)
     expect(couriers.crewSize('alley', 'recycle')).toBe(3)
 
-    couriers.setCounts({ workers: new Map(), tiers: new Map() })
+    couriers.setFeed(feed({}))
     couriers.update(1 / 60, VIEW_ALL)
     expect(couriers.crewSize('alley', 'recycle')).toBe(0)
   })
 
   it('spawns nothing for the export truck leg (its delivery is leaving the map)', () => {
     const couriers = createCouriers(courierLegsFor(GAME_CONTENT))
-    couriers.setCounts({ workers: new Map([['truck', 3], ['scavenger', 2]]), tiers: new Map() })
+    couriers.setFeed(feed({ truck: 3, scavenger: 2 }))
     couriers.update(1 / 60, VIEW_ALL)
     // Only the shared particle layer — no courier run exists for the truck.
     expect(couriers.root.children.length).toBe(1)
@@ -35,7 +41,7 @@ describe('courier layer', () => {
 
   it('freezes runs whose bounds left the view', () => {
     const couriers = createCouriers(courierLegsFor(GAME_CONTENT))
-    couriers.setCounts({ workers: new Map([['porter', 1]]), tiers: new Map() })
+    couriers.setFeed(feed({ porter: 1 }))
 
     couriers.update(1 / 60, { x: 900, y: 300, width: 100, height: 100 })
     expect(couriers.crewSize('alley', 'recycle')).toBe(0)

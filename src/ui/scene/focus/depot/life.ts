@@ -2,7 +2,7 @@ import { Container, Graphics } from 'pixi.js'
 import { makeRandom } from '../../random'
 import { playSound } from '@ui/sound/player'
 import { SHADOW } from '../parts'
-import type { Spot } from '../types'
+import type { Spot } from '@scene/core/types'
 
 export interface DepotLife {
   container: Container

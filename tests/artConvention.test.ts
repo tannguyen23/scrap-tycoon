@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { GroundCanvas } from '@ground/core/groundCanvas'
-import { DECOR_SPECIMENS } from '@ui/scene/decorItems'
+import { DECOR_SPECIMENS } from '@ground/packs/scrapYard/decorItems'
 import { createTruckFrontSprite } from '@ui/scene/focus/gate/sprites'
 
 interface Draw {

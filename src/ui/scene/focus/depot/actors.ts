@@ -1,6 +1,6 @@
 import { playSound } from '@ui/sound/player'
 import { createSack, dustPuff, type Particles } from '../parts'
-import type { Spot } from '../types'
+import type { Spot } from '@scene/core/types'
 import { createHaulerSprite, type HaulerSprite } from './sprites'
 
 const WALK_SPEED = 30

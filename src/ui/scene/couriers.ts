@@ -13,15 +13,18 @@ import {
 import { createBillet } from './focus/recycle/sprites'
 import { restPose, walkPose } from './focus/poses'
 import { routeVehicleSprite } from './focus/route/sprites'
-import type { Spot } from './focus/types'
-import { CONNECTORS, type ZoneRect } from './zoneLayout'
+import type { Spot } from '@scene/core/types'
+import { CONNECTORS } from '@ground/packs/scrapYard/worldLayout'
+import type { Rect } from '@ground/core/metrics'
+import type { SceneFeed } from '@scene/core/feed'
+import type { Couriers } from '@scene/core/pack'
 
 type CargoKind = 'sack' | 'billet' | 'pallet' | 'crate'
 
 /**
  * One cross-zone delivery run. Keyed by zone pair (`<from>><to>`) — ui never
  * keys content, and a route only exists where the map paints a link. Paths are
- * world-space waypoints following the links declared in `zoneLayout` /
+ * world-space waypoints following the links declared in `worldLayout` /
  * `worldGrounds`: the dirt path alley→forge, the forge lane down to the road,
  * the road band plus the depot/gate driveways. The export truck has no run —
  * its delivery is leaving the map (see `focus/gate`).
@@ -373,12 +376,6 @@ export function createDriveCourier(run: CourierRun, tier: number, variant: numbe
   return { container, update }
 }
 
-/** Counts fed from the store sync: owned workers per id + zone visual tiers. */
-export interface CourierCounts {
-  readonly workers: ReadonlyMap<string, number>
-  readonly tiers: ReadonlyMap<ZoneId, number>
-}
-
 /** One content leg that owns a map run. */
 export interface CourierLeg {
   readonly workerId: string
@@ -406,11 +403,8 @@ export function courierLegsFor(content: GameContent): CourierLeg[] {
   return legs
 }
 
-export interface Couriers {
-  readonly root: Container
-  setCounts(counts: CourierCounts): void
-  /** Updates only the runs whose bounds intersect the view (matches zone-scene culling). */
-  update(dt: number, view: ZoneRect): void
+/** The scrap implementation of the kit's courier layer, plus a test readout. */
+export interface ScrapCouriers extends Couriers {
   /** Visible courier count of one run (scene tests / debug readout). */
   crewSize(from: ZoneId, to: ZoneId): number
 }
@@ -420,7 +414,7 @@ interface Leg {
   readonly from: ZoneId
   readonly to: ZoneId
   readonly run: CourierRun
-  readonly bounds: ZoneRect
+  readonly bounds: Rect
 }
 
 interface Actor {
@@ -428,7 +422,7 @@ interface Actor {
   update(dt: number, particles: Particles): void
 }
 
-function pathBounds(path: readonly Spot[]): ZoneRect {
+function pathBounds(path: readonly Spot[]): Rect {
   let minX = Number.POSITIVE_INFINITY
   let minY = Number.POSITIVE_INFINITY
   let maxX = Number.NEGATIVE_INFINITY
@@ -442,7 +436,7 @@ function pathBounds(path: readonly Spot[]): ZoneRect {
   return { x: minX - 30, y: minY - 30, width: maxX - minX + 60, height: maxY - minY + 60 }
 }
 
-function intersects(view: ZoneRect, rect: ZoneRect): boolean {
+function intersects(view: Rect, rect: Rect): boolean {
   return (
     view.x < rect.x + rect.width &&
     view.x + view.width > rect.x &&
@@ -457,7 +451,7 @@ function intersects(view: ZoneRect, rect: ZoneRect): boolean {
  * crates depot→gate. Purely decorative: it reads worker counts, never touches
  * domain state.
  */
-export function createCouriers(courierLegs: readonly CourierLeg[]): Couriers {
+export function createCouriers(courierLegs: readonly CourierLeg[]): ScrapCouriers {
   const root = new Container()
   const particles = new Particles()
   root.addChild(particles.container)
@@ -476,21 +470,19 @@ export function createCouriers(courierLegs: readonly CourierLeg[]): Couriers {
   }
 
   const actorsByWorker = new Map<string, Actor[]>()
-  const workers = new Map<string, number>()
-  const tiers = new Map<ZoneId, number>()
+  let feed: SceneFeed = { playTimeS: 0, earnedLog10: 0, zones: {}, workers: {} }
   let tier = 0
 
-  const setCounts = (counts: CourierCounts): void => {
-    workers.clear()
-    for (const [workerId, count] of counts.workers) workers.set(workerId, count)
-    tiers.clear()
-    for (const [zoneId, value] of counts.tiers) tiers.set(zoneId, value)
+  const owned = (workerId: string): number => feed.workers[workerId] ?? 0
+  const tierOf = (zoneId: string): number => feed.zones[zoneId]?.tier ?? 0
 
+  const setFeed = (next: SceneFeed): void => {
+    feed = next
     const nextTier = Math.max(
       0,
       ...legs
         .filter((leg) => leg.run.kind === 'drive' && leg.run.vehicle === undefined)
-        .map((leg) => tiers.get(leg.from) ?? 0),
+        .map((leg) => tierOf(leg.from)),
     )
     if (nextTier !== tier) {
       // New fleet art: rebuild driving couriers instead of patching sprites.
@@ -504,10 +496,10 @@ export function createCouriers(courierLegs: readonly CourierLeg[]): Couriers {
     }
   }
 
-  const update = (dt: number, view: ZoneRect): void => {
+  const update = (dt: number, view: Rect): void => {
     for (const leg of legs) {
       if (!intersects(view, leg.bounds)) continue
-      const desired = Math.min(workers.get(leg.workerId) ?? 0, leg.run.cap)
+      const desired = Math.min(owned(leg.workerId), leg.run.cap)
       let actors = actorsByWorker.get(leg.workerId)
       if (!actors) {
         actors = []
@@ -542,11 +534,11 @@ export function createCouriers(courierLegs: readonly CourierLeg[]): Couriers {
     return total
   }
 
-  return { root, setCounts, update, crewSize }
+  return { root, setFeed, update, crewSize }
 }
 
 /** Painted links a courier path may use besides the zone rects themselves. */
-export const COURIER_GROUND: readonly ZoneRect[] = [
+export const COURIER_GROUND: readonly Rect[] = [
   ...CONNECTORS,
   // The alley→forge dirt path painted by `worldGrounds` (paintPath call there).
   { x: 384, y: 100, width: 224, height: 48 },

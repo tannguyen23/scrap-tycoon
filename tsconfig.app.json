@@ -21,6 +21,7 @@
       "@core/*": ["./src/core/*"],
       "@ground/*": ["./src/ground/*"],
       "@scenery/*": ["./src/scenery/*"],
+      "@scene/*": ["./src/scene/*"],
       "@projects/*": ["./src/projects/*"],
       "@studio/*": ["./studio/src/*"],
       "@domain/*": ["./src/domain/*"],

@@ -12,6 +12,7 @@ export default defineConfig({
       '@core': layer('./src/core'),
       '@ground': layer('./src/ground'),
       '@scenery': layer('./src/scenery'),
+      '@scene': layer('./src/scene'),
       '@projects': layer('./src/projects'),
       '@studio': layer('./studio/src'),
       '@domain': layer('./src/domain'),

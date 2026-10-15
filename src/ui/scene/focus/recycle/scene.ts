@@ -1,4 +1,4 @@
-import { ZONE_LAYOUTS, type ZoneRect } from '../../zoneLayout'
+import { ZONE_LAYOUTS, type ZoneRect } from '@ground/packs/scrapYard/worldLayout'
 import { Container, Graphics } from 'pixi.js'
 import type { TilePainter } from '@ground/core/painter'
 import {
@@ -8,12 +8,12 @@ import {
   paintStain,
   paintWearPath,
 } from '@ground/packs/scrapYard/decals'
-import { CALM_WIND, type Wind } from '../../weather'
+import { CALM_WIND, type SceneWind } from '@scenery/core/ambience'
 import { drawJunkHeap, drawDrum, drawWeedTuft } from '../alley/sprites'
 import { drawZoneFence } from '../fence'
 import { Particles, SHADOW, depthArt, depthSlot, sortByDepth } from '../parts'
 import { createPopups } from '../popups'
-import type { DetailScene, DetailSceneState, Spot } from '../types'
+import type { DetailScene, DetailSceneState, Spot } from '@scene/core/types'
 import { createSmith, type SmithActor } from './actors'
 import { createForgeLife } from './life'
 
@@ -136,7 +136,7 @@ export function createRecycleDetail(rect: ZoneRect, tiles: TilePainter): DetailS
   const smiths: SmithActor[] = []
   let desired = 0
   let stock01 = -1
-  let ambient: Wind = CALM_WIND
+  let ambient: SceneWind = CALM_WIND
 
   const setState = (state: DetailSceneState): void => {
     popups.setLabels(state.labels)

@@ -3,7 +3,7 @@ import { createPorter } from '@ui/scene/focus/alley/actors'
 import { createAlleyDetail } from '@ui/scene/focus/alley/scene'
 import { createPorterSprite } from '@ui/scene/focus/alley/sprites'
 import { Particles } from '@ui/scene/focus/parts'
-import type { Spot } from '@ui/scene/focus/types'
+import type { Spot } from '@scene/core/types'
 import type { TilePainter } from '@ground/core/painter'
 
 const PILE: Spot = { x: 192, y: 246 }
