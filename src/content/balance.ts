@@ -24,4 +24,9 @@ export const BALANCE = {
   gapThresholdSeconds: 5,
   /** Starting wallet, enough to buy the first worker before hand work pays off. */
   startMoney: new Decimal(10),
+  /**
+   * How many slots the player's bag has. A slot holds one stack of one item
+   * (capped by that item's `carry`), so capacity is slots × stacks.
+   */
+  bagSlots: 18,
 } as const

@@ -8,7 +8,8 @@ import { mountScene, type SceneHandle } from '@scene/core/scene'
 import { DEFAULT_SERVICES, type SceneServices } from '@scene/core/services'
 import { buildSceneFeed } from './feed'
 import { gearLook } from './gearLook'
-import type { PlayerReadout } from './player'
+import { LOOSE_REACH, looseWorldPoint } from './loose'
+import type { PickableLoose, PlayerReadout } from './player'
 import { createScrapScene } from './scrapPack'
 
 export type { SceneHandle }
@@ -20,6 +21,8 @@ export type { SceneHandle }
  */
 export interface GameScene extends SceneHandle {
   player(): PlayerReadout | null
+  /** The piece of debris the player is standing next to, or null. */
+  pickable(): PickableLoose | null
   focusPlayer(): void
   setWorking(pose: WorkPose | null): void
   /** Freeze the walker while a full-screen HUD panel is up (the inventory). */
@@ -103,6 +106,18 @@ export async function mountGameScene(
     focusOn: handle.focusOn,
     setFollow: handle.setFollow,
     player: () => player?.readout() ?? null,
+    pickable: () => {
+      const spot = player?.position
+      if (!spot) return null
+      let best: { id: number; item: string; distance: number } | null = null
+      for (const piece of store.getSnapshot().loose.items) {
+        const world = looseWorldPoint(piece.zone, piece.id)
+        const distance = Math.hypot(world.x - spot.x, world.y - spot.y)
+        if (distance > LOOSE_REACH) continue
+        if (!best || distance < best.distance) best = { id: piece.id, item: piece.item, distance }
+      }
+      return best ? { id: best.id, item: best.item } : null
+    },
     focusPlayer: () => {
       if (player) handle.focusOn(player.position.x, player.position.y)
     },

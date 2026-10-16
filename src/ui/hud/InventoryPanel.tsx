@@ -1,9 +1,9 @@
 import { formatShort } from '@core/format'
 import type { Result } from '@core/result'
 import { isZoneUnlocked } from '@domain/conditions'
-import { bagRows, canAfford, gearRows, zoneStock } from '@domain/selectors'
-import type { ZoneStockRow } from '@domain/selectors'
-import type { GearSlot, ItemDef } from '@domain/types'
+import { bagSlotRows, canAfford, gearRows, zoneStock } from '@domain/selectors'
+import type { BagSlotRow, ZoneStockRow } from '@domain/selectors'
+import type { GearSlot } from '@domain/types'
 import { UI } from '@i18n/text'
 import type { L10n } from '@i18n/types'
 import { gearIcon, itemIcon } from '@ui/itemIcons'
@@ -11,15 +11,16 @@ import { useContent, useEngine, useGameState, useLocale, useSceneBridge, useText
 import { describeCondition } from '@ui/progression'
 import { describeReason } from '@ui/reasons'
 import { playSound } from '@ui/sound/player'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type DragEvent } from 'react'
 
-/** Ô túi: 6 × 3 — nhiều ô nhưng ô nhỏ, cả tấm phiếu gọn trong màn. */
-const BAG_SLOTS = 18
 /** Ô kho khu: mỗi khu chỉ giữ MỘT loại hàng (`domain/zones.ts`), một hàng là đủ. */
 const BIN_SLOTS = 6
 
 /** The modal E opens: goods in one tab, the character sheet in the other. */
 export type SheetTab = 'items' | 'character'
+
+/** What the player is dragging right now — a bag slot, or the standing yard's bin item. */
+type DragSource = { kind: 'bag'; index: number } | { kind: 'bin'; itemId: string }
 
 export interface InventoryPanelProps {
   tab: SheetTab
@@ -29,13 +30,14 @@ export interface InventoryPanelProps {
 
 /**
  * Túi đồ + trang bị của người chơi — mở bằng E, dựng như màn inventory của game
- * sinh tồn: nền tối đi, một tấm phiếu giữa màn hình, **hai tab**: "Túi đồ" (hàng
- * đang mang + kho khu đang đứng) và "Nhân vật" (nón · áo · quần · dép · đang cầm).
- * Bấm chip trên đầu để chuyển tab, E hoặc Esc để đóng.
+ * sinh tồn: nền tối đi, một tấm phiếu giữa màn hình, **hai tab**: "Túi đồ" (lưới ô
+ * hàng đang mang + kho khu đang đứng) và "Nhân vật" (nón · áo · quần · dép · đang
+ * cầm). Bấm chip trên đầu để chuyển tab, E hoặc Esc để đóng.
  *
- * Bấm một ô là chuyển hàng: ô túi ⇒ bỏ vào kho khu đang đứng, ô kho ⇒ lấy vào túi.
- * Chuyển được bao nhiêu do domain quyết (`takeToBag`/`putFromBag` trả về số đã
- * chuyển, hoặc lý do từ chối) — ở đây không tự tính chỗ trống.
+ * Túi là **lưới ô**: mỗi ô một stack, kéo thả để dời/ghép/đổi chỗ, và kéo sang kho
+ * khu đang đứng để bỏ hàng (hoặc kéo từ kho về túi). Chuyển được bao nhiêu do domain
+ * quyết (`takeToBag`/`putFromBag`/`moveBagSlot` trả về số đã chuyển, hoặc lý do từ
+ * chối) — ở đây không tự tính chỗ trống.
  */
 export function InventoryPanel({ tab, onTabChange, onClose }: InventoryPanelProps) {
   const content = useContent()
@@ -47,6 +49,7 @@ export function InventoryPanel({ tab, onTabChange, onClose }: InventoryPanelProp
 
   const [zone, setZone] = useState<string | null>(null)
   const [note, setNote] = useState<string | null>(null)
+  const [drag, setDrag] = useState<DragSource | null>(null)
   const zoneRef = useRef<string | null>(null)
 
   // Which warehouse this panel may touch is the yard the player stands in, polled
@@ -76,8 +79,7 @@ export function InventoryPanel({ tab, onTabChange, onClose }: InventoryPanelProp
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
 
-  const rows = bagRows(state, content)
-  const carried = new Map(rows.map((row) => [row.itemId, row]))
+  const bagSlots = bagSlotRows(state, content)
   const yard = zone ? content.zones[zone] : undefined
   const stock = zone ? zoneStock(state, content, zone) : []
   const locked = zone !== null && yard !== undefined && !isZoneUnlocked(state, content, zone)
@@ -86,12 +88,6 @@ export function InventoryPanel({ tab, onTabChange, onClose }: InventoryPanelProp
   // belong to the work action — `ui/scene/focus/poses.ts`).
   const heldJob = zone ? ((content.actions ?? []).find((action) => action.zone === zone) ?? null) : null
 
-  // Slots keep their item for good (content order), so a bag never shuffles under
-  // the player's hand; the spare cells are what makes it read as a bag with room.
-  // What actually limits the bag is each item's `carry` ceiling, not the cell count.
-  const carryable = Object.values(content.items).filter((item) => item.carry && item.id !== content.currencyItemId)
-  const bagSlots: (ItemDef | null)[] = carryable.slice(0, BAG_SLOTS)
-  while (bagSlots.length < BAG_SLOTS) bagSlots.push(null)
   const binCells: (ZoneStockRow | null)[] = stock.slice(0, BIN_SLOTS)
   while (binCells.length < BIN_SLOTS) binCells.push(null)
 
@@ -115,44 +111,100 @@ export function InventoryPanel({ tab, onTabChange, onClose }: InventoryPanelProp
     playSound('click')
   }
 
+  // ---- drag & drop ----------------------------------------------------------
+
+  const onBagSlotDragOver = (event: DragEvent): void => {
+    if (!drag) return
+    event.preventDefault()
+    event.dataTransfer.dropEffect = drag.kind === 'bag' ? 'move' : 'copy'
+  }
+
+  const onBagSlotDrop = (event: DragEvent, index: number): void => {
+    event.preventDefault()
+    const source = drag
+    setDrag(null)
+    if (!source) return
+    if (source.kind === 'bag') {
+      run(() => engine.moveBagSlot(source.index, index))
+    } else if (zone === null) {
+      setNote(text(UI.bagNoZone))
+    } else {
+      run(() => engine.takeToBag(zone, source.itemId))
+    }
+  }
+
+  const onBinDragOver = (event: DragEvent): void => {
+    if (!drag || drag.kind !== 'bag') return
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'move'
+  }
+
+  const onBinDrop = (event: DragEvent): void => {
+    event.preventDefault()
+    const source = drag
+    setDrag(null)
+    if (!source || source.kind !== 'bag') return
+    if (zone === null) {
+      setNote(text(UI.bagNoZone))
+      return
+    }
+    run(() => engine.putFromBag(zone, source.index))
+  }
+
+  const bagCell = (row: BagSlotRow) => {
+    const item = content.items[row.itemId]
+    const icon = itemIcon(row.itemId)
+    const canStore = zone !== null && row.zone === zone
+    const owner = row.zone ? content.zones[row.zone] : undefined
+    const title = canStore
+      ? text(UI.invStoreHint, { name: item ? text(item.name) : row.itemId })
+      : text(UI.bagNeedZone, { zone: owner ? text(owner.name) : (row.zone ?? row.itemId) })
+    const dragging = drag?.kind === 'bag' && drag.index === row.index
+    return (
+      <button
+        key={`slot-${row.index}`}
+        type="button"
+        draggable
+        className={`${slotClass(row.ratio)}${dragging ? ' is-dragging' : ''}`}
+        title={title}
+        onDragStart={(event) => {
+          event.dataTransfer.effectAllowed = 'move'
+          event.dataTransfer.setData('text/plain', String(row.index))
+          setDrag({ kind: 'bag', index: row.index })
+        }}
+        onDragEnd={() => setDrag(null)}
+        onDragOver={onBagSlotDragOver}
+        onDrop={(event) => onBagSlotDrop(event, row.index)}
+        onClick={() => run(() => engine.putFromBag(zone ?? '', row.index))}
+      >
+        {icon ? <img className="inv-icon" src={icon} alt="" /> : null}
+        <span className="inv-amount">{formatShort(row.amount)}</span>
+        <span className="inv-bar" role="img" aria-label={item ? text(item.name) : row.itemId}>
+          <span className="inv-bar-fill" style={{ width: fillWidth(row.ratio) }} />
+        </span>
+      </button>
+    )
+  }
+
   const itemsSheet = (
     <>
       <h4 className="inv-sub">{text(UI.bagCarried)}</h4>
       <div className="inv-grid">
-        {bagSlots.map((item, index) => {
-          if (!item) return <span key={`spare-${index}`} className="inv-slot" aria-hidden="true" />
-          const row = carried.get(item.id)
-          const here = zone !== null && row?.zone === zone
-          const owner = row?.zone ? content.zones[row.zone] : undefined
-          const stored = stock.find((entry) => entry.itemId === item.id)
-          const canStore = here && stored !== undefined
-          const icon = itemIcon(item.id)
-          const title = !row
-            ? text(item.name)
-            : canStore
-              ? text(UI.invStoreHint, { name: text(item.name) })
-              : text(UI.bagNeedZone, { zone: owner ? text(owner.name) : (row.zone ?? item.id) })
-          return (
-            <button
-              key={item.id}
-              type="button"
-              className={slotClass(row !== undefined, row?.ratio ?? null)}
-              disabled={!canStore}
-              title={title}
-              onClick={() => run(() => engine.putFromBag(zone ?? '', item.id))}
-            >
-              {row && icon ? <img className="inv-icon" src={icon} alt="" /> : null}
-              {row ? <span className="inv-amount">{formatShort(row.amount)}</span> : null}
-              {row && row.carry ? (
-                <span className="inv-bar" role="img" aria-label={text(item.name)}>
-                  <span className="inv-bar-fill" style={{ width: fillWidth(row.ratio) }} />
-                </span>
-              ) : null}
-            </button>
-          )
-        })}
+        {bagSlots.map((row, index) =>
+          row ? (
+            bagCell(row)
+          ) : (
+            <span
+              key={`bag-empty-${index}`}
+              className="inv-slot"
+              aria-hidden="true"
+              onDragOver={onBagSlotDragOver}
+              onDrop={(event) => onBagSlotDrop(event, index)}
+            />
+          ),
+        )}
       </div>
-      {rows.length === 0 && <p className="inv-empty">{text(UI.bagEmpty)}</p>}
+      {bagSlots.every((row) => row === null) && <p className="inv-empty">{text(UI.bagEmpty)}</p>}
 
       <h4 className="inv-sub">
         {yard ? `${text(UI.bagHere)} — ${text(yard.name)}` : text(UI.bagHere)}
@@ -168,13 +220,34 @@ export function InventoryPanel({ tab, onTabChange, onClose }: InventoryPanelProp
             const item = itemId ? content.items[itemId] : undefined
             const icon = itemId ? itemIcon(itemId) : null
             const holding = row !== null && row.amount.gt(0)
-            if (!holding) return <span key={`spare-${index}`} className="inv-slot" aria-hidden="true" />
+            if (!holding) {
+              return (
+                <span
+                  key={`bin-empty-${index}`}
+                  className="inv-slot"
+                  aria-hidden="true"
+                  onDragOver={onBinDragOver}
+                  onDrop={onBinDrop}
+                />
+              )
+            }
+            const dragging = drag?.kind === 'bin' && drag.itemId === itemId
             return (
               <button
                 key={itemId}
                 type="button"
-                className={slotClass(true, row.ratio)}
+                draggable
+                className={`${slotClass(row.ratio)}${dragging ? ' is-dragging' : ''}`}
                 title={item ? text(UI.invTakeHint, { name: text(item.name) }) : undefined}
+                onDragStart={(event) => {
+                  if (!itemId) return
+                  event.dataTransfer.effectAllowed = 'copy'
+                  event.dataTransfer.setData('text/plain', itemId)
+                  setDrag({ kind: 'bin', itemId })
+                }}
+                onDragEnd={() => setDrag(null)}
+                onDragOver={onBinDragOver}
+                onDrop={onBinDrop}
                 onClick={() => {
                   if (!itemId) return
                   run(() => engine.takeToBag(zone, itemId))
@@ -288,9 +361,8 @@ function slotLabel(slot: GearSlot): L10n {
   return UI.gearBoots
 }
 
-/** Ô đầy thì viền đỏ như chip "Đầy" của thẻ khu; ô trống chỉ là ô trống. */
-function slotClass(holding: boolean, ratio: number | null): string {
-  if (!holding) return 'inv-slot'
+/** Ô đầy thì viền đỏ như chip "Đầy" của thẻ khu; ô đang có hàng chỉ là ô đã tô. */
+function slotClass(ratio: number | null): string {
   return ratio !== null && ratio >= 0.99 ? 'inv-slot is-filled is-full' : 'inv-slot is-filled'
 }
 

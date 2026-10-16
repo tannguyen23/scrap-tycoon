@@ -1,4 +1,5 @@
 import { Decimal } from '@core/num'
+import { bagAdd, bagSlotCount } from '@domain/bag'
 import { GLOBAL_CARRY, branchRecipeOutput, branchWorkerOutput, workerStepOutput } from '@domain/statKeys'
 import type { BranchDef, BranchState, GameContent, GameState, WeatherProfile } from '@domain/types'
 import { weatherWorkMultiplier } from '@domain/weather'
@@ -9,7 +10,7 @@ export const TEST_CONTENT: GameContent = {
   currencyItemId: 'money',
   items: {
     money: { id: 'money', name: { vi: 'Tiền', en: 'Coins' } },
-    ore: { id: 'ore', name: { vi: 'Quặng', en: 'Ore' }, unit: { vi: 'kg', en: 'kg' } },
+    ore: { id: 'ore', name: { vi: 'Quặng', en: 'Ore' }, unit: { vi: 'kg', en: 'kg' }, carry: new Decimal(20) },
   },
   zones: {
     mine: {
@@ -226,6 +227,16 @@ export function branchStateOf(state: GameState, branchId: string): BranchState {
   const branch = state.branches[branchId]
   if (!branch) throw new Error(`fixture is missing branch state "${branchId}"`)
   return branch
+}
+
+/** Puts `amount` of an item straight into the bag, filling slots the way the game does. */
+export function seedBag(state: GameState, content: GameContent, itemId: string, amount: Decimal): void {
+  bagAdd(state, content, new Map(), itemId, amount)
+}
+
+/** A fresh bag's shape: the content's slot count, every slot empty. */
+export function emptyBagSlots(content: GameContent): null[] {
+  return new Array<null>(bagSlotCount(content)).fill(null)
 }
 
 /** Compares Decimal values with a relative tolerance. */

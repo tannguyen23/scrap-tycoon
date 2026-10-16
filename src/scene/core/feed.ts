@@ -7,6 +7,17 @@
  * active locale.
  */
 
+/**
+ * One piece of debris lying on a zone floor. The kit only carries it through: the
+ * zone's own detail scene draws it at `(x, y)`, which are LOCAL to that zone.
+ */
+export interface LooseFeed {
+  readonly id: number
+  readonly item: string
+  readonly x: number
+  readonly y: number
+}
+
 /** One zone's readout, the input of that zone's detail scene. */
 export interface ZoneFeed {
   /** Workers assigned to this zone. */
@@ -27,6 +38,11 @@ export interface ZoneFeed {
   readonly stock01: number
   /** Popup wording already translated to the active locale. */
   readonly labels: { readonly produced: string; readonly money: string }
+  /**
+   * Debris lying on this zone's floor. The kit only carries it through — the
+   * zone's own detail scene places and draws each piece.
+   */
+  readonly loose?: readonly LooseFeed[]
 }
 
 /** The whole scene readout: per-zone feeds plus the globals art reacts to. */

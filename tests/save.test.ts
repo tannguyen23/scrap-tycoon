@@ -2,16 +2,16 @@ import { Decimal } from '@core/num'
 import { migrateSave, migrations } from '@core/save/migrations'
 import { SAVE_VERSION, isSaveFile } from '@core/save/schema'
 import { SaveManager } from '@core/save/saveManager'
-import { createFreshState, stateFromSerialized, stateToSerialized } from '@domain/state'
+import { createFreshState, getBag, stateFromSerialized, stateToSerialized } from '@domain/state'
 import { MemoryStorageAdapter } from '@platform/storage'
 import { afterEach, describe, expect, it } from 'vitest'
-import { TEST_CONTENT, branchStateOf, expectCloseTo } from './fixtures'
+import { TEST_CONTENT, branchStateOf, emptyBagSlots, expectCloseTo, seedBag } from './fixtures'
 
 describe('serialization roundtrip', () => {
   it('roundtrips resources including huge Decimal values', () => {
     const state = createFreshState(TEST_CONTENT, new Decimal('1e1000'))
     state.stock['mine'] = { ...(state.stock['mine'] ?? {}), ore: new Decimal('123.456') }
-    state.bag['ore'] = new Decimal('7.5')
+    seedBag(state, TEST_CONTENT, 'ore', new Decimal('7.5'))
     state.gear['vest'] = true
     branchStateOf(state, 'mine').workers['digger'] = 7
     branchStateOf(state, 'mine').upgrades['boots'] = true
@@ -26,7 +26,7 @@ describe('serialization roundtrip', () => {
     expect(restored.state.resources['ore']).toBeUndefined()
     expect(restored.state.stock['mine']?.['ore']?.eq(new Decimal('123.456'))).toBe(true)
     // The bag is its own section — what the player carries is not warehouse stock.
-    expect(restored.state.bag['ore']?.eq(new Decimal('7.5'))).toBe(true)
+    expectCloseTo(getBag(restored.state, 'ore'), new Decimal('7.5'))
     // …and so is the gear the character owns.
     expect(restored.state.gear['vest']).toBe(true)
     expect(restored.state.branches['mine']?.workers['digger']).toBe(7)
@@ -35,12 +35,24 @@ describe('serialization roundtrip', () => {
     expect(restored.state.stats.playTimeS).toBe(1234)
   })
 
+  it('keeps the bag arrangement (slot gaps) across a roundtrip', () => {
+    const state = createFreshState(TEST_CONTENT, new Decimal(0))
+    state.bag[2] = { item: 'ore', amount: new Decimal(3) }
+
+    const restored = stateFromSerialized(stateToSerialized(state), TEST_CONTENT, new Decimal(0))
+
+    expect(restored.warnings).toEqual([])
+    expect(restored.state.bag[2]?.item).toBe('ore')
+    expect(restored.state.bag[0]).toBeNull()
+    expect(restored.state.bag.filter((slot) => slot !== null)).toHaveLength(1)
+  })
+
   it('prunes unknown ids and fills missing content ids', () => {
     const serialized = stateToSerialized(createFreshState(TEST_CONTENT, new Decimal(5)))
     serialized.stock['gold'] = '99' // unknown item → pruned
     serialized.stock['ore'] = 'not-a-number' // invalid value → dropped
-    serialized.bag['gold'] = '99' // unknown item in the bag → pruned
-    serialized.bag['ore'] = 'not-a-number' // invalid bag value → dropped
+    serialized.bag.push({ item: 'gold', amount: '99' }) // unknown item in the bag → pruned
+    serialized.bag.push({ item: 'ore', amount: 'not-a-number' }) // invalid bag value → dropped
     serialized.gear['jetpack'] = true // unknown gear → pruned
     serialized.branches['quarry'] = { workers: {}, upgrades: {} } // unknown branch → pruned
 
@@ -49,10 +61,10 @@ describe('serialization roundtrip', () => {
     expect(restored.warnings.length).toBeGreaterThan(0)
     expect(restored.state.resources['gold']).toBeUndefined()
     expect(restored.state.stock['mine']?.['gold']).toBeUndefined()
-    expect(restored.state.bag['gold']).toBeUndefined()
+    expectCloseTo(getBag(restored.state, 'gold'), new Decimal(0))
     expect(restored.state.gear['jetpack']).toBeUndefined()
     expectCloseTo(restored.state.stock['mine']?.['ore'] ?? new Decimal(0), new Decimal(0))
-    expectCloseTo(restored.state.bag['ore'] ?? new Decimal(0), new Decimal(0))
+    expectCloseTo(getBag(restored.state, 'ore'), new Decimal(0))
     expectCloseTo(restored.state.resources['money'] ?? new Decimal(0), new Decimal(5))
     expect(restored.state.branches['quarry']).toBeUndefined()
     expect(restored.state.branches['mine']?.workers['drill']).toBeUndefined()
@@ -104,8 +116,35 @@ describe('serialization roundtrip', () => {
     expect(restored.warnings).toEqual([])
     expect(restored.state.gear).toEqual({})
     // The sections that already existed are untouched.
-    expectCloseTo(restored.state.bag['ore'] ?? new Decimal(0), new Decimal(2))
+    expectCloseTo(getBag(restored.state, 'ore'), new Decimal(2))
     expectCloseTo(restored.state.stock['mine']?.['ore'] ?? new Decimal(0), new Decimal(12))
+  })
+
+  it('migrates a v4 save (record-shaped bag) into slots', () => {
+    const legacy = {
+      schemaVersion: 4,
+      savedAt: 0,
+      state: {
+        resources: { money: '5' },
+        stock: { ore: '12' },
+        bag: { ore: '25' },
+        gear: { vest: true },
+        branches: { mine: { workers: {}, upgrades: {} } },
+        stats: { totalEarned: '0', playTimeS: 10 },
+      },
+    }
+
+    const migrated = migrateSave(legacy, SAVE_VERSION)
+
+    expect(migrated?.['schemaVersion']).toBe(SAVE_VERSION)
+    if (!migrated || !isSaveFile(migrated)) throw new Error('expected a migratable save')
+    const restored = stateFromSerialized(migrated.state, TEST_CONTENT, new Decimal(0))
+
+    expect(restored.warnings).toEqual([])
+    // 25 ore is past the per-slot ceiling (carry 20), so it splits into two slots.
+    expectCloseTo(getBag(restored.state, 'ore'), new Decimal(25))
+    expect(restored.state.bag.filter((slot) => slot?.item === 'ore')).toHaveLength(2)
+    expect(restored.state.gear['vest']).toBe(true)
   })
 
   it('gives a v2 save (which predates the bag) an empty one', () => {
@@ -127,7 +166,7 @@ describe('serialization roundtrip', () => {
     const restored = stateFromSerialized(migrated.state, TEST_CONTENT, new Decimal(0))
 
     expect(restored.warnings).toEqual([])
-    expect(restored.state.bag).toEqual({})
+    expect(restored.state.bag).toEqual(emptyBagSlots(TEST_CONTENT))
     expectCloseTo(restored.state.stock['mine']?.['ore'] ?? new Decimal(0), new Decimal(12))
     expectCloseTo(restored.state.resources['money'] ?? new Decimal(0), new Decimal(5))
   })
@@ -146,7 +185,7 @@ describe('SaveManager', () => {
     expect(file?.savedAt).toBe(1000)
     expect(file?.state.resources['money']).toBe('42')
     expect(file?.state.stock['ore']).toBe('0')
-    expect(file?.state.bag).toEqual({})
+    expect(file?.state.bag).toEqual(emptyBagSlots(TEST_CONTENT))
     expect(file?.state.gear).toEqual({})
   })
 

@@ -38,6 +38,32 @@ export function createPorterSprite(variant: number): PorterSprite {
   return { ...person, sack }
 }
 
+const LOOSE_TONES = [
+  { base: 0x9aa8b6, lit: 0xc3ced9, dark: 0x5d6875 },
+  { base: 0x8a97a6, lit: 0xb3bfcb, dark: 0x525d69 },
+  { base: 0xb08a55, lit: 0xd0a874, dark: 0x70563a },
+] as const
+
+/**
+ * Một mẩu sắt vụn NẰM trên nền (lon bẹp / mảnh tôn gập): bóng tiếp xúc lệch xuống-phải
+ * (nắng trên-trái), viền tối dưới thân, mặt trên sáng. Nhỏ và thấp để bước qua được —
+ * món rời KHÔNG khai đế chặn (cùng luật "vật nằm" trong `props.ts`).
+ */
+export function drawLooseScrap(g: Graphics, x: number, y: number, variant: number): void {
+  const tone = LOOSE_TONES[variant % LOOSE_TONES.length] ?? LOOSE_TONES[0]
+  g.rect(x - 2, y - 0.4, 5.4, 1.4).fill({ color: 0x000000, alpha: 0.16 })
+  if (variant % 2 === 0) {
+    g.rect(x - 1.4, y - 2.6, 4.2, 2.4).fill(tone.base)
+    g.rect(x - 1.4, y - 2.6, 4.2, 0.8).fill(tone.lit)
+    g.rect(x - 1.4, y - 0.6, 4.2, 0.6).fill(tone.dark)
+  } else {
+    g.rect(x - 2, y - 2, 3.2, 2).fill(tone.base)
+    g.rect(x - 2, y - 2, 3.2, 0.7).fill(tone.lit)
+    g.rect(x + 1.2, y - 2.6, 2.6, 1.6).fill(tone.dark)
+    g.rect(x + 1.2, y - 2.6, 2.6, 0.6).fill({ color: tone.lit, alpha: 0.7 })
+  }
+}
+
 /**
  * Bãi rác của khu: art được vẽ theo công thức khối bốn bước (bóng tiếp xúc → viền
  * tối dưới thân → thân chia mặt tối/sáng → mặt sáng hướng trên-trái), nắng toàn

@@ -113,6 +113,44 @@ export interface ManualActionDef {
   readonly requires?: Condition
 }
 
+/**
+ * A kind of debris a yard scatters on its own floor over time. Pieces lie there
+ * until the player walks up and picks them up (`pickLoose`); they are TRANSIENT
+ * world dressing, never saved.
+ */
+export interface LooseSpawnDef {
+  readonly zone: ZoneId
+  readonly item: ItemId
+  /** How much of the item one pickup yields. */
+  readonly amount: Decimal
+  /** Seconds between spawns. */
+  readonly secondsPerItem: number
+  /** Most pieces of this kind lying in the zone at once. */
+  readonly cap: number
+}
+
+/** One piece of debris lying on a yard floor. Transient — never saved. */
+export interface LooseItem {
+  readonly id: number
+  readonly zone: ZoneId
+  readonly item: ItemId
+  readonly amount: Decimal
+}
+
+/**
+ * The ground's loose items plus the clocks that make them appear. This is
+ * transient world state: it is never serialized, so a reload scatters the yards
+ * fresh. Positions live in the scene (it knows the map) — the domain only keeps
+ * what lies where, keyed by zone.
+ */
+export interface LooseWorld {
+  items: LooseItem[]
+  /** Seconds accumulated per spawn def key (`zone:item`). */
+  clocks: Record<string, number>
+  /** Monotonic id source, so scene positions stay stable as pieces come and go. */
+  seq: number
+}
+
 export interface StatEffect {
   /** Stat key from `statKeys` — e.g. `branch.scrap.workerOutput`. */
   readonly target: string
@@ -243,6 +281,14 @@ export interface GameContent {
   /** Optional weather schedule; absent content means no weather at all. */
   readonly weather?: WeatherProfile
   readonly simulation?: SimulationTuning
+  /**
+   * How many slots the player's bag has. Each slot holds one stack of one item
+   * (capped by that item's `carry`); absent content falls back to
+   * `DEFAULT_BAG_SLOTS` in `domain/bag.ts`.
+   */
+  readonly bagSlots?: number
+  /** Debris the yards scatter on their own (transient — see `GameState.loose`). */
+  readonly loose?: readonly LooseSpawnDef[]
 }
 
 export interface SimulationTuning {
@@ -258,6 +304,12 @@ export interface BranchState {
   upgrades: Record<string, true>
 }
 
+/** One bag slot: a stack of a single item, or `null` for an empty slot. */
+export interface BagSlot {
+  item: ItemId
+  amount: Decimal
+}
+
 export interface GameState {
   /** Global pool: the currency and any item not tied to a zone warehouse. */
   resources: Record<ItemId, Decimal>
@@ -268,11 +320,13 @@ export interface GameState {
    */
   stock: Record<ZoneId, Record<ItemId, Decimal>>
   /**
-   * What the player carries in their bag (item → amount). Not tied to any zone:
-   * goods in the bag are out of the chain until the player stores them in the
-   * warehouse of the zone that owns them (`domain/zones.ts`).
+   * The player's bag: a fixed-length list of slots. Each slot holds one stack of
+   * one item (capped by that item's `carry`), or `null` when empty — the gaps are
+   * the player's own arrangement, so the list is stored with them. Not tied to any
+   * zone: goods in the bag are out of the chain until the player stores them in
+   * the warehouse of the zone that owns them (`domain/zones.ts`).
    */
-  bag: Record<ItemId, Decimal>
+  bag: (BagSlot | null)[]
   /**
    * Gear the player owns, by id — owning a piece is wearing it (content keeps one
    * piece per slot), so there is no separate "equipped" set to keep in sync.
@@ -283,4 +337,10 @@ export interface GameState {
     totalEarned: Decimal
     playTimeS: number
   }
+  /**
+   * Debris lying on the yards' floors, plus its spawn clocks. TRANSIENT world
+   * dressing: never serialized, so a reload re-scatters the yards. Positions live
+   * in the scene (it knows the map); the domain only keeps what lies where.
+   */
+  loose: LooseWorld
 }

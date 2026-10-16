@@ -4,7 +4,7 @@ import { isGearUnlocked } from './conditions'
 import { bulkCost, maxAffordable, unitCost } from './curves'
 import { findBranch, findWorker } from './lookup'
 import { applyModifiers, collectModifiers, mergeModifiers } from './modifiers'
-import { cloneState, getBag, getResource, getStock } from './state'
+import { cloneState, getResource, getStock } from './state'
 import { itemZones, zoneOfItem } from './zones'
 import {
   GLOBAL_WORKER_OUTPUT,
@@ -195,36 +195,34 @@ function itemAmount(state: GameState, content: GameContent, itemId: ItemId): Dec
   return zone ? getStock(state, zone, itemId) : getResource(state, itemId)
 }
 
-/** One row of the player's bag, for the inventory panel. */
-export interface BagRow {
+/** One non-empty bag slot, for the inventory panel. Empty slots stay `null`. */
+export interface BagSlotRow {
+  index: number
   itemId: ItemId
   amount: Decimal
-  /** Bag ceiling for this item, or null when the bag never limits it. */
-  carry: Decimal | null
-  /** 0..1 fill ratio of the bag for this item, or null when uncapped. */
-  ratio: number | null
+  /** Per-slot stack ceiling for this item — a slot never holds more than this. */
+  cap: Decimal
+  /** 0..1 fill of the slot against its stack ceiling. */
+  ratio: number
   /** The zone whose warehouse this item belongs to — where it can be stored. */
   zone: ZoneId | null
 }
 
-/** Everything the player is carrying (rows with nothing in them are left out). */
-export function bagRows(state: GameState, content: GameContent): BagRow[] {
+/** Every bag slot in order — `null` for an empty slot, so the grid keeps its shape. */
+export function bagSlotRows(state: GameState, content: GameContent): (BagSlotRow | null)[] {
   const mods = collectModifiers(state, content)
-  const rows: BagRow[] = []
-  for (const itemId of Object.keys(state.bag)) {
-    const amount = getBag(state, itemId)
-    if (amount.lte(0)) continue
-    const carry = carryCapFor(content, itemId, mods)
-    const bounded = carry && carry.gt(0) ? carry : null
-    rows.push({
-      itemId,
-      amount,
-      carry: bounded,
-      ratio: bounded ? Math.min(1, amount.div(bounded).toNumber()) : null,
-      zone: zoneOfItem(content, itemId),
-    })
-  }
-  return rows
+  return state.bag.map((slot, index) => {
+    if (!slot || slot.amount.lte(0)) return null
+    const cap = carryCapFor(content, slot.item, mods) ?? slot.amount
+    return {
+      index,
+      itemId: slot.item,
+      amount: slot.amount,
+      cap,
+      ratio: cap.gt(0) ? Math.min(1, slot.amount.div(cap).toNumber()) : 1,
+      zone: zoneOfItem(content, slot.item),
+    }
+  })
 }
 
 /** One slot of the character sheet, for the inventory panel. */

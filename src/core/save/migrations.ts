@@ -12,6 +12,10 @@ export type Migration = (save: Record<string, unknown>) => Record<string, unknow
  * the bag entirely, so they get an empty one.
  *
  * v3 → v4: gear the player owns. Older saves predate it, so nobody owns anything.
+ *
+ * v4 → v5: the bag turns from a flat item → amount record into a slot list. One
+ * entry per carried item (verbatim, in iteration order); the domain hydrate then
+ * re-lays them into slots, splitting any stack past the item's ceiling.
  */
 export const migrations: Record<number, Migration> = {
   1: (save) => {
@@ -35,6 +39,12 @@ export const migrations: Record<number, Migration> = {
       ...save,
       state: { ...state, gear: isRecord(state['gear']) ? state['gear'] : {} },
     }
+  },
+  4: (save) => {
+    const state = isRecord(save['state']) ? save['state'] : {}
+    const oldBag = isRecord(state['bag']) ? state['bag'] : {}
+    const bag = Object.entries(oldBag).map(([item, amount]) => ({ item, amount }))
+    return { ...save, state: { ...state, bag } }
   },
 }
 

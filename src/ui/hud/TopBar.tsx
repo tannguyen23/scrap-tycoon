@@ -1,30 +1,17 @@
 import { formatShort } from '@core/format'
 import { currentWeather, incomePerSecond } from '@domain/selectors'
 import { getResource } from '@domain/state'
-import { LANGUAGE_NAMES, UI } from '@i18n/text'
-import {
-  useAnimatedDecimal,
-  useContent,
-  useGameState,
-  useLocale,
-  useLocaleStore,
-  useText,
-  useThemeMode,
-  useThemeStore,
-} from '@ui/hooks'
-import { playSound } from '@ui/sound/player'
+import { UI } from '@i18n/text'
+import { useAnimatedDecimal, useContent, useGameState, useText } from '@ui/hooks'
 
-export interface TopBarProps {
-  onOpenSettings: () => void
-}
-
-export function TopBar({ onOpenSettings }: TopBarProps) {
+/**
+ * Hoá đơn tiền + thu nhập + thời tiết, dán nổi góc trên-trái màn chơi. Không còn
+ * nút nào ở đây — mọi thứ cài đặt/giao diện/ngôn ngữ đã chui vào menu bánh răng,
+ * để sân chơi giữ trọn màn hình.
+ */
+export function TopBar() {
   const content = useContent()
   const state = useGameState()
-  const locale = useLocale()
-  const localeStore = useLocaleStore()
-  const theme = useThemeMode()
-  const themeStore = useThemeStore()
   const text = useText()
 
   const currency = content.items[content.currencyItemId]
@@ -32,8 +19,6 @@ export function TopBar({ onOpenSettings }: TopBarProps) {
   const shownMoney = useAnimatedDecimal(money)
   const income = incomePerSecond(state, content)
   const weather = currentWeather(content, state)
-  const nextLocale = locale === 'vi' ? 'en' : 'vi'
-  const nextTheme = theme === 'light' ? 'dark' : 'light'
 
   return (
     <header className="topbar">
@@ -52,39 +37,6 @@ export function TopBar({ onOpenSettings }: TopBarProps) {
           )}
         </div>
       )}
-      <div className="topbar-actions">
-        <button
-          type="button"
-          className="chip"
-          title={text(nextTheme === 'light' ? UI.themeLight : UI.themeDark)}
-          onClick={() => {
-            themeStore.set(nextTheme)
-            playSound('click')
-          }}
-        >
-          {text(nextTheme === 'light' ? UI.themeLight : UI.themeDark)}
-        </button>
-        <button
-          type="button"
-          className="chip"
-          title={LANGUAGE_NAMES[nextLocale]}
-          onClick={() => {
-            localeStore.set(nextLocale)
-            playSound('click')
-          }}
-        >
-          {nextLocale.toUpperCase()}
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            onOpenSettings()
-            playSound('click')
-          }}
-        >
-          {text(UI.settings)}
-        </button>
-      </div>
     </header>
   )
 }

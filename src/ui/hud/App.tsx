@@ -2,20 +2,17 @@ import type { OfflineReport } from '@domain/systems/offline'
 import type { MilestoneDef } from '@domain/types'
 import type { Rect } from '@ground/core/metrics'
 import { UI } from '@i18n/text'
-import { SceneBridgeContext, useContent, useEngine, useGameState, useLocaleStore, useText, type SceneBridge } from '@ui/hooks'
-import { ZOOM_LEVELS } from '@scene/core/scene'
+import { SceneBridgeContext, useContent, useEngine, useLocaleStore, useText, type SceneBridge } from '@ui/hooks'
 import { mountGameScene, type GameScene } from '@ui/scene/PixiScene'
 import { isTypingTarget } from '@ui/scene/player/keys'
 import { playSound } from '@ui/sound/player'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ActionBar } from './ActionBar'
-import { BranchPanel } from './BranchPanel'
 import { InventoryPanel, type SheetTab } from './InventoryPanel'
-import { MilestonePanel } from './MilestonePanel'
+import { MenuModal, type MenuTab } from './MenuModal'
 import { MilestoneToast } from './MilestoneToast'
 import { Minimap } from './Minimap'
 import { OfflineModal } from './OfflineModal'
-import { SettingsModal } from './SettingsModal'
 import { TopBar } from './TopBar'
 
 export interface AppProps {
@@ -32,15 +29,16 @@ const TOAST_LIFETIME_MS = 5200
 export function App({ initialOfflineReport }: AppProps) {
   const engine = useEngine()
   const content = useContent()
-  const state = useGameState()
   const localeStore = useLocaleStore()
   const text = useText()
   const [offlineReport, setOfflineReport] = useState<OfflineReport | null>(initialOfflineReport)
-  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
+  // The gear menu keeps the tab you left it on: upgrades and settings are two
+  // halves of one screen, exactly like the bag's tabs.
+  const [menuTab, setMenuTab] = useState<MenuTab>('progress')
   const [zoomLevel, setZoomLevel] = useState(0)
   const [sceneHandle, setSceneHandle] = useState<GameScene | null>(null)
   const [toasts, setToasts] = useState<MilestoneToastEntry[]>([])
-  const [minimapOpen, setMinimapOpen] = useState(false)
   // The E sheet keeps the tab you left it on — bag and character are two halves of
   // one screen, not two screens.
   const [sheetOpen, setSheetOpen] = useState(false)
@@ -48,6 +46,9 @@ export function App({ initialOfflineReport }: AppProps) {
   const viewRef = useRef<Rect | null>(null)
   const toastKeyRef = useRef(0)
   const sceneHostRef = useRef<HTMLDivElement | null>(null)
+  // Sheet and menu both own the screen: the work bar pauses and the walker freezes
+  // while either is up.
+  const overlayOpen = sheetOpen || menuOpen
 
   useEffect(() => {
     engine.setOfflineReportHandler(setOfflineReport)
@@ -109,16 +110,6 @@ export function App({ initialOfflineReport }: AppProps) {
     }
   }, [engine, content, localeStore])
 
-  // M toggles the minimap, like every map screen ever.
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent): void => {
-      if (event.metaKey || event.ctrlKey || event.altKey) return
-      if (event.key === 'm' || event.key === 'M') setMinimapOpen((open) => !open)
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [])
-
   // E toggles the bag/character sheet. Holding it must not machine-gun the panel,
   // and the modal sheets own the keyboard while they are up.
   useEffect(() => {
@@ -133,17 +124,18 @@ export function App({ initialOfflineReport }: AppProps) {
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
-  // A full-screen sheet owns the screen: the walker stands still underneath it
+  // A full-screen overlay owns the screen: the walker stands still underneath it
   // (otherwise you would drift across the map blind and come back somewhere else).
   useEffect(() => {
-    sceneHandle?.freezeWalk(sheetOpen)
-  }, [sceneHandle, sheetOpen])
+    sceneHandle?.freezeWalk(overlayOpen)
+  }, [sceneHandle, overlayOpen])
 
   const bridge = useMemo<SceneBridge>(
     () => ({
       highlight: (zoneId) => sceneHandle?.setHighlight(zoneId),
       panTo: (zoneId) => sceneHandle?.panTo(zoneId),
       player: () => sceneHandle?.player() ?? null,
+      pickable: () => sceneHandle?.pickable() ?? null,
       focusPlayer: () => sceneHandle?.focusPlayer(),
       setWorking: (pose) => sceneHandle?.setWorking(pose),
     }),
@@ -153,40 +145,15 @@ export function App({ initialOfflineReport }: AppProps) {
   const changeZoom = (level: number): void => {
     setZoomLevel(level)
     sceneHandle?.setZoomLevel(level)
-    playSound('click')
   }
-
-  const zoomTitles = [text(UI.zoomFar), text(UI.zoomMid), text(UI.zoomNear)]
 
   return (
     <SceneBridgeContext.Provider value={bridge}>
       <div className="game">
         <div className="scene-host">
-          <div className="scene-frame" ref={sceneHostRef} aria-hidden="true">
-            <span className="tape tape-a" />
-            <span className="tape tape-b" />
-            <span className="pin" />
-          </div>
+          <div className="scene-frame" ref={sceneHostRef} aria-hidden="true" />
+          <TopBar />
           <div className="scene-controls">
-            {ZOOM_LEVELS.map((scale, index) => (
-              <button
-                key={scale}
-                type="button"
-                className={index === zoomLevel ? 'chip active' : 'chip'}
-                title={zoomTitles[index]}
-                onClick={() => changeZoom(index)}
-              >
-                {scale}×
-              </button>
-            ))}
-            <button
-              type="button"
-              className={minimapOpen ? 'chip active' : 'chip'}
-              title={text(UI.minimapHint)}
-              onClick={() => setMinimapOpen((open) => !open)}
-            >
-              {text(UI.minimap)}
-            </button>
             <button
               type="button"
               className={sheetOpen ? 'chip active' : 'chip'}
@@ -209,24 +176,25 @@ export function App({ initialOfflineReport }: AppProps) {
             >
               {text(UI.backToPlayer)}
             </button>
+            <button
+              type="button"
+              className="chip gear-chip"
+              aria-label={text(UI.menu)}
+              title={text(UI.menuHint)}
+              onClick={() => {
+                setMenuOpen(true)
+                playSound('click')
+              }}
+            >
+              ⚙
+            </button>
           </div>
-          {minimapOpen && (
-            <Minimap viewRef={viewRef} onJump={(x, y) => sceneHandle?.focusOn(x, y)} />
-          )}
+          <Minimap viewRef={viewRef} onJump={(x, y) => sceneHandle?.focusOn(x, y)} />
           {sheetOpen && (
             <InventoryPanel tab={sheetTab} onTabChange={setSheetTab} onClose={() => setSheetOpen(false)} />
           )}
-          <ActionBar paused={sheetOpen} />
+          <ActionBar paused={overlayOpen} />
         </div>
-        <aside className="sidebar">
-          <TopBar onOpenSettings={() => setSettingsOpen(true)} />
-          <main className="panels">
-            <MilestonePanel />
-            {Object.values(content.branches).map((branch) => (
-              <BranchPanel key={branch.id} branch={branch} state={state} />
-            ))}
-          </main>
-        </aside>
         {toasts.length > 0 && (
           <div className="toast-stack">
             {toasts.map((toast) => (
@@ -237,7 +205,15 @@ export function App({ initialOfflineReport }: AppProps) {
         {offlineReport && (
           <OfflineModal report={offlineReport} onClose={() => setOfflineReport(null)} />
         )}
-        {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
+        {menuOpen && (
+          <MenuModal
+            tab={menuTab}
+            onTabChange={setMenuTab}
+            zoom={zoomLevel}
+            onZoom={changeZoom}
+            onClose={() => setMenuOpen(false)}
+          />
+        )}
       </div>
     </SceneBridgeContext.Provider>
   )

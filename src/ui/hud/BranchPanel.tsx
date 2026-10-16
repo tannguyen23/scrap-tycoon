@@ -11,9 +11,11 @@ import { ZoneCard } from './ZoneCard'
 export interface BranchPanelProps {
   branch: BranchDef
   state: GameState
+  /** Forwarded to the zone cards: close the menu when a card pans the camera. */
+  onJump?: () => void
 }
 
-export function BranchPanel({ branch, state }: BranchPanelProps) {
+export function BranchPanel({ branch, state, onJump }: BranchPanelProps) {
   const text = useText()
   const locale = useLocale()
   const content = useContent()
@@ -51,6 +53,7 @@ export function BranchPanel({ branch, state }: BranchPanelProps) {
             branchId={branch.id}
             workers={workersByZone.get(zoneId) ?? []}
             state={state}
+            onJump={onJump}
           />
         ))}
       </div>

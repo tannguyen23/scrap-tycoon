@@ -7,6 +7,7 @@ import { UI } from '@i18n/text'
 import { useContent, useEngine, useGameState, useLocale, useSceneBridge, useText } from '@ui/hooks'
 import { describeCondition } from '@ui/progression'
 import { describeReason } from '@ui/reasons'
+import type { PickableLoose } from '@ui/scene/player'
 import { playSound } from '@ui/sound/player'
 import { useEffect, useRef, useState } from 'react'
 
@@ -25,6 +26,8 @@ import { useEffect, useRef, useState } from 'react'
 export const WORK_KEY = 'F'
 /** A stroke's progress when the bar is idle. */
 const IDLE_PROGRESS = '0%'
+/** Picking a piece of debris off the floor is a quick scoop, not a full stroke. */
+const PICK_SECONDS = 0.45
 
 export interface ActionBarProps {
   /** True while a panel that owns the keyboard is open (the bag) — no strokes then. */
@@ -41,6 +44,7 @@ export function ActionBar({ paused = false }: ActionBarProps) {
 
   const [zone, setZone] = useState<string | null>(null)
   const [note, setNote] = useState<string | null>(null)
+  const [pickable, setPickable] = useState<PickableLoose | null>(null)
 
   // The job on offer here: the first one the yard can pay for, falling back to
   // the one that gathers (content order is the priority — see content/actions.ts).
@@ -65,6 +69,7 @@ export function ActionBar({ paused = false }: ActionBarProps) {
   const elapsedRef = useRef(0)
   const poseRef = useRef<WorkPose | null>(null)
   const zoneRef = useRef<string | null>(null)
+  const pickRef = useRef<PickableLoose | null>(null)
   const jobRef = useRef<ManualActionDef | null>(job)
   const lockedRef = useRef<boolean>(requirement !== null)
   const pausedRef = useRef<boolean>(paused)
@@ -125,13 +130,20 @@ export function ActionBar({ paused = false }: ActionBarProps) {
         zoneRef.current = standing
         setZone(standing)
       }
+      // A piece of debris in reach outranks the yard's own job: you are standing on
+      // it, so F should pick it up.
+      const target = bridge.pickable()
+      if (target?.id !== pickRef.current?.id) {
+        pickRef.current = target
+        setPickable(target)
+      }
 
       const action = jobRef.current
       const working =
         heldRef.current &&
         !blockedRef.current &&
         !pausedRef.current &&
-        action !== null &&
+        (target !== null || action !== null) &&
         !lockedRef.current &&
         readout !== null &&
         !readout.moving
@@ -139,19 +151,25 @@ export function ActionBar({ paused = false }: ActionBarProps) {
       if (!working) {
         if (poseRef.current !== null) release()
       } else {
-        if (poseRef.current !== action.pose) {
-          poseRef.current = action.pose
-          bridge.setWorking(action.pose)
+        const pose: WorkPose = target ? 'pick' : (action?.pose ?? 'pick')
+        const seconds = target ? PICK_SECONDS : (action?.workSeconds ?? PICK_SECONDS)
+        if (poseRef.current !== pose) {
+          poseRef.current = pose
+          bridge.setWorking(pose)
         }
         elapsedRef.current += dt
-        const progress = Math.min(1, elapsedRef.current / (action.workSeconds / speedRef.current))
+        const progress = Math.min(1, elapsedRef.current / (seconds / speedRef.current))
         if (barRef.current) barRef.current.style.width = `${Math.round(progress * 100)}%`
         if (progress >= 1) {
           elapsedRef.current = 0
-          const result = engine.performAction(action.id)
-          if (!result.ok) {
-            // A full bin or an empty one stops the stroke: the key has to be
-            // pressed again, which is also what clears this line.
+          const result = target
+            ? engine.pickLoose(target.id)
+            : action
+              ? engine.performAction(action.id)
+              : null
+          if (result && !result.ok) {
+            // A full bag or a full bin stops the stroke: the key has to be pressed
+            // again, which is also what clears this line.
             blockedRef.current = true
             const reason = reasonRef.current(result.reason)
             setNote(reason)
@@ -176,10 +194,25 @@ export function ActionBar({ paused = false }: ActionBarProps) {
     }
   }, [bridge, engine])
 
+  const itemLabel = (itemId: string): string => {
+    const name = content.items[itemId]?.name
+    return name ? text(name) : itemId
+  }
+
   return (
     <div className="action-bar" role="status">
       {note ? (
         <span className="action-note">{note}</span>
+      ) : pickable ? (
+        <>
+          <span className="action-line">
+            {text(UI.pickUp, { key: WORK_KEY, name: itemLabel(pickable.item) })}
+          </span>
+          <span className="cost-bar" role="img" aria-label={itemLabel(pickable.item)}>
+            <span className="cost-bar-fill" ref={barRef} />
+          </span>
+          <span className="action-hint">{text(UI.workHint)}</span>
+        </>
       ) : requirement ? (
         <span className="action-locked">{describeCondition(text, locale, content, requirement)}</span>
       ) : job ? (

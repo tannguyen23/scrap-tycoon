@@ -3,7 +3,7 @@ import { performAction } from '@domain/commands'
 import { createFreshState, getBag, getResource, getStock } from '@domain/state'
 import type { GameContent } from '@domain/types'
 import { describe, expect, it } from 'vitest'
-import { expectCloseTo } from './fixtures'
+import { expectCloseTo, seedBag } from './fixtures'
 
 /**
  * Hand work, end to end on a chain-shaped fixture:
@@ -19,8 +19,8 @@ const CONTENT: GameContent = {
   items: {
     money: { id: 'money', name: { vi: 'Tiền', en: 'Coins' } },
     ore: { id: 'ore', name: { vi: 'Quặng', en: 'Ore' }, cap: new Decimal(10), carry: new Decimal(6) },
-    bar: { id: 'bar', name: { vi: 'Thỏi', en: 'Bars' } },
-    crate: { id: 'crate', name: { vi: 'Kiện', en: 'Crates' } },
+    bar: { id: 'bar', name: { vi: 'Thỏi', en: 'Bars' }, carry: new Decimal(8) },
+    crate: { id: 'crate', name: { vi: 'Kiện', en: 'Crates' }, carry: new Decimal(4) },
   },
   zones: {
     mine: { id: 'mine', name: { vi: 'Mỏ', en: 'Mine' }, actionDesc: { vi: 'Đào.', en: 'Dig.' } },
@@ -141,7 +141,7 @@ describe('performAction', () => {
 
   it('spends the bag before the yard bin', () => {
     const state = fresh()
-    state.bag['ore'] = new Decimal(3)
+    seedBag(state, CONTENT, 'ore', new Decimal(3))
     state.stock['mine'] = { ore: new Decimal(5) }
 
     const result = performAction(state, CONTENT, 'haul-bars')
@@ -162,14 +162,15 @@ describe('performAction', () => {
     expectCloseTo(getBag(state, 'bar'), new Decimal(0))
   })
 
-  it('refuses when the bag is full of the output', () => {
+  it('refuses when every bag slot is full of the output', () => {
     const state = fresh()
-    state.bag['ore'] = new Decimal(6)
+    // Fill every slot with ore (carry 6 × 18 slots) so no room is left for a stroke.
+    seedBag(state, CONTENT, 'ore', new Decimal(108))
 
     const result = performAction(state, CONTENT, 'strip-ore')
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.reason).toBe('bag-full')
-    expectCloseTo(getBag(state, 'ore'), new Decimal(6))
+    expectCloseTo(getBag(state, 'ore'), new Decimal(108))
   })
 
   it('refuses a job in a yard that is still locked', () => {

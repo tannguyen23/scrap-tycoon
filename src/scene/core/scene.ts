@@ -21,12 +21,13 @@ import { createWaterLife } from './water'
 export const CANVAS_SCALE = 1
 
 /**
- * Zoom ladder (camera scale on top of CANVAS_SCALE). Each step reveals a finer
- * art tier: 1× base zone art, 2× micro props (0.5px design grid), 4× nano
- * specks (0.25px). All steps are integers so every tier stays pixel-crisp.
+ * Zoom ladder (camera scale on top of CANVAS_SCALE). All steps are integers so
+ * every art tier stays pixel-crisp: 1× base zone art, 2× micro props (0.5px design
+ * grid), 4× nano specks (0.25px), and closer stops for inspecting a single yard.
  */
-export const ZOOM_LEVELS = [1, 2, 4] as const
-const LOD_THRESHOLDS = [1.5, 3] as const
+export const ZOOM_LEVELS = [1, 2, 3, 4, 5, 6, 7, 8] as const
+/** Reveals micro from 2× and nano from 4× — the thresholds land between integer stops. */
+const LOD_THRESHOLDS = [1.5, 3.5] as const
 
 export interface SceneHandle {
   destroy(): void

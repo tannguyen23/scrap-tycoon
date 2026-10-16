@@ -1,11 +1,13 @@
 import type Decimal from 'break_eternity.js'
 import { fail, ok, type Result } from '@core/result'
-import { carryCapFor, itemCapFor } from './capacity'
+import { bagAdd, bagMove, bagRemove, bagRoom } from './bag'
+import { itemCapFor } from './capacity'
 import { isConditionMet, isGearUnlocked, isUpgradeUnlocked, isWorkerUnlocked, isZoneUnlocked } from './conditions'
 import { bulkCost, maxAffordable } from './curves'
 import { findBranch, findUpgrade, findWorker } from './lookup'
+import { looseById, removeLoose } from './loose'
 import { collectModifiers } from './modifiers'
-import { addBag, addResource, addStock, getBag, getResource, getStock } from './state'
+import { addResource, addStock, getBag, getResource, getStock } from './state'
 import type { GameContent, GameState, ItemId } from './types'
 import { zoneOfItem } from './zones'
 
@@ -104,6 +106,7 @@ export function performAction(
 
   // Every item lives in the warehouse of the yard that consumes it — money stays
   // in the global pool (`domain/zones.ts` is the single source for that).
+  const mods = collectModifiers(state, content)
   const inBin = (item: ItemId): Decimal => {
     const zone = zoneOfItem(content, item)
     return zone ? getStock(state, zone, item) : getResource(state, item)
@@ -115,7 +118,7 @@ export function performAction(
   }
   // Output: zone items land in the bag, global items (money) in the pool.
   const store = (item: ItemId, amount: Decimal): void => {
-    if (zoneOfItem(content, item)) addBag(state, item, amount)
+    if (zoneOfItem(content, item)) bagAdd(state, content, mods, item, amount)
     else addResource(state, item, amount)
   }
 
@@ -123,15 +126,18 @@ export function performAction(
     const available = getBag(state, action.input.item).add(inBin(action.input.item))
     if (available.lt(action.input.amount)) return fail('no-input')
   }
-  const carry = carryCapFor(content, action.output.item, collectModifiers(state, content))
-  if (carry && getBag(state, action.output.item).add(action.output.amount).gt(carry)) return fail('bag-full')
+  // Zone items go to the bag, so the output must fit across its free slots.
+  if (
+    zoneOfItem(content, action.output.item) &&
+    bagRoom(state, content, mods, action.output.item).lt(action.output.amount)
+  ) {
+    return fail('bag-full')
+  }
 
   if (action.input) {
     // Spend what is already in the bag first — that is the loot the player just
     // gathered — and only then dip into the warehouse.
-    const carried = getBag(state, action.input.item)
-    const fromBag = carried.lt(action.input.amount) ? carried : action.input.amount
-    if (fromBag.gt(0)) addBag(state, action.input.item, fromBag.neg())
+    const fromBag = bagRemove(state, action.input.item, action.input.amount)
     const rest = action.input.amount.sub(fromBag)
     if (rest.gt(0)) storeInBin(action.input.item, rest.neg())
   }
@@ -200,34 +206,68 @@ export function takeToBag(
 
   const stored = getStock(state, zoneId, itemId)
   if (stored.lte(0)) return fail('no-stock')
-  const carry = carryCapFor(content, itemId, collectModifiers(state, content))
-  const room = carry ? carry.sub(getBag(state, itemId)) : stored
+  const mods = collectModifiers(state, content)
+  const room = bagRoom(state, content, mods, itemId)
   if (room.lte(0)) return fail('bag-full')
 
   const moved = stored.lt(room) ? stored : room
   addStock(state, zoneId, itemId, moved.neg())
-  addBag(state, itemId, moved)
+  bagAdd(state, content, mods, itemId, moved)
   return ok({ item: itemId, moved })
 }
 
-/** Stores carried goods into the warehouse of the yard the player stands in — as much as fits. */
+/** Stores the stack sitting in one bag slot into the warehouse of the yard the player stands in. */
 export function putFromBag(
   state: GameState,
   content: GameContent,
   zoneId: string,
-  itemId: ItemId,
+  slotIndex: number,
 ): Result<BagMoveValue> {
+  const slot = state.bag[slotIndex]
+  if (!slot) return fail('empty-bag')
+  const itemId = slot.item
   const bad = bagMoveGuard(state, content, zoneId, itemId)
   if (bad) return fail(bad)
 
-  const carried = getBag(state, itemId)
-  if (carried.lte(0)) return fail('empty-bag')
   const cap = itemCapFor(content, itemId, collectModifiers(state, content))
-  const room = cap ? cap.sub(getStock(state, zoneId, itemId)) : carried
+  const room = cap ? cap.sub(getStock(state, zoneId, itemId)) : slot.amount
   if (room.lte(0)) return fail('zone-full')
 
-  const moved = carried.lt(room) ? carried : room
-  addBag(state, itemId, moved.neg())
+  const moved = slot.amount.lt(room) ? slot.amount : room
+  slot.amount = slot.amount.sub(moved)
+  if (slot.amount.lte(0)) state.bag[slotIndex] = null
   addStock(state, zoneId, itemId, moved)
   return ok({ item: itemId, moved })
+}
+
+/**
+ * Rearranges the bag by hand (drag-and-drop): drops a stack into an empty slot,
+ * merges it into a slot holding the same item, or swaps two slots. Touches no
+ * zone, so it works anywhere the player stands.
+ */
+export function moveBagSlot(state: GameState, content: GameContent, from: number, to: number): Result<null> {
+  const mods = collectModifiers(state, content)
+  if (!bagMove(state, content, mods, from, to)) return fail('nothing-moved')
+  return ok(null)
+}
+
+export interface PickLooseValue {
+  item: ItemId
+  amount: Decimal
+}
+
+/**
+ * Picks up one piece of debris lying in a yard. The piece is chosen by the scene
+ * (it knows where the player stands and which piece is in reach) and passed by
+ * id; the command only checks the piece still exists and the bag has room, then
+ * hands the item over and lifts the piece off the floor.
+ */
+export function pickLoose(state: GameState, content: GameContent, looseId: number): Result<PickLooseValue> {
+  const piece = looseById(state, looseId)
+  if (!piece) return fail('loose-missing')
+  const mods = collectModifiers(state, content)
+  if (bagRoom(state, content, mods, piece.item).lt(piece.amount)) return fail('bag-full')
+  bagAdd(state, content, mods, piece.item, piece.amount)
+  removeLoose(state, looseId)
+  return ok({ item: piece.item, amount: piece.amount })
 }

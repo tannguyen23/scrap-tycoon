@@ -4,6 +4,7 @@ import { BALANCE } from './balance'
 import { SCRAP_BRANCH } from './branches/scrap'
 import { GEAR } from './gear'
 import { ITEMS, MONEY_ITEM } from './items'
+import { LOOSE_SPAWNS } from './loose'
 import { MILESTONES } from './milestones'
 import { WEATHER } from './weather'
 import { ZONES } from './zones'
@@ -24,4 +25,6 @@ export const GAME_CONTENT: GameContent = {
   gear: GEAR,
   weather: WEATHER,
   simulation: { offlineChunkSeconds: BALANCE.offlineChunkSeconds },
+  bagSlots: BALANCE.bagSlots,
+  loose: LOOSE_SPAWNS,
 }

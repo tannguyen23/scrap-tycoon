@@ -1,7 +1,8 @@
 import { stockRatio, zoneStockItem, zoneTiers } from '@domain/selectors'
 import type { GameContent, GameState } from '@domain/types'
 import { t, type Locale } from '@i18n/types'
-import type { SceneFeed, ZoneFeed } from '@scene/core/feed'
+import type { LooseFeed, SceneFeed, ZoneFeed } from '@scene/core/feed'
+import { looseLocalPoint } from './loose'
 
 /**
  * Turns the game's state into the plain readout the scene kit renders from. This
@@ -43,6 +44,12 @@ export function buildSceneFeed(content: GameContent, state: GameState, locale: L
   }
 
   const zones: Record<string, ZoneFeed> = {}
+  const looseByZone: Record<string, LooseFeed[]> = {}
+  for (const piece of state.loose.items) {
+    const list = looseByZone[piece.zone] ?? (looseByZone[piece.zone] = [])
+    const point = looseLocalPoint(piece.zone, piece.id)
+    list.push({ id: piece.id, item: piece.item, x: point.x, y: point.y })
+  }
   for (const zoneId of Object.keys(content.zones)) {
     const stockItem = zoneStockItem(content, zoneId)
     const ratio = stockItem ? stockRatio(state, content, stockItem) : null
@@ -52,6 +59,7 @@ export function buildSceneFeed(content: GameContent, state: GameState, locale: L
       tier: tiers.get(zoneId) ?? 0,
       stock01: ratio ?? -1,
       labels: { produced: itemLabel(zoneItems[zoneId]), money: moneyLabel },
+      loose: looseByZone[zoneId] ?? [],
     }
   }
 

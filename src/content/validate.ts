@@ -27,6 +27,24 @@ export function validateContent(content: GameContent): string[] {
     errors.push('simulation.offlineChunkSeconds must be > 0')
   }
 
+  if (content.bagSlots !== undefined && (!Number.isInteger(content.bagSlots) || content.bagSlots < 1)) {
+    errors.push('bagSlots must be an integer >= 1 (or absent for the default)')
+  }
+
+  if (content.loose) {
+    const seen = new Set<string>()
+    for (const def of content.loose) {
+      const where = `loose "${def.zone}:${def.item}"`
+      if (!(def.zone in content.zones)) errors.push(`${where}: unknown zone "${def.zone}"`)
+      if (!(def.item in content.items)) errors.push(`${where}: unknown item "${def.item}"`)
+      if (def.amount.lte(0)) errors.push(`${where}: amount must be > 0`)
+      if (!(def.secondsPerItem > 0)) errors.push(`${where}: secondsPerItem must be > 0`)
+      if (!Number.isInteger(def.cap) || def.cap < 1) errors.push(`${where}: cap must be an integer >= 1`)
+      if (seen.has(where)) errors.push(`${where}: duplicate def for zone + item`)
+      seen.add(where)
+    }
+  }
+
   for (const [key, zone] of Object.entries(content.zones)) {
     if (zone.id !== key) {
       errors.push(`zone key "${key}" does not match id "${zone.id}"`)

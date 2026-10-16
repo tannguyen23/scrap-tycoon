@@ -32,6 +32,12 @@ export interface PlayerReadout {
   working: boolean
 }
 
+/** A piece of debris the player is close enough to pick up. */
+export interface PickableLoose {
+  readonly id: number
+  readonly item: string
+}
+
 export interface PlayerLayer {
   readonly root: Container
   /** Read by reference every frame by the camera — do not replace the object. */

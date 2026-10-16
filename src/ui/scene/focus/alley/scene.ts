@@ -22,6 +22,7 @@ import {
   drawBagPile,
   drawBottle,
   drawFlatTire,
+  drawLooseScrap,
   drawPallet,
   drawTippedBin,
   drawTippedDrum,
@@ -270,6 +271,11 @@ export function createAlleyDetail(rect: ZoneRect, tiles: TilePainter): DetailSce
   pileFullMark.visible = false
   root.addChild(pileFullMark)
 
+  // Món rời nhặt được: mỗi món một node depth riêng (y = đường chân) để y-sort đúng —
+  // nhân vật đi ra sau/trước mẩu sắt như mọi diễn viên. Chỉ dựng/xoá node khi danh sách
+  // đổi; `setState` chạy mỗi nhịp feed nên không được dựng lại từ đầu.
+  const looseNodes = new Map<number, Container>()
+
   const setState = (state: DetailSceneState): void => {
     popups.setLabels(state.labels)
     desiredPickers = Math.min(state.actions.pick ?? 0, PICKER_CAP)
@@ -300,6 +306,26 @@ export function createAlleyDetail(rect: ZoneRect, tiles: TilePainter): DetailSce
       scrapPile.clear()
       drawBagPile(scrapPile, dropoff.x, dropoff.y - 2, level)
       pileLevel = level
+    }
+
+    const loose = state.loose ?? []
+    const live = new Set(loose.map((piece) => piece.id))
+    for (const [id, node] of looseNodes) {
+      if (live.has(id)) continue
+      node.parent?.removeChild(node)
+      node.destroy({ children: true })
+      looseNodes.delete(id)
+    }
+    for (const piece of loose) {
+      if (looseNodes.has(piece.id)) continue
+      const art = new Graphics()
+      art.position.set(0, -piece.y)
+      drawLooseScrap(art, piece.x, piece.y, piece.id)
+      const node = new Container()
+      node.position.set(0, piece.y)
+      node.addChild(art)
+      actors.addChild(node)
+      looseNodes.set(piece.id, node)
     }
   }
 

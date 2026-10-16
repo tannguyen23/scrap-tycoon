@@ -4,7 +4,7 @@ import type { GameContent, GameState, WorkPose } from '@domain/types'
 import type { LocaleStore } from '@i18n/locale'
 import { t, type L10n, type Locale } from '@i18n/types'
 import { createContext, useContext, useEffect, useRef, useState, useSyncExternalStore } from 'react'
-import type { PlayerReadout } from './scene/player'
+import type { PickableLoose, PlayerReadout } from './scene/player'
 import type { SoundSettings, SoundStore } from './sound/settings'
 import type { ThemeMode, ThemeStore } from './theme'
 
@@ -25,6 +25,8 @@ export interface SceneBridge {
    * sidebar at frame rate.
    */
   player: () => PlayerReadout | null
+  /** Debris piece the player stands next to, if any (polled like `player`). */
+  pickable: () => PickableLoose | null
   /** Bring the camera back to the player after a manual look-around. */
   focusPlayer: () => void
   /** Start/stop the hand-work animation on the player's body (the bar owns the timer). */
@@ -35,6 +37,7 @@ export const SceneBridgeContext = createContext<SceneBridge>({
   highlight: () => {},
   panTo: () => {},
   player: () => null,
+  pickable: () => null,
   focusPlayer: () => {},
   setWorking: () => {},
 })

@@ -6,7 +6,9 @@ import {
   buyGear,
   buyUpgrade,
   buyWorker,
+  moveBagSlot,
   performAction,
+  pickLoose,
   putFromBag,
   takeToBag,
   type BagMoveValue,
@@ -14,6 +16,7 @@ import {
   type BuyUpgradeValue,
   type BuyWorkerValue,
   type PerformActionValue,
+  type PickLooseValue,
 } from '@domain/commands'
 import type { EngineApi } from '@domain/engine-api'
 import { completedMilestoneIds, newlyCompletedMilestones } from '@domain/milestones'
@@ -94,6 +97,14 @@ export class Engine implements EngineApi {
     return result ?? fail('command-did-not-run')
   }
 
+  pickLoose(looseId: number): Result<PickLooseValue> {
+    let result: Result<PickLooseValue> | undefined
+    this.store.update((draft) => {
+      result = pickLoose(draft, this.content, looseId)
+    })
+    return result ?? fail('command-did-not-run')
+  }
+
   takeToBag(zoneId: string, itemId: string): Result<BagMoveValue> {
     let result: Result<BagMoveValue> | undefined
     this.store.update((draft) => {
@@ -102,10 +113,18 @@ export class Engine implements EngineApi {
     return result ?? fail('command-did-not-run')
   }
 
-  putFromBag(zoneId: string, itemId: string): Result<BagMoveValue> {
+  putFromBag(zoneId: string, slotIndex: number): Result<BagMoveValue> {
     let result: Result<BagMoveValue> | undefined
     this.store.update((draft) => {
-      result = putFromBag(draft, this.content, zoneId, itemId)
+      result = putFromBag(draft, this.content, zoneId, slotIndex)
+    })
+    return result ?? fail('command-did-not-run')
+  }
+
+  moveBagSlot(from: number, to: number): Result<null> {
+    let result: Result<null> | undefined
+    this.store.update((draft) => {
+      result = moveBagSlot(draft, this.content, from, to)
     })
     return result ?? fail('command-did-not-run')
   }

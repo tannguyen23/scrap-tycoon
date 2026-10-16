@@ -1,4 +1,4 @@
-export const SAVE_VERSION = 4
+export const SAVE_VERSION = 5
 
 export interface SerializedBranchState {
   workers: Record<string, number>
@@ -15,10 +15,12 @@ export interface SerializedState {
    */
   stock: Record<string, string>
   /**
-   * What the player carries in their bag, flattened by item id. The bag belongs
-   * to no zone, so it is its own section instead of sharing the `stock` map.
+   * The player's bag as a fixed-length list of slots, `null` for an empty one.
+   * The bag belongs to no zone, so it is its own section instead of sharing the
+   * `stock` map — and the slots (gaps included) are kept so the player's
+   * arrangement survives a reload.
    */
-  bag: Record<string, string>
+  bag: ({ item: string; amount: string } | null)[]
   /** Gear the player owns by id — owning a piece is wearing it. */
   gear: Record<string, true>
   branches: Record<string, SerializedBranchState>

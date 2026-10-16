@@ -1,5 +1,7 @@
 import { D0, Decimal } from '@core/num'
 import type { SerializedState } from '@core/save/schema'
+import { bagPlaceFrom, bagTotal, emptyBag } from './bag'
+import type { Modifiers } from './modifiers'
 import type { GameContent, GameState, ItemId, ZoneId } from './types'
 import { itemZones } from './zones'
 
@@ -22,13 +24,9 @@ export function addStock(state: GameState, zoneId: ZoneId, itemId: ItemId, amoun
   bucket[itemId] = (bucket[itemId] ?? D0).add(amount)
 }
 
-/** What the player is carrying — a pool of its own, owned by no zone. */
+/** Everything the player carries of one item, summed across the bag's slots. */
 export function getBag(state: GameState, itemId: ItemId): Decimal {
-  return state.bag[itemId] ?? D0
-}
-
-export function addBag(state: GameState, itemId: ItemId, amount: Decimal): void {
-  state.bag[itemId] = getBag(state, itemId).add(amount)
+  return bagTotal(state, itemId)
 }
 
 /** Deep-enough clone for projections (UI income previews, offline math on copies). */
@@ -47,10 +45,15 @@ export function cloneState(state: GameState): GameState {
   return {
     resources: { ...state.resources },
     stock,
-    bag: { ...state.bag },
+    bag: state.bag.map((slot) => (slot ? { item: slot.item, amount: slot.amount } : null)),
     gear: { ...state.gear },
     branches,
     stats: { ...state.stats },
+    loose: {
+      items: state.loose.items.map((piece) => ({ ...piece })),
+      clocks: { ...state.loose.clocks },
+      seq: state.loose.seq,
+    },
   }
 }
 
@@ -78,7 +81,15 @@ export function createFreshState(content: GameContent, startMoney: Decimal): Gam
     branches[branch.id] = { workers: {}, upgrades: {} }
   }
 
-  return { resources, stock, bag: {}, gear: {}, branches, stats: { totalEarned: D0, playTimeS: 0 } }
+  return {
+    resources,
+    stock,
+    bag: emptyBag(content),
+    gear: {},
+    branches,
+    stats: { totalEarned: D0, playTimeS: 0 },
+    loose: { items: [], clocks: {}, seq: 0 },
+  }
 }
 
 export function stateToSerialized(state: GameState): SerializedState {
@@ -105,12 +116,9 @@ export function stateToSerialized(state: GameState): SerializedState {
     }
   }
 
-  // The bag is its own section, keyed by item id: it belongs to no zone, so it
-  // must never be flattened together with the warehouse `stock`.
-  const bag: Record<string, string> = {}
-  for (const [itemId, amount] of Object.entries(state.bag)) {
-    bag[itemId] = amount.toString()
-  }
+  // The bag keeps its shape on disk — one entry per slot, `null` for an empty one
+  // — so the player's arrangement survives a reload instead of collapsing.
+  const bag = state.bag.map((slot) => (slot ? { item: slot.item, amount: slot.amount.toString() } : null))
 
   return {
     resources,
@@ -177,20 +185,40 @@ export function stateFromSerialized(
     assign(itemId, rawValue)
   }
 
-  // The bag is global (no zone routing, no cap clamping): whatever the player
-  // was carrying comes back as it was, minus ids content no longer knows.
-  const rawBag: Record<string, unknown> = isRecord(serialized.bag) ? serialized.bag : {}
-  for (const [itemId, rawValue] of Object.entries(rawBag)) {
+  // The bag reads either shape: the v5 slot list, or the older flat record of
+  // item → amount (what a v4 save migrates through). Slots are rebuilt in place so
+  // a saved arrangement keeps its gaps; a stack past the item's ceiling splits into
+  // following slots, and anything that still does not fit is dropped with a
+  // warning, never left as inert data.
+  const bagMods = new Map<string, Modifiers>()
+  const placeInBag = (from: number, itemId: string, amount: Decimal): void => {
     if (!(itemId in content.items)) {
       warnings.push(`pruned unknown bag item "${itemId}"`)
-      continue
+      return
     }
-    const amount = parseAmount(rawValue)
-    if (amount === null) {
-      warnings.push(`dropped invalid bag amount for item "${itemId}"`)
-      continue
+    const added = bagPlaceFrom(state, content, bagMods, from, itemId, amount)
+    if (added.lt(amount)) warnings.push(`bag overflow: dropped ${amount.sub(added).toString()} of "${itemId}"`)
+  }
+  const rawBag: unknown = serialized.bag
+  if (Array.isArray(rawBag)) {
+    for (let index = 0; index < rawBag.length; index++) {
+      const entry = rawBag[index]
+      if (!isRecord(entry)) continue
+      const itemId = entry['item']
+      if (typeof itemId !== 'string') continue
+      const amount = parseAmount(entry['amount'])
+      if (amount === null || amount.lte(0)) continue
+      placeInBag(index, itemId, amount)
     }
-    state.bag[itemId] = amount
+  } else if (isRecord(rawBag)) {
+    for (const [itemId, rawValue] of Object.entries(rawBag)) {
+      const amount = parseAmount(rawValue)
+      if (amount === null || amount.lte(0)) {
+        warnings.push(`dropped invalid bag amount for item "${itemId}"`)
+        continue
+      }
+      placeInBag(0, itemId, amount)
+    }
   }
 
   // Gear is a set of owned ids: keep the ones content still declares, drop the rest.

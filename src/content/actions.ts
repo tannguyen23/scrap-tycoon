@@ -23,15 +23,6 @@ export const MANUAL_ACTIONS: readonly ManualActionDef[] = [
     output: { item: SACK_ITEM, amount: new Decimal(3) },
   },
   {
-    id: 'poke-cans',
-    name: { vi: 'Chọt lon', en: 'Poke cans' },
-    desc: { vi: 'Chọc que vào đống phế liệu, nhặt sắt vụn bỏ vào bao.', en: 'Work the pile with a stick and gather scrap.' },
-    zone: 'alley',
-    pose: 'poke',
-    workSeconds: 1.2,
-    output: { item: SCRAP_ITEM, amount: new Decimal(2) },
-  },
-  {
     id: 'hammer-billets',
     name: { vi: 'Đập đe', en: 'Hammer billets' },
     desc: { vi: 'Nện bao phế liệu lên đe thành phôi tái chế.', en: 'Beat the sacks on the anvil into recycled billets.' },

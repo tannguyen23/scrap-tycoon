@@ -15,10 +15,12 @@ export interface ZoneCardProps {
   branchId: string
   workers: readonly WorkerDef[]
   state: GameState
+  /** Extra step when the card pans the camera — the menu closes so the jump is visible. */
+  onJump?: () => void
 }
 
 /** One HUD card per map zone: hover to highlight it on the map, click to pan there. */
-export function ZoneCard({ zoneId, branchId, workers, state }: ZoneCardProps) {
+export function ZoneCard({ zoneId, branchId, workers, state, onJump }: ZoneCardProps) {
   const content = useContent()
   const text = useText()
   const locale = useLocale()
@@ -41,6 +43,7 @@ export function ZoneCard({ zoneId, branchId, workers, state }: ZoneCardProps) {
       onClick={() => {
         bridge.panTo(zoneId)
         playSound('click')
+        onJump?.()
       }}
     >
       <header className="zone-header">
