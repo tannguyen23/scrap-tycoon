@@ -18,6 +18,10 @@ const COST_GROWTH = new Decimal('1.15')
 export const SCRAP_BRANCH: BranchDef = {
   id: BRANCH_ID,
   name: { vi: 'Đồng nát', en: 'Scrap Collecting' },
+  // Bãi ve chai là BA thửa đất: bãi làm việc (`alley`) + hai bãi hàng chờ gameplay
+  // (`tires`, `appliances`). Khai ở đây để sidebar hiện đủ ba card khu ngay cả khi hai
+  // bãi kia chưa có thợ nào.
+  zones: ['alley', 'tires', 'appliances', 'recycle', 'route', 'depot', 'gate'],
   workers: [
     {
       id: 'scavenger',

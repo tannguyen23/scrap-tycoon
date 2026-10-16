@@ -22,6 +22,6 @@ export const BALANCE = {
   offlineModalThresholdSeconds: 60,
   /** rAF gaps longer than this are treated as an absence instead of ticks. */
   gapThresholdSeconds: 5,
-  /** Starting wallet, enough to buy the first worker (there is no click mechanic yet). */
+  /** Starting wallet, enough to buy the first worker before hand work pays off. */
   startMoney: new Decimal(10),
 } as const

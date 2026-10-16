@@ -16,9 +16,32 @@ import { createPopups } from '../popups'
 import type { DetailScene, DetailSceneState, Spot } from '@scene/core/types'
 import { createSmith, type SmithActor } from './actors'
 import { createForgeLife } from './life'
+import type { ZoneProp } from '../props'
 
 const CAP = 4
 const MAX_SACKS = 9
+
+/**
+ * Đế chặn của xưởng — art vẽ tay ngay trong scene nên ở đây chỉ khai ĐẾ, khai cạnh chỗ
+ * vẽ (xem `../props.ts`). Nhà xưởng cố ý **CHỈ chặn tường sau + hai trụ**, không bao cả
+ * nhà: comment của `drawForgeShed` ghi rõ nó sort theo mép BẮC để lòng xưởng không bao
+ * giờ bị mái che — thợ rèn làm việc trong đó, chặn cả nhà là khoá luôn cái lò.
+ *
+ * Chồng bao vào KHÔNG khai đế: nó lớn lên theo tồn kho (rỗng thì không có gì ở đó).
+ */
+export const RECYCLE_PROPS: readonly ZoneProp[] = [
+  { kind: 'fixed', x: 184, y: 76, half: 48, height: 42 },
+  { kind: 'fixed', x: 122, y: 76, half: 4, height: 58 },
+  { kind: 'fixed', x: 255, y: 76, half: 4, height: 58 },
+  { kind: 'fixed', x: 198, y: 96, half: 11, height: 13 },
+  { kind: 'fixed', x: 116, y: 152, half: 16, height: 13 },
+  { kind: 'fixed', x: 150, y: 62, half: 14, height: 14 },
+  { kind: 'fixed', x: 170, y: 76, half: 4, height: 14 },
+  { kind: 'fixed', x: 78, y: 56, half: 8, height: 22 },
+  { kind: 'fixed', x: 96, y: 52, half: 8, height: 22 },
+  { kind: 'fixed', x: 34, y: 44, half: 19, height: 36 },
+  { kind: 'fixed', x: 232, y: 130, half: 25, height: 29 },
+]
 
 /** Chồng bao vào + pallet ra, vẽ lại khi tồn kho đổi. */
 function drawSackStack(pile: Container, x: number, baseY: number, count: number): void {

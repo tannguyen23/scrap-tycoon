@@ -42,6 +42,12 @@ export interface ItemDef {
    * `item.<id>.capacity` stat key; weather never shrinks a bin.
    */
   readonly cap?: Decimal | null
+  /**
+   * How much of this item fits in the player's BAG (undefined/null = no bag
+   * limit). Separate from `cap`, which is a zone warehouse ceiling; upgrades can
+   * raise it through the `item.<id>.carry` stat key.
+   */
+  readonly carry?: Decimal | null
 }
 
 export interface ZoneDef {
@@ -132,10 +138,42 @@ export interface UpgradeDef {
   readonly requires?: Condition
 }
 
+/** Where a piece of gear is worn. One piece per slot (`gearRows`). */
+export type GearSlot = 'hat' | 'shirt' | 'pants' | 'boots'
+
+/** Slot order on the character sheet — the HUD grid never reshuffles. */
+export const GEAR_SLOTS: readonly GearSlot[] = ['hat', 'shirt', 'pants', 'boots']
+
+/**
+ * A piece of gear the player buys and wears. Unlike an upgrade it belongs to the
+ * *character*: it feeds the same modifier pipeline (owning it is enough to be
+ * wearing it, since content keeps one piece per slot) and it also carries the art
+ * style the body draws itself with.
+ */
+export interface GearDef {
+  readonly id: string
+  readonly slot: GearSlot
+  readonly name: L10n
+  readonly desc: L10n
+  readonly cost: Decimal
+  readonly effects: readonly StatEffect[]
+  /** Art style key, looked up in `ui/scene/focus/parts.ts`. */
+  readonly style: string
+  /** Progression gate: the piece stays locked until met. */
+  readonly requires?: Condition
+}
+
 export interface BranchDef {
   readonly id: BranchId
   readonly name: L10n
   readonly workers: readonly WorkerDef[]
+  /**
+   * Zones this branch works in, in HUD order. Declared rather than derived from
+   * `worker.visual.zone` because a zone can be part of the branch before it has a
+   * single worker (a yard kept for gameplay still shows its card). Zones that have
+   * workers but are missing from the list still get a card, appended after these.
+   */
+  readonly zones?: readonly ZoneId[]
   readonly recipes: readonly RecipeDef[]
   readonly upgrades: readonly UpgradeDef[]
   /** Progression gate: the whole branch stays locked until met. */
@@ -200,6 +238,8 @@ export interface GameContent {
   readonly milestones?: readonly MilestoneDef[]
   /** Optional hand-work jobs the player can do on the map. */
   readonly actions?: readonly ManualActionDef[]
+  /** Optional gear the player can buy and wear; absent content means none. */
+  readonly gear?: readonly GearDef[]
   /** Optional weather schedule; absent content means no weather at all. */
   readonly weather?: WeatherProfile
   readonly simulation?: SimulationTuning
@@ -227,6 +267,17 @@ export interface GameState {
    * item ↔ zone edits never need a save migration.
    */
   stock: Record<ZoneId, Record<ItemId, Decimal>>
+  /**
+   * What the player carries in their bag (item → amount). Not tied to any zone:
+   * goods in the bag are out of the chain until the player stores them in the
+   * warehouse of the zone that owns them (`domain/zones.ts`).
+   */
+  bag: Record<ItemId, Decimal>
+  /**
+   * Gear the player owns, by id — owning a piece is wearing it (content keeps one
+   * piece per slot), so there is no separate "equipped" set to keep in sync.
+   */
+  gear: Record<string, true>
   branches: Record<BranchId, BranchState>
   stats: {
     totalEarned: Decimal

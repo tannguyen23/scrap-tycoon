@@ -4,7 +4,7 @@ import { Container } from 'pixi.js'
 import { playSound } from '@ui/sound/player'
 import type { HeldItem } from '../focus/heldItems'
 import { equipItems } from '../focus/heldItems'
-import { createPersonSprite, dustPuff, Particles } from '../focus/parts'
+import { createPersonSprite, dustPuff, Particles, type BodyStyle } from '../focus/parts'
 import { HAMMER, PICK, POKE, restPose, walkPose, type WorkAction } from '../focus/poses'
 import { installMoveKeys, isSprinting, moveVector, type MoveKeys } from './keys'
 import { buildBlockers, slideMove, WALKER_RADIUS, zoneAt, type Blockers, type Spot } from './walkable'
@@ -39,14 +39,24 @@ export interface PlayerLayer {
   update(dt: number, view: Rect): void
   /** Start (or stop) a hand-work animation; the HUD owns how long a stroke takes. */
   setWorking(pose: WorkPose | null): void
+  /** Stand still while a full-screen HUD panel owns the screen (the inventory). */
+  setFrozen(frozen: boolean): void
+  /** Dress the body from gear (`BodyStyle`); rebuilds the sprite, keeping the kits. */
+  setLook(look: BodyStyle): void
+  /** Gear bonus applied on top of the base walk speed (modifier pipeline). */
+  setWalkMultiplier(multiplier: number): void
   readout(): PlayerReadout
   destroy(): void
 }
 
-/** Spawn just inside the alley's south gate — the chain's first yard. */
-export const PLAYER_SPAWN: Spot = { x: 4098, y: 2392 }
+/**
+ * Spawn just inside the alley's south gate — the chain's first yard. Deliberately BESIDE
+ * the gather pile, not on it: the pile's base box blocks (as every standing prop does),
+ * and a walker spawned inside a box cannot take a single step.
+ */
+export const PLAYER_SPAWN: Spot = { x: 4120, y: 2396 }
 
-/** Yards are ~300px wide; a walker at courier speed would take a minute to cross one. */
+/** Yards run from ~250px (the depot) to 672px (the scrap alley); walking one takes a few seconds. */
 export const WALK_SPEED = 62
 export const SPRINT_MULTIPLIER = 1.7
 /** Seconds per walk frame — matched to the couriers' cadence. */
@@ -76,30 +86,6 @@ export function createPlayer(options: PlayerOptions): PlayerLayer {
   const keys: MoveKeys = installMoveKeys()
   const position: Spot = { ...(options.spawn ?? PLAYER_SPAWN) }
 
-  // Layer container (owned by the kit, always in the world) and the body that
-  // travels between the world and a yard's depth layer.
-  const root = new Container()
-  const body = new Container()
-  const sprite = createPersonSprite(0, 'straw')
-  const particles = new Particles()
-  body.addChild(sprite.container, particles.container)
-  root.addChild(body)
-
-  // Every kit is worn once and toggled per pose: re-equipping on each change
-  // would stack a second stick into the same hand.
-  const kits = new Map<WorkAction, Record<string, HeldItem>>()
-  for (const action of [PICK, POKE, HAMMER]) {
-    if (!action.items) continue
-    kits.set(action, equipItems(sprite, action.items))
-  }
-  const wearKit = (action: WorkAction | null): void => {
-    for (const [owner, items] of kits) {
-      const visible = owner === action
-      for (const item of Object.values(items)) item.container.visible = visible
-    }
-  }
-  wearKit(null)
-
   let facing = 1
   let clock = 0
   let workClock = 0
@@ -107,6 +93,53 @@ export function createPlayer(options: PlayerOptions): PlayerLayer {
   let step = 0
   let moving = false
   let working: WorkPose | null = null
+  /** True while a HUD panel holds the screen — the walker stands still. */
+  let frozen = false
+  /** Gear bonus on top of `WALK_SPEED` (from the modifier pipeline, pushed by the scene). */
+  let walkMultiplier = 1
+
+  // Layer container (owned by the kit, always in the world) and the body that
+  // travels between the world and a yard's depth layer.
+  const root = new Container()
+  const body = new Container()
+  let sprite = createPersonSprite(0, 'straw')
+  const particles = new Particles()
+  body.addChild(sprite.container, particles.container)
+  root.addChild(body)
+
+  // Every kit is worn once and toggled per pose: re-equipping on each change
+  // would stack a second stick into the same hand.
+  const kits = new Map<WorkAction, Record<string, HeldItem>>()
+  const wearKit = (action: WorkAction | null): void => {
+    for (const [owner, items] of kits) {
+      const visible = owner === action
+      for (const item of Object.values(items)) item.container.visible = visible
+    }
+  }
+  const dressKits = (): void => {
+    kits.clear()
+    for (const action of [PICK, POKE, HAMMER]) {
+      if (!action.items) continue
+      kits.set(action, equipItems(sprite, action.items))
+    }
+    wearKit(working ? POSES[working] : null)
+  }
+  /**
+   * Rebuilds the body with a new look (gear). A rebuild — rather than making every
+   * limb layer runtime-swappable — keeps `createPersonSprite` the single place that
+   * draws a person; the kits travel with the arms, so they are re-worn here.
+   */
+  const dress = (look: BodyStyle): void => {
+    const previous = sprite
+    const index = body.getChildIndex(previous.container)
+    sprite = createPersonSprite(0, 'straw', look)
+    body.addChildAt(sprite.container, index)
+    body.removeChild(previous.container)
+    previous.container.destroy({ children: true })
+    dressKits()
+  }
+  dressKits()
+
   /** Space the body is parented in: null = the wild, otherwise a yard id. */
   let hostZone: string | null = null
 
@@ -125,9 +158,9 @@ export function createPlayer(options: PlayerOptions): PlayerLayer {
 
   const update = (dt: number, _view: Rect): void => {
     clock += dt
-    const vector = moveVector(keys.pressed)
+    const vector = frozen ? { x: 0, y: 0 } : moveVector(keys.pressed)
     const wanted = vector.x !== 0 || vector.y !== 0
-    const speed = WALK_SPEED * (isSprinting(keys.pressed) ? SPRINT_MULTIPLIER : 1)
+    const speed = WALK_SPEED * (isSprinting(keys.pressed) ? SPRINT_MULTIPLIER : 1) * walkMultiplier
 
     const beforeX = position.x
     const beforeY = position.y
@@ -195,6 +228,16 @@ export function createPlayer(options: PlayerOptions): PlayerLayer {
       if (pose === working) return
       working = pose
       workClock = 0
+    },
+    setFrozen: (next) => {
+      frozen = next
+      // Keys held when the panel opened would otherwise keep the walker running
+      // (its keydown is already gone, so the keyup would never clear them).
+      if (next) keys.clear()
+    },
+    setLook: (look) => dress(look),
+    setWalkMultiplier: (next) => {
+      walkMultiplier = next > 0 ? next : 1
     },
     readout: () => ({ x: position.x, y: position.y, zone: hostZone, moving, working: working !== null }),
     destroy: () => keys.dispose(),

@@ -19,6 +19,7 @@ import {
   createSack,
   createScrapBit,
   createSpokeWheel,
+  type BodyStyle,
   type PersonSprite,
   type SpokeWheel,
 } from '@ui/scene/focus/parts'
@@ -44,7 +45,9 @@ const STUDIO_LABELS = { produced: 'Sắt vụn', money: 'Tiền' }
  * with a window (the exact mechanism the scene chunks by), so a preview stays a
  * few screens of real art instead of allocating a 58-million-pixel canvas.
  */
-const CORE_WINDOW = { x: 3712, y: 1888, width: 3008, height: 1408 }
+// The scrap plots spread out (wider corridors) so the window that framed the core
+// had to grow west/north with them, or the lighting/weather tabs clip their corner.
+const CORE_WINDOW = { x: 3332, y: 1596, width: 3388, height: 1700 }
 
 /** The map schematic is drawn to scale — the world is 16:9, so it fits one screen. */
 const LAYOUT_SCALE = 0.1
@@ -121,6 +124,49 @@ export const CHARACTERS: readonly CharacterSpec[] = [
 
 const CHAR_SCALE = 3
 const BAG_CANS = 3
+
+/**
+ * Gear ladder: one body per step — bare, then each piece added on top of the last,
+ * walking in place so the sleeves, yếm straps and boot cuffs can be judged in
+ * motion. Bodies come from the game's own `createPersonSprite`, so what is reviewed
+ * here is exactly what the player wears.
+ */
+export function buildGear(): StageScene {
+  const root = new Container()
+  const cells: StageCell[] = []
+  const sprites: PersonSprite[] = []
+  const cellW = 118
+  const cellH = 130
+
+  const looks: { label: string; style: BodyStyle }[] = [
+    { label: 'chưa có gì', style: {} },
+    { label: 'áo phản quang', style: { shirt: 'vest' } },
+    { label: '+ quần yếm', style: { shirt: 'vest', pants: 'overalls' } },
+    { label: '+ nón bảo hộ', style: { shirt: 'vest', pants: 'overalls', hat: 'hard' } },
+    { label: '+ ủng cao su', style: { shirt: 'vest', pants: 'overalls', hat: 'hard', shoes: 'boot' } },
+  ]
+
+  looks.forEach((entry, index) => {
+    const sprite = createPersonSprite(0, 'straw', entry.style)
+    sprite.container.scale.set(CHAR_SCALE)
+    sprite.container.position.set(index * cellW + cellW / 2, cellH - 18)
+    root.addChild(sprite.container)
+    sprites.push(sprite)
+    cells.push({ label: entry.label, x: index * cellW, y: cellH - 16, width: cellW, height: 14 })
+  })
+
+  let clock = 0
+  return {
+    root,
+    width: cellW * looks.length,
+    height: cellH + 6,
+    cells,
+    update: (dt) => {
+      clock += dt
+      for (const sprite of sprites) walkPose(sprite, clock)
+    },
+  }
+}
 
 interface CharActor {
   sprite: PersonSprite
@@ -317,9 +363,12 @@ export function buildZone(zoneId: string, scale: number, tier = 0): StageBuilder
     if (!layout || !factory) throw new Error(`no detail scene for zone "${zoneId}"`)
     const painter = new TilePainter(app.renderer, SCRAP_YARD_PACK)
     const detail = factory(layout.rect, painter, DEFAULT_SERVICES)
+    // Chỉ bãi làm việc có thợ; hai bãi hàng chỉ có đồ tĩnh nên đừng nhét crew giả vào.
+    const pick = zoneId === 'alley' ? 5 : 0
+    const haul = zoneId === 'alley' ? 2 : 0
     detail.setState({
-      workers: 3,
-      actions: { pick: 2, haul: 1 },
+      workers: pick + haul,
+      actions: { pick, haul },
       earnedLog10: 5,
       tier,
       labels: STUDIO_LABELS,

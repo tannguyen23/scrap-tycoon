@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { Container, Graphics } from 'pixi.js'
+import { pointInPolygon } from '@ground/core/edgeGeometry'
+import { ALLEY_HAUL_OUT, ALLEY_PROPS, ALLEY_WORK_SPOTS } from '@ui/scene/focus/alley/scene'
+import { APPLIANCES_PROPS } from '@ui/scene/focus/appliances/scene'
+import { DEPOT_PROPS } from '@ui/scene/focus/depot/scene'
+import { GATE_PROPS } from '@ui/scene/focus/gate/scene'
+import { propBase, type ZoneProp } from '@ui/scene/focus/props'
+import { RECYCLE_PROPS } from '@ui/scene/focus/recycle/scene'
+import { ROUTE_PROPS } from '@ui/scene/focus/route/scene'
+import { TIRES_PROPS } from '@ui/scene/focus/tires/scene'
 import { COURIER_RUNS } from '@ui/scene/couriers'
 import { PRIMARY_TERRAINS } from '@ground/packs/scrapYard/terrains'
 import { paintWorldGrounds, SCATTER_SKIP_RECTS } from '@ground/packs/scrapYard/worldGrounds'
@@ -13,6 +22,9 @@ import {
   WORLD_HEIGHT,
   WORLD_WIDTH,
   ZONE_LAYOUTS,
+  gateEdge,
+  outlineEdgeOf,
+  outlineRuns,
   type ZoneRect,
 } from '@ground/packs/scrapYard/worldLayout'
 
@@ -53,6 +65,7 @@ describe('lane dressing', () => {
       patchwork: () => {},
       scatter: () => {},
       paintBlob: () => {},
+      paintTrailNetwork: () => {},
       paintPath: (...args: unknown[]) => {
         calls.push(args)
       },
@@ -218,10 +231,14 @@ describe('map layout', () => {
   })
 
   it('fences every yard and leaves the road open', () => {
-    // `route` là đường chạy ngang map — rào lại là vô nghĩa.
-    expect(ZONE_LAYOUTS.route?.fenceOpenings).toBeUndefined()
-    for (const id of ['alley', 'recycle', 'depot', 'gate']) {
-      expect(ZONE_LAYOUTS[id]?.fenceOpenings?.length, `${id} fence`).toBeGreaterThan(0)
+    // `route` là đường chạy ngang map — rào lại là vô nghĩa và không khai gì cả.
+    const route = ZONE_LAYOUTS.route
+    expect(route?.fenceOpenings).toBeUndefined()
+    expect(route?.outline).toBeUndefined()
+    for (const id of ['alley', 'tires', 'appliances', 'recycle', 'depot', 'gate']) {
+      const layout = ZONE_LAYOUTS[id]
+      const ringed = (layout?.outline?.length ?? 0) >= 3 || (layout?.fenceOpenings?.length ?? 0) > 0
+      expect(ringed, `${id} phải có rào`).toBe(true)
     }
   })
 
@@ -235,6 +252,98 @@ describe('map layout', () => {
         expect(opening.from, `${id} ${opening.edge} from`).toBeGreaterThanOrEqual(0)
         expect(opening.to, `${id} ${opening.edge} to`).toBeLessThanOrEqual(span)
         expect(opening.from, `${id} ${opening.edge}`).toBeLessThan(opening.to)
+      }
+    }
+  })
+
+  it('bends every scrap-plot ring out of a plain rect, with a gate each', () => {
+    // Ba thửa của bãi ve chai: mỗi thửa một vành GẤP KHÚC (khuyết góc) — vành chữ nhật
+    // trơn là thứ đọc ra "ba cái hộp lồng trong một cái hộp".
+    const yards = ['alley', 'tires', 'appliances']
+    for (const id of yards) {
+      const layout = ZONE_LAYOUTS[id]
+      expect(layout, id).toBeDefined()
+      const outline = layout?.outline ?? []
+      expect(outline.length, `${id} vành`).toBeGreaterThanOrEqual(6)
+      // Đỉnh vành phải nằm trong rect (lồi ra tối đa 12px vì sàn blob đã nở sẵn).
+      for (const point of outline) {
+        expect(point.x, `${id} đỉnh vành x`).toBeGreaterThanOrEqual(-12)
+        expect(point.y, `${id} đỉnh vành y`).toBeGreaterThanOrEqual(-12)
+        expect(point.x).toBeLessThanOrEqual((layout?.rect.width ?? 0) + 12)
+        expect(point.y).toBeLessThanOrEqual((layout?.rect.height ?? 0) + 12)
+      }
+      for (let i = 0; i < outline.length; i++) {
+        const a = outline[i]
+        const b = outline[(i + 1) % outline.length]
+        if (!a || !b) continue
+        expect(outlineEdgeOf(a, b), `${id} đoạn vành ${i} không thẳng trục`).not.toBe(null)
+      }
+      // Cổng phải nằm TRÊN vành, và vành phải còn đoạn rào thật sau khi cắt cổng.
+      const gates = layout?.gates ?? []
+      expect(gates.length, `${id} cổng`).toBeGreaterThan(0)
+      for (const gate of gates) {
+        expect(outline && gateEdge(outline, gate), `${id}: cổng lạc ngoài vành`).not.toBe(null)
+      }
+      const runs = outline ? outlineRuns(outline, gates) : []
+      expect(runs.length, `${id} đoạn rào`).toBeGreaterThan(3)
+      for (const run of runs) {
+        expect(Math.hypot(run.x2 - run.x1, run.y2 - run.y1), `${id} đoạn rào cụt`).toBeGreaterThanOrEqual(2)
+      }
+    }
+  })
+
+  it('keeps the three scrap plots apart, with gaps between them', () => {
+    // Ba thửa phải RỜI nhau và có cỏ ở giữa: chồng nhau là lại thành lồng vào nhau,
+    // sát nhau quá thì không còn "ba khu" mà là một mảng đất bị kẻ vạch.
+    const plots = ['alley', 'tires', 'appliances'].map((id) => ZONE_LAYOUTS[id]?.rect)
+    for (let i = 0; i < plots.length; i++) {
+      for (let j = i + 1; j < plots.length; j++) {
+        const a = plots[i]
+        const b = plots[j]
+        if (!a || !b) continue
+        expect(overlaps(a, b), `plot ${i} vs ${j}`).toBe(false)
+        const gapX = Math.max(a.x - (b.x + b.width), b.x - (a.x + a.width))
+        const gapY = Math.max(a.y - (b.y + b.height), b.y - (a.y + a.height))
+        expect(Math.max(gapX, gapY), `khoảng cách thửa ${i} vs ${j}`).toBeGreaterThanOrEqual(32)
+      }
+    }
+  })
+
+  it('keeps every alley work spot inside the working plot', () => {
+    // Thợ đi thẳng giữa hai waypoint: điểm làm việc rơi ra ngoài thửa nghĩa là tuyến
+    // của họ cắt vành (test tuyến thẳng nằm ở tests/walkable.test.ts).
+    const layout = ZONE_LAYOUTS.alley
+    const polygon = (layout?.outline ?? []).flatMap((point) => [point.x, point.y])
+    if (!layout || polygon.length < 6) throw new Error('fixture is missing the alley ring')
+    for (const spot of ALLEY_WORK_SPOTS) {
+      // Lỗ cổng đông là chỗ porter bước RA khỏi thửa — điểm đó nằm trên đường cổng.
+      if (spot === ALLEY_HAUL_OUT) continue
+      expect(pointInPolygon(spot.x, spot.y, polygon), `work spot ${spot.x},${spot.y} sits outside the plot`).toBe(
+        true,
+      )
+    }
+  })
+
+  it('keeps every declared prop base around its own plot', () => {
+    // Đế vật khai LOCAL của khu (xem `focus/props.ts`) nên phải nằm quanh rect khu —
+    // một toạ độ gõ lệch là vật chặn ở chỗ không ai ngờ. Chồng phôi của `route` cố ý
+    // nhô lên trên mặt đường 6px nên có dung sai.
+    const lists: Record<string, readonly ZoneProp[]> = {
+      alley: ALLEY_PROPS,
+      tires: TIRES_PROPS,
+      appliances: APPLIANCES_PROPS,
+      recycle: RECYCLE_PROPS,
+      depot: DEPOT_PROPS,
+      gate: GATE_PROPS,
+      route: ROUTE_PROPS,
+    }
+    for (const [zoneId, layout] of Object.entries(ZONE_LAYOUTS)) {
+      for (const prop of lists[zoneId] ?? []) {
+        const base = propBase(prop)
+        expect(base.x, `${zoneId} đế lọt tây`).toBeGreaterThanOrEqual(-40)
+        expect(base.y, `${zoneId} đế lọt bắc`).toBeGreaterThanOrEqual(-40)
+        expect(base.x + base.width, `${zoneId} đế lọt đông`).toBeLessThanOrEqual(layout.rect.width + 40)
+        expect(base.y + base.height, `${zoneId} đế lọt nam`).toBeLessThanOrEqual(layout.rect.height + 40)
       }
     }
   })
@@ -270,12 +379,28 @@ describe('map layout', () => {
     for (const entry of cases) {
       const layout = ZONE_LAYOUTS[entry.zone]
       expect(layout, entry.zone).toBeDefined()
-      const opening = layout?.fenceOpenings?.find((candidate) => candidate.edge === entry.edge)
-      expect(opening, `${entry.zone} ${entry.edge}`).toBeDefined()
       const horizontal = entry.edge === 'north' || entry.edge === 'south'
       const base = horizontal ? (layout?.rect.x ?? 0) : (layout?.rect.y ?? 0)
-      const from = base + (opening?.from ?? 0)
-      const to = base + (opening?.to ?? 0)
+
+      // Khu khai vành thì cổng nằm trên vành (`gates`), khu không khai thì ở
+      // `fenceOpenings` — cả hai đều khai LOCAL nên phải cộng gốc rect ra world.
+      const outline = layout?.outline
+      const gate =
+        outline &&
+        (layout?.gates ?? []).find((candidate) => gateEdge(outline, candidate) === entry.edge)
+      let from = Number.NEGATIVE_INFINITY
+      let to = Number.POSITIVE_INFINITY
+      if (gate) {
+        const along = horizontal ? gate.at.x : gate.at.y
+        from = base + along - gate.width / 2
+        to = base + along + gate.width / 2
+      } else {
+        const opening = layout?.fenceOpenings?.find((candidate) => candidate.edge === entry.edge)
+        expect(opening, `${entry.zone} ${entry.edge}`).toBeDefined()
+        from = base + (opening?.from ?? 0)
+        to = base + (opening?.to ?? 0)
+      }
+
       expect(from, `${entry.zone} ${entry.edge}: mở trước làn`).toBeLessThanOrEqual(entry.lane[0])
       expect(to, `${entry.zone} ${entry.edge}: mở hết làn`).toBeGreaterThanOrEqual(entry.lane[1])
       expect(entry.lane[0] - from + (to - entry.lane[1]), `${entry.zone} ${entry.edge}: cổng rộng vừa`).toBeLessThanOrEqual(

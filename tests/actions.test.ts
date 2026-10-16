@@ -1,6 +1,6 @@
 import { Decimal } from '@core/num'
 import { performAction } from '@domain/commands'
-import { createFreshState, getResource, getStock } from '@domain/state'
+import { createFreshState, getBag, getResource, getStock } from '@domain/state'
 import type { GameContent } from '@domain/types'
 import { describe, expect, it } from 'vitest'
 import { expectCloseTo } from './fixtures'
@@ -10,12 +10,15 @@ import { expectCloseTo } from './fixtures'
  *   digger (mine) → ore bin (cap 10) → hauler (mine) → bar bin (yard) → packer (yard)
  * `bar` lives in the yard because that is the yard that consumes it — the same
  * rule the real content follows for sacks and billets.
+ *
+ * A stroke puts its output in the player's BAG and spends the input from the bag
+ * first, so the yard's bin only pays when the bag is empty of that item.
  */
 const CONTENT: GameContent = {
   currencyItemId: 'money',
   items: {
     money: { id: 'money', name: { vi: 'Tiền', en: 'Coins' } },
-    ore: { id: 'ore', name: { vi: 'Quặng', en: 'Ore' }, cap: new Decimal(10) },
+    ore: { id: 'ore', name: { vi: 'Quặng', en: 'Ore' }, cap: new Decimal(10), carry: new Decimal(6) },
     bar: { id: 'bar', name: { vi: 'Thỏi', en: 'Bars' } },
     crate: { id: 'crate', name: { vi: 'Kiện', en: 'Crates' } },
   },
@@ -110,7 +113,7 @@ function fresh(): ReturnType<typeof createFreshState> {
 }
 
 describe('performAction', () => {
-  it('gathers into the yard that owns the item', () => {
+  it('gathers into the bag, not the yard bin', () => {
     const state = fresh()
     const result = performAction(state, CONTENT, 'strip-ore')
 
@@ -120,7 +123,8 @@ describe('performAction', () => {
       expect(result.value.consumed).toBeNull()
       expectCloseTo(result.value.output.amount, new Decimal(2))
     }
-    expectCloseTo(getStock(state, 'mine', 'ore'), new Decimal(2))
+    expectCloseTo(getBag(state, 'ore'), new Decimal(2))
+    expectCloseTo(getStock(state, 'mine', 'ore'), new Decimal(0))
     expectCloseTo(getResource(state, 'money'), new Decimal(100))
   })
 
@@ -131,11 +135,23 @@ describe('performAction', () => {
     const result = performAction(state, CONTENT, 'haul-bars')
     expect(result.ok).toBe(true)
     expectCloseTo(getStock(state, 'mine', 'ore'), new Decimal(2))
-    // `bar` is consumed by the yard's packer, so that is where it lands.
-    expectCloseTo(getStock(state, 'yard', 'bar'), new Decimal(3))
+    // `bar` is consumed by the yard's packer, so the stroke lands it in the bag.
+    expectCloseTo(getBag(state, 'bar'), new Decimal(3))
   })
 
-  it('refuses when the input bin cannot pay', () => {
+  it('spends the bag before the yard bin', () => {
+    const state = fresh()
+    state.bag['ore'] = new Decimal(3)
+    state.stock['mine'] = { ore: new Decimal(5) }
+
+    const result = performAction(state, CONTENT, 'haul-bars')
+    expect(result.ok).toBe(true)
+    expectCloseTo(getBag(state, 'ore'), new Decimal(0))
+    expectCloseTo(getStock(state, 'mine', 'ore'), new Decimal(5))
+    expectCloseTo(getBag(state, 'bar'), new Decimal(3))
+  })
+
+  it('refuses when neither the bag nor the bin can pay', () => {
     const state = fresh()
     state.stock['mine'] = { ore: new Decimal(1) }
 
@@ -143,17 +159,17 @@ describe('performAction', () => {
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.reason).toBe('no-input')
     expectCloseTo(getStock(state, 'mine', 'ore'), new Decimal(1))
-    expectCloseTo(getStock(state, 'yard', 'bar'), new Decimal(0))
+    expectCloseTo(getBag(state, 'bar'), new Decimal(0))
   })
 
-  it('refuses when the output bin is full', () => {
+  it('refuses when the bag is full of the output', () => {
     const state = fresh()
-    state.stock['mine'] = { ore: new Decimal(10) }
+    state.bag['ore'] = new Decimal(6)
 
     const result = performAction(state, CONTENT, 'strip-ore')
     expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.reason).toBe('zone-full')
-    expectCloseTo(getStock(state, 'mine', 'ore'), new Decimal(10))
+    if (!result.ok) expect(result.reason).toBe('bag-full')
+    expectCloseTo(getBag(state, 'ore'), new Decimal(6))
   })
 
   it('refuses a job in a yard that is still locked', () => {
@@ -164,7 +180,7 @@ describe('performAction', () => {
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.reason).toBe('locked')
     expectCloseTo(getStock(state, 'yard', 'bar'), new Decimal(4))
-    expectCloseTo(getStock(state, 'yard', 'crate'), new Decimal(0))
+    expectCloseTo(getBag(state, 'crate'), new Decimal(0))
   })
 
   it('works in the yard once its gate is met', () => {
@@ -175,7 +191,7 @@ describe('performAction', () => {
     const result = performAction(state, CONTENT, 'pack')
     expect(result.ok).toBe(true)
     expectCloseTo(getStock(state, 'yard', 'bar'), new Decimal(2))
-    expectCloseTo(getStock(state, 'yard', 'crate'), new Decimal(2))
+    expectCloseTo(getBag(state, 'crate'), new Decimal(2))
   })
 
   it('rejects an unknown job', () => {

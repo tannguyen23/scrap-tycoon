@@ -59,6 +59,45 @@ export function paintWearPath(g: GroundCanvas, path: readonly Point[], options: 
   }
 }
 
+/**
+ * Nền bị GIẪM NÁT ở chỗ tụ người (điểm đổ, chỗ bốc hàng): một mảng đất nén loang ra chứ
+ * không phải một đường. Chỗ nào mọi chuyến đều đổ về thì nền ở đó mòn thành vũng — vẽ
+ * mỗi tuyến một vệt là ra **sơ đồ đường cho nhân vật đi theo**, không ra bãi thật.
+ */
+export function paintWearPatch(
+  g: GroundCanvas,
+  at: Point,
+  options: TraceOptions & { radius?: number } = {},
+): void {
+  const rnd = makeRandom(options.seed ?? 992)
+  const strength = options.strength ?? 1
+  const radius = options.radius ?? 20
+
+  for (let i = 0; i < 10; i++) {
+    const angle = rnd() * Math.PI * 2
+    const distance = rnd() * radius * 0.7
+    const rx = radius * (0.4 + rnd() * 0.5)
+    g.ellipse(at.x + Math.cos(angle) * distance, at.y + Math.sin(angle) * distance * 0.6, rx, rx * 0.5).fill({
+      color: DUST,
+      alpha: 0.05 * strength,
+    })
+  }
+  // Mép phải RÁCH: vài vết cào ngắn quanh rìa + sỏi bị đẩy ra ngoài, không thì mảng mòn
+  // đọc ra thành cái đĩa tròn dán lên nền.
+  const scuffs = Math.max(3, Math.round(radius / 4))
+  for (let i = 0; i < scuffs + 6; i++) {
+    const angle = rnd() * Math.PI * 2
+    const distance = radius * (i < scuffs ? 0.45 + rnd() * 0.35 : 0.8 + rnd() * 0.5)
+    const x = Math.round(at.x + Math.cos(angle) * distance)
+    const y = Math.round(at.y + Math.sin(angle) * distance * 0.6)
+    if (i < scuffs) {
+      g.rect(x, y, 2 + rnd() * 3, 1).fill({ color: 0x5c4a34, alpha: 0.08 * strength })
+    } else {
+      g.rect(x, y, 1.5, 1).fill({ color: rnd() < 0.5 ? 0x6a5738 : 0x95805e, alpha: 0.8 })
+    }
+  }
+}
+
 /** Alternating boot prints along a walk line (axis-aligned, so pixels stay crisp). */
 export function paintFootprints(g: GroundCanvas, path: readonly Point[], options: TraceOptions = {}): void {
   const rnd = makeRandom(options.seed ?? 313)

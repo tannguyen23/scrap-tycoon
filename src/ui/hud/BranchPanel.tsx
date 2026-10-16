@@ -26,6 +26,12 @@ export function BranchPanel({ branch, state }: BranchPanelProps) {
     if (list) list.push(worker)
     else workersByZone.set(worker.visual.zone, [worker])
   }
+  // Card khu theo thứ tự khai ở nhánh (khu chưa có thợ vẫn phải có card), rồi mới tới
+  // khu lạ chưa khai nhưng đã có thợ.
+  const zoneIds = [
+    ...(branch.zones ?? []),
+    ...[...workersByZone.keys()].filter((zoneId) => !(branch.zones ?? []).includes(zoneId)),
+  ]
 
   return (
     <section className="panel">
@@ -38,12 +44,12 @@ export function BranchPanel({ branch, state }: BranchPanelProps) {
       )}
 
       <div className="zone-grid">
-        {[...workersByZone.entries()].map(([zoneId, workers]) => (
+        {zoneIds.map((zoneId) => (
           <ZoneCard
             key={zoneId}
             zoneId={zoneId}
             branchId={branch.id}
-            workers={workers}
+            workers={workersByZone.get(zoneId) ?? []}
             state={state}
           />
         ))}

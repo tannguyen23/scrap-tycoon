@@ -1,7 +1,7 @@
 import { Decimal } from '@core/num'
 import type { Modifiers } from './modifiers'
-import { applyModifiers } from './modifiers'
-import { itemCapacity } from './statKeys'
+import { applyModifiers, mergeModifiers } from './modifiers'
+import { GLOBAL_CARRY, itemCapacity, itemCarry } from './statKeys'
 import type { GameContent, ItemId } from './types'
 
 /**
@@ -17,6 +17,24 @@ export function itemCapFor(
   const cap = content.items[itemId]?.cap
   if (!cap) return null
   return applyModifiers(cap, mods.get(itemCapacity(itemId)))
+}
+
+/**
+ * Sức chứa TÚI của người chơi cho một loại hàng (`ItemDef.carry`) — trần riêng
+ * của túi, không dính gì tới sức chứa kho của khu. Nâng bằng upgrade target
+ * `item.<id>.carry`, cộng thêm hệ số chung `global.carry` từ trang bị (merge ở
+ * đây, đúng luật "khoá riêng phải merge với khoá global"); `null` = không giới
+ * hạn (hàng không bao giờ nằm trong túi, ví dụ tiền, cũng rơi vào đây).
+ */
+export function carryCapFor(
+  content: GameContent,
+  itemId: ItemId,
+  mods: Map<string, Modifiers>,
+): Decimal | null {
+  const carry = content.items[itemId]?.carry
+  if (!carry) return null
+  const merged = mergeModifiers(mods.get(itemCarry(itemId)), mods.get(GLOBAL_CARRY))
+  return applyModifiers(carry, merged)
 }
 
 /**

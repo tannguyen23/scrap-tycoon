@@ -1,4 +1,4 @@
-export const SAVE_VERSION = 2
+export const SAVE_VERSION = 4
 
 export interface SerializedBranchState {
   workers: Record<string, number>
@@ -14,6 +14,13 @@ export interface SerializedState {
    * moving an item between zones in content keeps every old save valid.
    */
   stock: Record<string, string>
+  /**
+   * What the player carries in their bag, flattened by item id. The bag belongs
+   * to no zone, so it is its own section instead of sharing the `stock` map.
+   */
+  bag: Record<string, string>
+  /** Gear the player owns by id — owning a piece is wearing it. */
+  gear: Record<string, true>
   branches: Record<string, SerializedBranchState>
   stats: {
     totalEarned: string

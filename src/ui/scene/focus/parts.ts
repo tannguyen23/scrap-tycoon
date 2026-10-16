@@ -213,6 +213,29 @@ export interface PersonSprite {
   armsR: Container
 }
 
+export type HatKind = 'straw' | 'cap' | 'none' | 'hard'
+
+/**
+ * Look overrides a body can be given on top of its variant palette — this is how
+ * gear shows up on the character. Everything is applied at BUILD time (the player
+ * layer rebuilds its sprite when gear changes), so no layer has to be
+ * runtime-swappable. Keys come from content (`GearDef.style`).
+ */
+export interface BodyStyle {
+  readonly hat?: HatKind
+  readonly shirt?: string
+  readonly pants?: string
+  readonly shoes?: string
+}
+
+/** Gear palette: hi-vis vest, overalls denim, boots, hard hat. */
+const VEST = 0xe8a13c
+const VEST_STRIPE = 0xd9dfe6
+const UNDERSHIRT = 0x4a5568
+const OVERALLS = 0x35507a
+const BOOT = 0x2f2a26
+const HARD_HAT = 0xf2c14a
+
 /**
  * Tilted ¾-view person at double density, built from squared slabs only
  * (Minecraft-style): box head under a stepped straw hat, a box cap, or nothing
@@ -225,14 +248,21 @@ export interface PersonSprite {
  * shoe rim at the ground → lit shoulders and shaded hips → lit crown of the
  * hat. Origin = feet; "forward" is local +x, so the actor flips
  * `container.scale.x`; walking north hides the face (back view).
+ *
+ * `style` dresses the body with gear (one override per slot); the default look
+ * is exactly what the game shipped before gear existed.
  */
-export function createPersonSprite(variant: number, hat: 'straw' | 'cap' | 'none'): PersonSprite {
+export function createPersonSprite(variant: number, hat: HatKind, style: BodyStyle = {}): PersonSprite {
   const SHIRTS = [0x5a82c2, 0x9a6bbf, 0x4fa06a]
   const PANTS = [0x3a4256, 0x443f52]
   const HAIRS = [0x4a3b2c, 0x2f2a26, 0x6b5a45]
   const SKIN = 0xe8c099
-  const shirt = SHIRTS[variant % SHIRTS.length] ?? 0x5a82c2
-  const pants = PANTS[variant % PANTS.length] ?? 0x3a4256
+  const hatKind = style.hat ?? hat
+  const vest = style.shirt === 'vest'
+  const overalls = style.pants === 'overalls'
+  const booted = style.shoes === 'boot'
+  const shirt = vest ? VEST : (SHIRTS[variant % SHIRTS.length] ?? 0x5a82c2)
+  const pants = overalls ? OVERALLS : (PANTS[variant % PANTS.length] ?? 0x3a4256)
   const hair = HAIRS[variant % HAIRS.length] ?? 0x4a3b2c
 
   const container = new Container()
@@ -244,6 +274,14 @@ export function createPersonSprite(variant: number, hat: 'straw' | 'cap' | 'none
     leg.rect(0, -6, 3.5, 6).fill(pants)
     leg.rect(2.5, -6, 1, 6).fill({ color: 0x000000, alpha: 0.14 })
     leg.rect(0, -2.7, 3.5, 0.8).fill({ color: 0x000000, alpha: 0.16 })
+    if (booted) {
+      // Ủng cao cổ: cổ ủng cao hơn giày, có gấu lật lên và đế dày.
+      leg.rect(-0.3, -3.6, 4.1, 3.6).fill(BOOT)
+      leg.rect(-0.3, -3.6, 4.1, 0.7).fill({ color: 0xffffff, alpha: 0.12 })
+      leg.rect(-0.3, -2.9, 4.1, 0.5).fill({ color: 0x000000, alpha: 0.18 })
+      leg.rect(-0.3, -0.5, 4.1, 0.5).fill(0x1f1c19)
+      return leg
+    }
     leg.rect(-0.2, -1.9, 3.9, 1.9).fill(0x36322c)
     leg.rect(-0.2, -1.9, 3.9, 0.6).fill({ color: 0xffffff, alpha: 0.12 })
     leg.rect(-0.2, -0.5, 3.9, 0.5).fill(0x1f1c19)
@@ -258,7 +296,8 @@ export function createPersonSprite(variant: number, hat: 'straw' | 'cap' | 'none
   const body = new Container()
   const drawArm = (outerLit: boolean): Container => {
     const arm = new Container()
-    const sleeve = new Graphics().rect(0, -15, 3, 8).fill(shirt)
+    // Áo phản quang là áo khoác ngoài: tay áo vẫn là áo lót, chỉ thân là màu phản quang.
+    const sleeve = new Graphics().rect(0, -15, 3, 8).fill(vest ? UNDERSHIRT : shirt)
     sleeve.rect(0, -15, 3, 0.8).fill({ color: 0xffffff, alpha: 0.08 })
     sleeve
       .rect(outerLit ? 0 : 2.1, -14.2, 0.9, 7.2)
@@ -284,6 +323,21 @@ export function createPersonSprite(variant: number, hat: 'straw' | 'cap' | 'none
   torso.rect(-3, -13, 6, 2.5).fill({ color: 0x000000, alpha: 0.12 })
   torso.rect(-5.5, -7, 11, 1.5).fill({ color: 0x000000, alpha: 0.22 })
   torso.rect(-0.9, -7.1, 1.8, 1.7).fill({ color: 0x8a97a6, alpha: 0.9 })
+  if (vest) {
+    // Áo phản quang: hai sọc bạc ngang lưng, sọc dưới tối để vẫn đọc ra khối.
+    torso.rect(-5.5, -13.4, 11, 1.2).fill(VEST_STRIPE)
+    torso.rect(-5.5, -10.6, 11, 1.2).fill(VEST_STRIPE)
+    torso.rect(3.6, -13.4, 1.9, 4).fill({ color: 0x000000, alpha: 0.12 })
+  }
+  if (overalls) {
+    // Yếm quần: tấm yếm trước ngực + hai quai vắt qua vai, khoá đồng nhỏ.
+    torso.rect(-3.4, -16.5, 6.8, 5.4).fill(OVERALLS)
+    torso.rect(-3.4, -16.5, 6.8, 0.9).fill({ color: 0xffffff, alpha: 0.12 })
+    torso.rect(2.2, -16.5, 1.2, 5.4).fill({ color: 0x000000, alpha: 0.12 })
+    torso.rect(-3.4, -16.5, 1.2, 2.6).fill({ color: 0xffffff, alpha: 0.08 })
+    torso.rect(-2.6, -16.4, 1.1, 1.1).fill({ color: 0xd8c07a, alpha: 0.95 })
+    torso.rect(1.5, -16.4, 1.1, 1.1).fill({ color: 0xd8c07a, alpha: 0.95 })
+  }
 
   const head = new Graphics().rect(-5, -26, 10, 10).fill(SKIN)
   head.rect(-5, -25, 1.2, 9).fill({ color: 0xffffff, alpha: 0.1 })
@@ -302,7 +356,7 @@ export function createPersonSprite(variant: number, hat: 'straw' | 'cap' | 'none
   face.rect(-0.8, -18.7, 1.6, 0.9).fill({ color: 0xc08a66, alpha: 0.8 })
 
   const hatContainer = new Container()
-  if (hat === 'straw') {
+  if (hatKind === 'straw') {
     const HATS = [0xecc779, 0xd9b268, 0xf2d68f]
     const straw = HATS[variant % HATS.length] ?? 0xecc779
     const brim = new Graphics().rect(-8, -25.6, 16, 2.4).fill(straw)
@@ -313,7 +367,7 @@ export function createPersonSprite(variant: number, hat: 'straw' | 'cap' | 'none
     crown.rect(2.2, -29.2, 1.8, 4.1).fill({ color: 0x000000, alpha: 0.1 })
     const band = new Graphics().rect(-4.2, -26.4, 8.4, 1.3).fill({ color: 0xc8a25c, alpha: 0.9 })
     hatContainer.addChild(brim, crown, band)
-  } else if (hat === 'cap') {
+  } else if (hatKind === 'cap') {
     const CAPS = [0x6fa0e0, 0x9ad46f, 0xf08a6a]
     const cap = CAPS[variant % CAPS.length] ?? 0x6fa0e0
     const brim = new Graphics().rect(-4.4, -23.4, 8.8, 2.2).fill({ color: cap, alpha: 0.88 })
@@ -323,6 +377,19 @@ export function createPersonSprite(variant: number, hat: 'straw' | 'cap' | 'none
     crown.rect(-4.6, -28.8, 9.2, 1.1).fill({ color: 0xffffff, alpha: 0.13 })
     crown.rect(2.4, -28, 2.2, 4.4).fill({ color: 0x000000, alpha: 0.12 })
     hatContainer.addChild(brim, crown)
+  } else if (hatKind === 'hard') {
+    // Nón bảo hộ: vành hẹp hơn nón rơm (không được rộng hơn khung bao đang khoá),
+    // mũ chum ba bậc + gờ sống giữa, gầm vành tối để đọc ra khối.
+    const brim = new Graphics().rect(-5.4, -25.8, 10.8, 1.6).fill(HARD_HAT)
+    brim.rect(-5.4, -25.8, 10.8, 0.5).fill({ color: 0xffffff, alpha: 0.14 })
+    brim.rect(-5.4, -24.6, 10.8, 0.4).fill({ color: 0x000000, alpha: 0.18 })
+    const crown = new Graphics().rect(-4.4, -28.8, 8.8, 3.2).fill(HARD_HAT)
+    crown.rect(-3.4, -29.6, 6.8, 0.9).fill(HARD_HAT)
+    crown.rect(-3.4, -29.6, 6.8, 0.4).fill({ color: 0xffffff, alpha: 0.18 })
+    crown.rect(-4.4, -28.8, 8.8, 0.7).fill({ color: 0xffffff, alpha: 0.12 })
+    crown.rect(2.4, -28.4, 2, 2.8).fill({ color: 0x000000, alpha: 0.12 })
+    const ridge = new Graphics().rect(-0.4, -29.8, 0.8, 1.4).fill({ color: 0xffffff, alpha: 0.16 })
+    hatContainer.addChild(brim, crown, ridge)
   }
 
   body.addChild(armsL, armsR, torso, head, hairBack, face, hatContainer)

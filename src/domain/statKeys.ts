@@ -28,3 +28,18 @@ export const GLOBAL_WORKER_OUTPUT = 'global.workerOutput'
 export function itemCapacity(itemId: ItemId): string {
   return `item.${itemId}.capacity`
 }
+
+/** Capacity multiplier for one item in the player's bag (bigger bags). */
+export function itemCarry(itemId: ItemId): string {
+  return `item.${itemId}.carry`
+}
+
+/**
+ * Player stats — gear is the only thing that feeds these today, so they are
+ * multipliers on the base numbers the UI/scene own (walk speed, stroke time).
+ * A global carry multiplier is merged where each item's ceiling is read, the same
+ * way `GLOBAL_WORKER_OUTPUT` is merged at every branch key.
+ */
+export const GLOBAL_CARRY = 'global.carry'
+export const PLAYER_WORK_SPEED = 'player.workSpeed'
+export const PLAYER_WALK_SPEED = 'player.walkSpeed'

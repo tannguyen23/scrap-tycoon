@@ -45,8 +45,8 @@ export function createPorterSprite(variant: number): PorterSprite {
  */
 
 /** Bảng cỡ đống theo `variant` — hai đống cạnh nhau không bao giờ cùng cỡ. */
-export const HEAP_HALF_WIDTH = [22, 17, 25, 15, 23, 19, 21]
-export const HEAP_HEIGHT = [31, 36, 26, 40, 29, 34, 25]
+export const HEAP_HALF_WIDTH = [22, 17, 25, 15, 23, 19, 21, 24, 16, 20, 18]
+export const HEAP_HEIGHT = [31, 36, 26, 40, 29, 34, 25, 30, 38, 27, 33]
 
 /**
  * Tông lốp dùng chung với `decorItems.drawTire` — lốp là cao su xám chứ không phải
@@ -223,6 +223,9 @@ export function drawDumpster(g: Graphics, x: number, y: number): void {
 
 /** Đống bao rác đen buộc nút, xếp hai lớp — chỗ picker đổ bao về. */
 export function drawBagPile(g: Graphics, x: number, y: number, count: number): void {
+  // Kho RỖNG thì không có gì cả — kể cả bóng tiếp xúc: một vệt bóng nằm chơ vơ ở chỗ
+  // chưa đặt bao nào là "chiếm chỗ" vô hình, người chơi đâm vào mà chẳng thấy gì.
+  if (count <= 0) return
   g.ellipse(x + 1, y + 3, 9 + count * 2, 4).fill(SHADOW)
   for (let i = 0; i < Math.min(6, count); i++) {
     const bx = x + ((i % 3) - 1) * 6 + (i > 2 ? 3 : 0)

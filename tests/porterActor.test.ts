@@ -1,13 +1,18 @@
 import { describe, expect, it } from 'vitest'
 import { createPorter } from '@ui/scene/focus/alley/actors'
-import { createAlleyDetail } from '@ui/scene/focus/alley/scene'
+import { ALLEY_DROPOFF, ALLEY_HAUL_OUT, createAlleyDetail } from '@ui/scene/focus/alley/scene'
 import { createPorterSprite } from '@ui/scene/focus/alley/sprites'
 import { Particles } from '@ui/scene/focus/parts'
+import { ZONE_LAYOUTS } from '@ground/packs/scrapYard/worldLayout'
 import type { Spot } from '@scene/core/types'
 import type { TilePainter } from '@ground/core/painter'
 
-const PILE: Spot = { x: 192, y: 246 }
-const HAUL_OUT: Spot = { x: 340, y: 76 }
+const ALLEY = ZONE_LAYOUTS['alley']
+if (!ALLEY) throw new Error('fixture is missing the alley layout')
+
+// The anchors the scene actually uses, not a second copy of them.
+const PILE: Spot = ALLEY_DROPOFF
+const HAUL_OUT: Spot = ALLEY_HAUL_OUT
 
 describe('alley porter actor', () => {
   it('starts with the hauled sack hidden', () => {
@@ -52,11 +57,12 @@ describe('alley porter actor', () => {
     expect(carries).toBeGreaterThanOrEqual(2)
     expect(liftedAtPile).toBe(true)
     expect(droppedAtMouth).toBe(true)
-    // The route stays inside the yard, out through the east gate and back.
-    expect(minX).toBeGreaterThanOrEqual(150)
-    expect(maxX).toBeLessThanOrEqual(372)
-    expect(minY).toBeGreaterThanOrEqual(0)
-    expect(maxY).toBeLessThanOrEqual(272)
+    // The route stays inside the working plot and out through the east gate: never
+    // past the gate onto the forge road.
+    expect(minX).toBeGreaterThanOrEqual(230)
+    expect(maxX).toBeLessThanOrEqual(420)
+    expect(minY).toBeGreaterThanOrEqual(50)
+    expect(maxY).toBeLessThanOrEqual(290)
   })
 })
 
@@ -66,7 +72,7 @@ describe('alley detail scene', () => {
       paintBlob: () => {},
       scatter: () => {},
     } as unknown as TilePainter
-    const scene = createAlleyDetail({ x: 48, y: 48, width: 336, height: 272 }, painter)
+    const scene = createAlleyDetail({ ...ALLEY.rect, x: 48, y: 48 }, painter)
     const labels = { produced: 'Sắt vụn', money: 'Tiền' }
 
     scene.setState({ workers: 4, actions: { pick: 3, haul: 1 }, earnedLog10: 4, tier: 0, labels, stock01: 0.5 })

@@ -22,6 +22,15 @@ export function addStock(state: GameState, zoneId: ZoneId, itemId: ItemId, amoun
   bucket[itemId] = (bucket[itemId] ?? D0).add(amount)
 }
 
+/** What the player is carrying — a pool of its own, owned by no zone. */
+export function getBag(state: GameState, itemId: ItemId): Decimal {
+  return state.bag[itemId] ?? D0
+}
+
+export function addBag(state: GameState, itemId: ItemId, amount: Decimal): void {
+  state.bag[itemId] = getBag(state, itemId).add(amount)
+}
+
 /** Deep-enough clone for projections (UI income previews, offline math on copies). */
 export function cloneState(state: GameState): GameState {
   const branches: GameState['branches'] = {}
@@ -38,6 +47,8 @@ export function cloneState(state: GameState): GameState {
   return {
     resources: { ...state.resources },
     stock,
+    bag: { ...state.bag },
+    gear: { ...state.gear },
     branches,
     stats: { ...state.stats },
   }
@@ -67,7 +78,7 @@ export function createFreshState(content: GameContent, startMoney: Decimal): Gam
     branches[branch.id] = { workers: {}, upgrades: {} }
   }
 
-  return { resources, stock, branches, stats: { totalEarned: D0, playTimeS: 0 } }
+  return { resources, stock, bag: {}, gear: {}, branches, stats: { totalEarned: D0, playTimeS: 0 } }
 }
 
 export function stateToSerialized(state: GameState): SerializedState {
@@ -94,9 +105,18 @@ export function stateToSerialized(state: GameState): SerializedState {
     }
   }
 
+  // The bag is its own section, keyed by item id: it belongs to no zone, so it
+  // must never be flattened together with the warehouse `stock`.
+  const bag: Record<string, string> = {}
+  for (const [itemId, amount] of Object.entries(state.bag)) {
+    bag[itemId] = amount.toString()
+  }
+
   return {
     resources,
     stock,
+    bag,
+    gear: { ...state.gear },
     branches,
     stats: {
       totalEarned: state.stats.totalEarned.toString(),
@@ -155,6 +175,34 @@ export function stateFromSerialized(
   const rawStock: Record<string, unknown> = isRecord(serialized.stock) ? serialized.stock : {}
   for (const [itemId, rawValue] of Object.entries(rawStock)) {
     assign(itemId, rawValue)
+  }
+
+  // The bag is global (no zone routing, no cap clamping): whatever the player
+  // was carrying comes back as it was, minus ids content no longer knows.
+  const rawBag: Record<string, unknown> = isRecord(serialized.bag) ? serialized.bag : {}
+  for (const [itemId, rawValue] of Object.entries(rawBag)) {
+    if (!(itemId in content.items)) {
+      warnings.push(`pruned unknown bag item "${itemId}"`)
+      continue
+    }
+    const amount = parseAmount(rawValue)
+    if (amount === null) {
+      warnings.push(`dropped invalid bag amount for item "${itemId}"`)
+      continue
+    }
+    state.bag[itemId] = amount
+  }
+
+  // Gear is a set of owned ids: keep the ones content still declares, drop the rest.
+  const rawGear: Record<string, unknown> = isRecord(serialized.gear) ? serialized.gear : {}
+  for (const [gearId, owned] of Object.entries(rawGear)) {
+    if (owned !== true) continue
+    const piece = content.gear?.find((entry) => entry.id === gearId)
+    if (!piece) {
+      warnings.push(`pruned unknown gear "${gearId}"`)
+      continue
+    }
+    state.gear[gearId] = true
   }
 
   const rawBranches: Record<string, unknown> = isRecord(serialized.branches) ? serialized.branches : {}

@@ -5,10 +5,12 @@ import { UI } from '@i18n/text'
 import { SceneBridgeContext, useContent, useEngine, useGameState, useLocaleStore, useText, type SceneBridge } from '@ui/hooks'
 import { ZOOM_LEVELS } from '@scene/core/scene'
 import { mountGameScene, type GameScene } from '@ui/scene/PixiScene'
+import { isTypingTarget } from '@ui/scene/player/keys'
 import { playSound } from '@ui/sound/player'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ActionBar } from './ActionBar'
 import { BranchPanel } from './BranchPanel'
+import { InventoryPanel, type SheetTab } from './InventoryPanel'
 import { MilestonePanel } from './MilestonePanel'
 import { MilestoneToast } from './MilestoneToast'
 import { Minimap } from './Minimap'
@@ -39,6 +41,10 @@ export function App({ initialOfflineReport }: AppProps) {
   const [sceneHandle, setSceneHandle] = useState<GameScene | null>(null)
   const [toasts, setToasts] = useState<MilestoneToastEntry[]>([])
   const [minimapOpen, setMinimapOpen] = useState(false)
+  // The E sheet keeps the tab you left it on — bag and character are two halves of
+  // one screen, not two screens.
+  const [sheetOpen, setSheetOpen] = useState(false)
+  const [sheetTab, setSheetTab] = useState<SheetTab>('items')
   const viewRef = useRef<Rect | null>(null)
   const toastKeyRef = useRef(0)
   const sceneHostRef = useRef<HTMLDivElement | null>(null)
@@ -113,6 +119,26 @@ export function App({ initialOfflineReport }: AppProps) {
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
+  // E toggles the bag/character sheet. Holding it must not machine-gun the panel,
+  // and the modal sheets own the keyboard while they are up.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.metaKey || event.ctrlKey || event.altKey || event.repeat) return
+      if (event.key !== 'e' && event.key !== 'E') return
+      if (isTypingTarget(event.target)) return
+      if (document.querySelector('.modal-backdrop')) return
+      setSheetOpen((open) => !open)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
+  // A full-screen sheet owns the screen: the walker stands still underneath it
+  // (otherwise you would drift across the map blind and come back somewhere else).
+  useEffect(() => {
+    sceneHandle?.freezeWalk(sheetOpen)
+  }, [sceneHandle, sheetOpen])
+
   const bridge = useMemo<SceneBridge>(
     () => ({
       highlight: (zoneId) => sceneHandle?.setHighlight(zoneId),
@@ -163,6 +189,17 @@ export function App({ initialOfflineReport }: AppProps) {
             </button>
             <button
               type="button"
+              className={sheetOpen ? 'chip active' : 'chip'}
+              title={text(UI.bagHint)}
+              onClick={() => {
+                setSheetOpen((open) => !open)
+                playSound('click')
+              }}
+            >
+              {text(UI.bag)}
+            </button>
+            <button
+              type="button"
               className="chip"
               title={text(UI.backToPlayerHint)}
               onClick={() => {
@@ -176,7 +213,10 @@ export function App({ initialOfflineReport }: AppProps) {
           {minimapOpen && (
             <Minimap viewRef={viewRef} onJump={(x, y) => sceneHandle?.focusOn(x, y)} />
           )}
-          <ActionBar />
+          {sheetOpen && (
+            <InventoryPanel tab={sheetTab} onTabChange={setSheetTab} onClose={() => setSheetOpen(false)} />
+          )}
+          <ActionBar paused={sheetOpen} />
         </div>
         <aside className="sidebar">
           <TopBar onOpenSettings={() => setSettingsOpen(true)} />

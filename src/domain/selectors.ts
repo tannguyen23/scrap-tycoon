@@ -1,14 +1,23 @@
 import { D0, D1, Decimal } from '@core/num'
-import { itemCapFor } from './capacity'
+import { carryCapFor, itemCapFor } from './capacity'
+import { isGearUnlocked } from './conditions'
 import { bulkCost, maxAffordable, unitCost } from './curves'
 import { findBranch, findWorker } from './lookup'
 import { applyModifiers, collectModifiers, mergeModifiers } from './modifiers'
-import { cloneState, getResource, getStock } from './state'
+import { cloneState, getBag, getResource, getStock } from './state'
 import { itemZones, zoneOfItem } from './zones'
-import { GLOBAL_WORKER_OUTPUT, branchRecipeOutput, branchWorkerOutput, workerStepOutput } from './statKeys'
+import {
+  GLOBAL_WORKER_OUTPUT,
+  PLAYER_WALK_SPEED,
+  PLAYER_WORK_SPEED,
+  branchRecipeOutput,
+  branchWorkerOutput,
+  workerStepOutput,
+} from './statKeys'
 import { applyRates } from './systems/production'
 import { weatherAt } from './weather'
-import type { GameContent, GameState, ItemId, WeatherKindDef, ZoneId } from './types'
+import { GEAR_SLOTS } from './types'
+import type { Condition, GameContent, GameState, GearDef, GearSlot, ItemId, WeatherKindDef, ZoneId } from './types'
 
 export function workerCount(state: GameState, branchId: string, workerId: string): number {
   return state.branches[branchId]?.workers[workerId] ?? 0
@@ -184,6 +193,78 @@ export function zoneStock(state: GameState, content: GameContent, zoneId: ZoneId
 function itemAmount(state: GameState, content: GameContent, itemId: ItemId): Decimal {
   const zone = zoneOfItem(content, itemId)
   return zone ? getStock(state, zone, itemId) : getResource(state, itemId)
+}
+
+/** One row of the player's bag, for the inventory panel. */
+export interface BagRow {
+  itemId: ItemId
+  amount: Decimal
+  /** Bag ceiling for this item, or null when the bag never limits it. */
+  carry: Decimal | null
+  /** 0..1 fill ratio of the bag for this item, or null when uncapped. */
+  ratio: number | null
+  /** The zone whose warehouse this item belongs to — where it can be stored. */
+  zone: ZoneId | null
+}
+
+/** Everything the player is carrying (rows with nothing in them are left out). */
+export function bagRows(state: GameState, content: GameContent): BagRow[] {
+  const mods = collectModifiers(state, content)
+  const rows: BagRow[] = []
+  for (const itemId of Object.keys(state.bag)) {
+    const amount = getBag(state, itemId)
+    if (amount.lte(0)) continue
+    const carry = carryCapFor(content, itemId, mods)
+    const bounded = carry && carry.gt(0) ? carry : null
+    rows.push({
+      itemId,
+      amount,
+      carry: bounded,
+      ratio: bounded ? Math.min(1, amount.div(bounded).toNumber()) : null,
+      zone: zoneOfItem(content, itemId),
+    })
+  }
+  return rows
+}
+
+/** One slot of the character sheet, for the inventory panel. */
+export interface GearRow {
+  slot: GearSlot
+  /** The piece content declares for this slot, if any. */
+  gear: GearDef | null
+  /** Owned = worn (one piece per slot). */
+  owned: boolean
+  /** Price when it is still to buy, null once owned. */
+  cost: Decimal | null
+  /** Gate still to clear, null when the piece is available. */
+  requirement: Condition | null
+}
+
+/** Every gear slot in a fixed order, empty ones included — the sheet is a grid. */
+export function gearRows(state: GameState, content: GameContent): GearRow[] {
+  return GEAR_SLOTS.map((slot) => {
+    const piece = (content.gear ?? []).find((entry) => entry.slot === slot) ?? null
+    if (!piece) return { slot, gear: null, owned: false, cost: null, requirement: null }
+    const owned = state.gear[piece.id] === true
+    const unlocked = isGearUnlocked(state, content, piece.id)
+    return {
+      slot,
+      gear: piece,
+      owned,
+      cost: owned ? null : piece.cost,
+      requirement: owned || unlocked ? null : (piece.requires ?? null),
+    }
+  })
+}
+
+/** How much faster the player's hand work runs (gear, in the modifier pipeline). */
+export function playerWorkSpeed(state: GameState, content: GameContent): Decimal {
+  return applyModifiers(D1, collectModifiers(state, content).get(PLAYER_WORK_SPEED))
+}
+
+/** How much faster the player walks (gear, in the modifier pipeline). */
+export function playerWalkSpeed(state: GameState, content: GameContent): Decimal {
+  return applyModifiers(D1, collectModifiers(state, content).get(PLAYER_WALK_SPEED))
 }
 
 /**

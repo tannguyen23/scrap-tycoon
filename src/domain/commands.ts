@@ -1,11 +1,11 @@
 import type Decimal from 'break_eternity.js'
 import { fail, ok, type Result } from '@core/result'
-import { itemCapFor } from './capacity'
-import { isConditionMet, isUpgradeUnlocked, isWorkerUnlocked, isZoneUnlocked } from './conditions'
+import { carryCapFor, itemCapFor } from './capacity'
+import { isConditionMet, isGearUnlocked, isUpgradeUnlocked, isWorkerUnlocked, isZoneUnlocked } from './conditions'
 import { bulkCost, maxAffordable } from './curves'
 import { findBranch, findUpgrade, findWorker } from './lookup'
 import { collectModifiers } from './modifiers'
-import { addResource, addStock, getResource, getStock } from './state'
+import { addBag, addResource, addStock, getBag, getResource, getStock } from './state'
 import type { GameContent, GameState, ItemId } from './types'
 import { zoneOfItem } from './zones'
 
@@ -84,10 +84,13 @@ export interface PerformActionValue {
  * One stroke of hand work. The player holds the key; when the stroke fills, the
  * chain receives exactly what one worker-second of that step would give, tuned in
  * content. It is an EVENT, not a rate: the HUD owns the timer, so nothing about
- * this lives in the save (no migration) and the simulation never sees it.
+ * the stroke itself lives in the save and the simulation never sees it.
  *
- * Like every command, nothing is written until all four checks pass: the job
- * exists, its yard is open, the input bin can pay, and the output bin has room.
+ * What the stroke produces goes into the player's BAG (that is the survival
+ * loop: gather, then carry it to the warehouse) and the input is spent from the
+ * bag first, then from the owning zone's bin. Like every command, nothing is
+ * written until every check passes: the job exists, its yard is open, the input
+ * can pay, and the bag has room for the output.
  */
 export function performAction(
   state: GameState,
@@ -101,21 +104,37 @@ export function performAction(
 
   // Every item lives in the warehouse of the yard that consumes it — money stays
   // in the global pool (`domain/zones.ts` is the single source for that).
-  const held = (item: ItemId): Decimal => {
+  const inBin = (item: ItemId): Decimal => {
     const zone = zoneOfItem(content, item)
     return zone ? getStock(state, zone, item) : getResource(state, item)
   }
-  const store = (item: ItemId, amount: Decimal): void => {
+  const storeInBin = (item: ItemId, amount: Decimal): void => {
     const zone = zoneOfItem(content, item)
     if (zone) addStock(state, zone, item, amount)
     else addResource(state, item, amount)
   }
+  // Output: zone items land in the bag, global items (money) in the pool.
+  const store = (item: ItemId, amount: Decimal): void => {
+    if (zoneOfItem(content, item)) addBag(state, item, amount)
+    else addResource(state, item, amount)
+  }
 
-  if (action.input && held(action.input.item).lt(action.input.amount)) return fail('no-input')
-  const cap = itemCapFor(content, action.output.item, collectModifiers(state, content))
-  if (cap && held(action.output.item).add(action.output.amount).gt(cap)) return fail('zone-full')
+  if (action.input) {
+    const available = getBag(state, action.input.item).add(inBin(action.input.item))
+    if (available.lt(action.input.amount)) return fail('no-input')
+  }
+  const carry = carryCapFor(content, action.output.item, collectModifiers(state, content))
+  if (carry && getBag(state, action.output.item).add(action.output.amount).gt(carry)) return fail('bag-full')
 
-  if (action.input) store(action.input.item, action.input.amount.neg())
+  if (action.input) {
+    // Spend what is already in the bag first — that is the loot the player just
+    // gathered — and only then dip into the warehouse.
+    const carried = getBag(state, action.input.item)
+    const fromBag = carried.lt(action.input.amount) ? carried : action.input.amount
+    if (fromBag.gt(0)) addBag(state, action.input.item, fromBag.neg())
+    const rest = action.input.amount.sub(fromBag)
+    if (rest.gt(0)) storeInBin(action.input.item, rest.neg())
+  }
   store(action.output.item, action.output.amount)
   if (action.output.item === content.currencyItemId) {
     state.stats.totalEarned = state.stats.totalEarned.add(action.output.amount)
@@ -125,4 +144,90 @@ export function performAction(
     output: { item: action.output.item, amount: action.output.amount },
     consumed: action.input ? { item: action.input.item, amount: action.input.amount } : null,
   })
+}
+
+export interface BuyGearValue {
+  cost: Decimal
+}
+
+/**
+ * Buys one piece of gear. Owning it is wearing it (content keeps one piece per
+ * slot), so this is the only command gear needs — and like every command nothing
+ * is written until all four checks pass.
+ */
+export function buyGear(state: GameState, content: GameContent, gearId: string): Result<BuyGearValue> {
+  const piece = content.gear?.find((entry) => entry.id === gearId)
+  if (!piece) return fail('unknown-gear')
+  if (state.gear[gearId]) return fail('already-owned')
+  if (!isGearUnlocked(state, content, gearId)) return fail('locked')
+
+  const money = getResource(state, content.currencyItemId)
+  if (piece.cost.gt(money)) return fail('not-enough-money')
+
+  state.resources[content.currencyItemId] = money.sub(piece.cost)
+  state.gear[gearId] = true
+  return ok({ cost: piece.cost })
+}
+
+export interface BagMoveValue {
+  item: ItemId
+  moved: Decimal
+}
+
+/**
+ * Both bag moves only touch the warehouse of the zone the player is standing in,
+ * and only the item that warehouse holds (`zoneOfItem`): an item dropped into a
+ * bin that does not own it is inert data no pass ever reads back. Returns the
+ * failure reason, or null when the move may go ahead.
+ */
+function bagMoveGuard(state: GameState, content: GameContent, zoneId: string, itemId: ItemId): string | null {
+  if (!(zoneId in content.zones)) return 'unknown-zone'
+  if (!(itemId in content.items)) return 'unknown-item'
+  if (!isZoneUnlocked(state, content, zoneId)) return 'locked'
+  if (zoneOfItem(content, itemId) !== zoneId) return 'wrong-zone'
+  return null
+}
+
+/** Picks goods up from the warehouse of the yard the player stands in — as much as fits. */
+export function takeToBag(
+  state: GameState,
+  content: GameContent,
+  zoneId: string,
+  itemId: ItemId,
+): Result<BagMoveValue> {
+  const bad = bagMoveGuard(state, content, zoneId, itemId)
+  if (bad) return fail(bad)
+
+  const stored = getStock(state, zoneId, itemId)
+  if (stored.lte(0)) return fail('no-stock')
+  const carry = carryCapFor(content, itemId, collectModifiers(state, content))
+  const room = carry ? carry.sub(getBag(state, itemId)) : stored
+  if (room.lte(0)) return fail('bag-full')
+
+  const moved = stored.lt(room) ? stored : room
+  addStock(state, zoneId, itemId, moved.neg())
+  addBag(state, itemId, moved)
+  return ok({ item: itemId, moved })
+}
+
+/** Stores carried goods into the warehouse of the yard the player stands in — as much as fits. */
+export function putFromBag(
+  state: GameState,
+  content: GameContent,
+  zoneId: string,
+  itemId: ItemId,
+): Result<BagMoveValue> {
+  const bad = bagMoveGuard(state, content, zoneId, itemId)
+  if (bad) return fail(bad)
+
+  const carried = getBag(state, itemId)
+  if (carried.lte(0)) return fail('empty-bag')
+  const cap = itemCapFor(content, itemId, collectModifiers(state, content))
+  const room = cap ? cap.sub(getStock(state, zoneId, itemId)) : carried
+  if (room.lte(0)) return fail('zone-full')
+
+  const moved = carried.lt(room) ? carried : room
+  addBag(state, itemId, moved.neg())
+  addStock(state, zoneId, itemId, moved)
+  return ok({ item: itemId, moved })
 }

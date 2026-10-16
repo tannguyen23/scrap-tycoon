@@ -3,6 +3,7 @@ import { sampleAmbient } from '@scenery/core/lighting'
 import type { StageApi, StageBuilder } from '@studio/types'
 import { StageFrame } from '@studio/tabs'
 import { SOUND_GROUPS, SOUND_GROUP_LABELS, SOUND_IDS, SOUND_LIBRARY } from '@ui/sound/library'
+import { ITEM_ICONS, itemIcon } from '@ui/itemIcons'
 import { sound } from '@ui/sound/player'
 import { DEFAULT_SOUND_SETTINGS } from '@ui/sound/settings'
 import {
@@ -11,6 +12,7 @@ import {
   STUDIO_WEATHER_KINDS,
   buildCharacters,
   buildDecor,
+  buildGear,
   buildLayout,
   buildLightingWorld,
   buildProps,
@@ -162,8 +164,68 @@ export function PropsTab() {
   )
 }
 
+/** Trang bị trên thân nhân vật — nghiệm thu hình trước khi mua trong game. */
+export function GearTab() {
+  return (
+    <StageFrame
+      caption="Trang bị — mặc dần từng món (đi tại chỗ)"
+      note="Năm thân nhân vật cùng một dáng: trái nhất là hình gốc chưa mua gì (phải giống hệt trước khi có trang bị), rồi mỗi cột thêm một món — áo phản quang (túi áo ⇒ mang được nhiều hơn), quần yếm (+nhiều hơn nữa), nón bảo hộ (giữ F nhanh hơn), ủng cao su (đi nhanh hơn). Tất cả dựng từ createPersonSprite của game nên đây đúng là hình người chơi mặc; tests/personSprite.test.ts khoá mọi bộ đồ trong cùng khung bao và chân vẫn chạm đất."
+      build={buildGear}
+    />
+  )
+}
+
+/**
+ * Icon hàng hoá của túi đồ. Cùng loại art code như con trỏ: lưới ký tự trong
+ * `ui/itemIcons.ts` render thành PNG data-URL, nên soi ở đây là soi đúng thứ ô túi
+ * hiện trong game. Ba cỡ cạnh nhau để kiểm luật "đọc được ở 1×" — icon phải nhận ra
+ * được cả khi ô túi chỉ rộng 16px.
+ */
+export function BagIconsTab() {
+  const ids = Object.keys(ITEM_ICONS)
+  return (
+    <section className="studio-panel">
+      <h3>Túi đồ — icon từng loại hàng</h3>
+      <p className="studio-note">
+        Mỗi icon là một lưới ký tự trong `ui/itemIcons.ts` với bảng màu dùng chung: bóng tiếp xúc lệch
+        xuống-phải, viền tối, mặt sáng hướng trên-trái — đúng công thức khối của decor. Ô vuông bên trái
+        là ô túi thật của game (class `.inv-slot`), có số lượng ở góc như trong màn túi đồ. Test
+        `tests/itemIcons.test.ts` khoá: mọi loại hàng bỏ được vào túi (`ItemDef.carry`) phải có icon, lưới
+        phải chữ nhật, chỉ dùng ký tự trong palette, và không hai icon nào trùng silhouette.
+      </p>
+      <div className="studio-icons">
+        {ids.map((id) => {
+          const slotIcon = itemIcon(id, 2)
+          const grid = ITEM_ICONS[id]
+          return (
+            <figure key={id} className="studio-icon-card">
+              <span className="inv-slot is-filled studio-icon-slot">
+                {slotIcon ? <img className="inv-icon" src={slotIcon} alt="" /> : null}
+                <span className="inv-amount">99</span>
+              </span>
+              <figcaption>
+                <span className="studio-note">
+                  {id} · {grid?.[0]?.length ?? 0}×{grid?.length ?? 0}
+                </span>
+                <span className="studio-icon-sizes">
+                  {[1, 2, 4].map((scale) => {
+                    const url = itemIcon(id, scale)
+                    return url ? <img key={scale} src={url} width={16 * scale} height={16 * scale} alt="" /> : null
+                  })}
+                </span>
+              </figcaption>
+            </figure>
+          )
+        })}
+      </div>
+    </section>
+  )
+}
+
 const ZONE_PREVIEWS = [
-  { id: 'alley', caption: 'Khu: Ve chai (×2)', scale: 2 },
+  { id: 'alley', caption: 'Khu: Ve chai — bãi làm việc (×2)', scale: 2 },
+  { id: 'tires', caption: 'Khu: Bãi lốp (×2)', scale: 2 },
+  { id: 'appliances', caption: 'Khu: Bãi đồ trắng (×2)', scale: 2 },
   { id: 'recycle', caption: 'Khu: Xưởng tái chế — đe & búa (×2)', scale: 2 },
   { id: 'route', caption: 'Khu: Tuyến xe chạy (×1)', scale: 1 },
   { id: 'depot', caption: 'Khu: Nơi đóng hàng (×2)', scale: 2 },

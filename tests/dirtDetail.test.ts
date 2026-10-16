@@ -5,6 +5,7 @@ import {
   paintPuddle,
   paintRuts,
   paintStain,
+  paintWearPatch,
   paintWearPath,
 } from '@ground/packs/scrapYard/decals'
 import type { GroundCanvas } from '@ground/core/groundCanvas'
@@ -95,6 +96,28 @@ describe('ground usage traces', () => {
     const { canvas, draws } = recorder()
     paintDragMarks(canvas, PATH)
     expectWithin(canvas, draws, 12)
+  })
+
+  it('tramples a patch around a spot instead of drawing one more line', () => {
+    // Chỗ tụ người (điểm đổ) phải mòn thành MẢNG loang ra — một vệt mòn thứ nữa ở đó là
+    // "đường cho nhân vật đi theo", không phải nền bị giẫm.
+    const at = { x: 300, y: 200 }
+    const radius = 26
+    const { canvas, draws } = recorder()
+    paintWearPatch(canvas, at, { radius })
+    expect(draws.length).toBeGreaterThan(6)
+
+    const sides = new Set<string>()
+    for (const draw of draws) {
+      const box = extents(draw)
+      // Không vết nào rời xa chỗ giẫm quá một bán kính rưỡi.
+      expect(Math.hypot(box.minX - at.x, box.minY - at.y)).toBeLessThanOrEqual(radius * 1.6)
+      expect(Math.hypot(box.maxX - at.x, box.maxY - at.y)).toBeLessThanOrEqual(radius * 1.6)
+      const pebble = draw.kind === 'rect' && draw.width <= 2
+      expect(draw.alpha, 'vết mòn phải mờ, sỏi mới được đặc').toBeLessThanOrEqual(pebble ? 1 : 0.25)
+      sides.add(`${draw.x < at.x ? 'W' : 'E'}${draw.y < at.y ? 'N' : 'S'}`)
+    }
+    expect(sides.size, 'mảng mòn phải loang cả bốn phía').toBe(4)
   })
 
   it('draws ruts on their line', () => {

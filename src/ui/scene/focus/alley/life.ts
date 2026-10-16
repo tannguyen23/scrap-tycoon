@@ -19,8 +19,10 @@ export function createAlleyLife(piles: Spot[], litter: Spot[] = []): AlleyLife {
   const container = new Container()
   const rnd = makeRandom(424242)
 
-  const barrelX = 150
-  const barrelY = 118
+  // Thùng phuy cháy: giữa thửa làm việc — quầng sáng của nó (khai trong pack scenery
+  // theo ĐÚNG toạ độ world này) là thứ soi bãi lúc đêm.
+  const barrelX = 214
+  const barrelY = 134
 
   const barrelArt = new Graphics()
   barrelArt.ellipse(barrelX + 1, barrelY + 4, 9, 6).fill(SHADOW)
@@ -60,10 +62,10 @@ export function createAlleyLife(piles: Spot[], litter: Spot[] = []): AlleyLife {
       root,
       up,
       down,
-      cx: 168,
-      cy: 132 - index * 20,
-      rx: 108 + index * 18,
-      ry: 52 + index * 10,
+      cx: 200,
+      cy: 140 - index * 16,
+      rx: 140 + index * 18,
+      ry: 90 + index * 12,
       phase: rnd() * 6.28,
       speed: 0.2 + index * 0.07,
     }

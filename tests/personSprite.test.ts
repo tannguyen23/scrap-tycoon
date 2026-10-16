@@ -44,6 +44,34 @@ describe('person sprite composition', () => {
     expect(box.maxY).toBeLessThanOrEqual(6)
   })
 
+  it('keeps every gear look inside the same silhouette, feet still grounded', () => {
+    // Gear is drawn by the same builder, so a new hat/shirt/pants/shoes must not
+    // break the bbox the rest of the game (depth sort, walkable art) relies on.
+    const looks = [
+      { hat: 'hard' as const },
+      { shirt: 'vest' },
+      { pants: 'overalls' },
+      { shoes: 'boot' },
+      { hat: 'hard' as const, shirt: 'vest', pants: 'overalls', shoes: 'boot' },
+    ]
+    for (const look of looks) {
+      const sprite = createPersonSprite(0, 'straw', look)
+      const box = sprite.container.getBounds()
+      expect(box.minX, JSON.stringify(look)).toBeGreaterThanOrEqual(-8.5)
+      expect(box.maxX, JSON.stringify(look)).toBeLessThanOrEqual(10)
+      expect(box.minY, JSON.stringify(look)).toBeLessThanOrEqual(-27)
+      expect(box.maxY, JSON.stringify(look)).toBeLessThanOrEqual(6)
+      // Boots still end on the floor rather than floating.
+      expect(Math.abs(span(sprite.legsL).maxY), JSON.stringify(look)).toBeLessThanOrEqual(0.01)
+    }
+  })
+
+  it('leaves the plain look untouched when no gear is worn', () => {
+    const plain = createPersonSprite(0, 'straw', {})
+    const bare = createPersonSprite(0, 'straw')
+    expect(plain.container.getBounds()).toEqual(bare.container.getBounds())
+  })
+
   it('starts with the hauled sack hidden', () => {
     const hauler = createHaulerSprite(1)
     expect(hauler.sack.visible).toBe(false)

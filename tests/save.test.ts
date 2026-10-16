@@ -11,6 +11,8 @@ describe('serialization roundtrip', () => {
   it('roundtrips resources including huge Decimal values', () => {
     const state = createFreshState(TEST_CONTENT, new Decimal('1e1000'))
     state.stock['mine'] = { ...(state.stock['mine'] ?? {}), ore: new Decimal('123.456') }
+    state.bag['ore'] = new Decimal('7.5')
+    state.gear['vest'] = true
     branchStateOf(state, 'mine').workers['digger'] = 7
     branchStateOf(state, 'mine').upgrades['boots'] = true
     state.stats.totalEarned = new Decimal('4.2e15')
@@ -23,6 +25,10 @@ describe('serialization roundtrip', () => {
     // Zone items live in their warehouse, not in the global pool.
     expect(restored.state.resources['ore']).toBeUndefined()
     expect(restored.state.stock['mine']?.['ore']?.eq(new Decimal('123.456'))).toBe(true)
+    // The bag is its own section — what the player carries is not warehouse stock.
+    expect(restored.state.bag['ore']?.eq(new Decimal('7.5'))).toBe(true)
+    // …and so is the gear the character owns.
+    expect(restored.state.gear['vest']).toBe(true)
     expect(restored.state.branches['mine']?.workers['digger']).toBe(7)
     expect(restored.state.branches['mine']?.upgrades['boots']).toBe(true)
     expect(restored.state.stats.totalEarned.eq(new Decimal('4.2e15'))).toBe(true)
@@ -33,6 +39,9 @@ describe('serialization roundtrip', () => {
     const serialized = stateToSerialized(createFreshState(TEST_CONTENT, new Decimal(5)))
     serialized.stock['gold'] = '99' // unknown item → pruned
     serialized.stock['ore'] = 'not-a-number' // invalid value → dropped
+    serialized.bag['gold'] = '99' // unknown item in the bag → pruned
+    serialized.bag['ore'] = 'not-a-number' // invalid bag value → dropped
+    serialized.gear['jetpack'] = true // unknown gear → pruned
     serialized.branches['quarry'] = { workers: {}, upgrades: {} } // unknown branch → pruned
 
     const restored = stateFromSerialized(serialized, TEST_CONTENT, new Decimal(0))
@@ -40,7 +49,10 @@ describe('serialization roundtrip', () => {
     expect(restored.warnings.length).toBeGreaterThan(0)
     expect(restored.state.resources['gold']).toBeUndefined()
     expect(restored.state.stock['mine']?.['gold']).toBeUndefined()
+    expect(restored.state.bag['gold']).toBeUndefined()
+    expect(restored.state.gear['jetpack']).toBeUndefined()
     expectCloseTo(restored.state.stock['mine']?.['ore'] ?? new Decimal(0), new Decimal(0))
+    expectCloseTo(restored.state.bag['ore'] ?? new Decimal(0), new Decimal(0))
     expectCloseTo(restored.state.resources['money'] ?? new Decimal(0), new Decimal(5))
     expect(restored.state.branches['quarry']).toBeUndefined()
     expect(restored.state.branches['mine']?.workers['drill']).toBeUndefined()
@@ -69,6 +81,56 @@ describe('serialization roundtrip', () => {
     expectCloseTo(restored.state.stock['mine']?.['ore'] ?? new Decimal(0), new Decimal('123.456'))
     expect(restored.state.branches['mine']?.workers['digger']).toBe(1)
   })
+
+  it('gives a v3 save (which predates gear) an empty gear set', () => {
+    const legacy = {
+      schemaVersion: 3,
+      savedAt: 0,
+      state: {
+        resources: { money: '5' },
+        stock: { ore: '12' },
+        bag: { ore: '2' },
+        branches: { mine: { workers: { digger: 1 }, upgrades: {} } },
+        stats: { totalEarned: '0', playTimeS: 10 },
+      },
+    }
+
+    const migrated = migrateSave(legacy, SAVE_VERSION)
+
+    expect(migrated?.['schemaVersion']).toBe(SAVE_VERSION)
+    if (!migrated || !isSaveFile(migrated)) throw new Error('expected a migratable save')
+    const restored = stateFromSerialized(migrated.state, TEST_CONTENT, new Decimal(0))
+
+    expect(restored.warnings).toEqual([])
+    expect(restored.state.gear).toEqual({})
+    // The sections that already existed are untouched.
+    expectCloseTo(restored.state.bag['ore'] ?? new Decimal(0), new Decimal(2))
+    expectCloseTo(restored.state.stock['mine']?.['ore'] ?? new Decimal(0), new Decimal(12))
+  })
+
+  it('gives a v2 save (which predates the bag) an empty one', () => {
+    const legacy = {
+      schemaVersion: 2,
+      savedAt: 0,
+      state: {
+        resources: { money: '5' },
+        stock: { ore: '12' },
+        branches: { mine: { workers: { digger: 1 }, upgrades: {} } },
+        stats: { totalEarned: '0', playTimeS: 10 },
+      },
+    }
+
+    const migrated = migrateSave(legacy, SAVE_VERSION)
+
+    expect(migrated?.['schemaVersion']).toBe(SAVE_VERSION)
+    if (!migrated || !isSaveFile(migrated)) throw new Error('expected a migratable save')
+    const restored = stateFromSerialized(migrated.state, TEST_CONTENT, new Decimal(0))
+
+    expect(restored.warnings).toEqual([])
+    expect(restored.state.bag).toEqual({})
+    expectCloseTo(restored.state.stock['mine']?.['ore'] ?? new Decimal(0), new Decimal(12))
+    expectCloseTo(restored.state.resources['money'] ?? new Decimal(0), new Decimal(5))
+  })
 })
 
 describe('SaveManager', () => {
@@ -84,6 +146,8 @@ describe('SaveManager', () => {
     expect(file?.savedAt).toBe(1000)
     expect(file?.state.resources['money']).toBe('42')
     expect(file?.state.stock['ore']).toBe('0')
+    expect(file?.state.bag).toEqual({})
+    expect(file?.state.gear).toEqual({})
   })
 
   it('returns null for corrupted JSON', () => {

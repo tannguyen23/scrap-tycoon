@@ -1,5 +1,6 @@
 import { Container } from 'pixi.js'
 import { describe, expect, it } from 'vitest'
+import { createAlleyDetail } from '@ui/scene/focus/alley/scene'
 import { createDepotDetail } from '@ui/scene/focus/depot/scene'
 import { drawPalletStack } from '@ui/scene/focus/depot/sprites'
 import { createGateDetail } from '@ui/scene/focus/gate/scene'
@@ -47,6 +48,34 @@ describe('warehouse stacks', () => {
       const fullTop = Math.min(...full.children.map((child) => child.position.y))
       expect(fullTop).toBeLessThan(lowTop)
     }
+  })
+
+  it('leaves the alley gather pile unsized while the bin is empty', () => {
+    // Đống bao gom từng vẽ bóng tiếp xúc CẢ KHI count = 0 — một vệt "chiếm chỗ" ở chỗ
+    // chưa đặt bao nào (người chơi đâm vào khoảng không). Kho ở khu này là một `Graphics`
+    // chứ không phải `Container`, nên đo bằng hộp vẽ ra.
+    const alley = createAlleyDetail({ x: 0, y: 0, width: 400, height: 288 }, painter)
+    const warehouse = findLabelled(alley.root, 'warehouse')
+    if (!warehouse) throw new Error('alley scene has no warehouse container')
+    const base = {
+      workers: 2,
+      actions: {},
+      earnedLog10: 5,
+      tier: 0,
+      labels: { produced: 'Phôi tái chế', money: 'Tiền' },
+    }
+
+    alley.setState({ ...base, stock01: 0 })
+    alley.update(1 / 60, 1)
+    expect(warehouse.getBounds().width, 'kho rỗng mà vẫn vẽ ra thứ gì đó').toBe(0)
+
+    alley.setState({ ...base, stock01: 0.6 })
+    alley.update(1 / 60, 2)
+    expect(warehouse.getBounds().width).toBeGreaterThan(0)
+
+    alley.setState({ ...base, stock01: -1 })
+    alley.update(1 / 60, 3)
+    expect(warehouse.getBounds().width).toBe(0)
   })
 
   it('redraw idempotently at the same level', () => {

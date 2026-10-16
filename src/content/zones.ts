@@ -18,6 +18,25 @@ export const ZONES: Record<string, ZoneDef> = {
       en: 'Scavengers poke cans and scrap out of the heaps and gather them into one pile; porters haul the sacks out the east gate to the forge.',
     },
   },
+  tires: {
+    id: 'tires',
+    name: { vi: 'Bãi lốp', en: 'Tire Yard' },
+    actionDesc: {
+      vi: 'Lốp cũ xếp chồng và dựng tựa quanh thửa đất phía tây — chỗ để dành cho công việc tháo lốp sau này.',
+      en: 'Old tyres stacked and leaning across the west plot — ground kept for tyre-stripping work later.',
+    },
+    // Chưa có thợ: khu này chờ gameplay. Mở sau khi bãi làm việc đã đông người.
+    requires: { kind: 'workers', branch: BRANCH_ID, worker: 'scavenger', count: 5 },
+  },
+  appliances: {
+    id: 'appliances',
+    name: { vi: 'Bãi đồ trắng', en: 'Appliance Yard' },
+    actionDesc: {
+      vi: 'Tủ lạnh, máy giặt, TV hỏng xếp thành hàng phía bắc — chỗ để dành cho công việc tháo máy sau này.',
+      en: 'Dead fridges, washers and TVs lined up along the north plot — ground kept for appliance stripping later.',
+    },
+    requires: { kind: 'workers', branch: BRANCH_ID, worker: 'porter', count: 2 },
+  },
   recycle: {
     id: 'recycle',
     name: { vi: 'Xưởng tái chế', en: 'Recycling Forge' },

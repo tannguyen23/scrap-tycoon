@@ -15,7 +15,8 @@ export type { DetailDrawer, DetailProp, LightSource, SceneryPack }
  * Coordinates follow the core district (zones moved onto the avenue, world 10240×5760).
  */
 const SCRAP_LIGHTS: readonly LightSource[] = [
-  { x: 4136, y: 2190, radius: 46, color: 0xffa54d, flicker: 0.16 }, // thùng phuy đốt khu ve chai
+  // Thùng phuy đốt khu ve chai: world = rect bãi (3568,1872) + phuy local (486,390).
+  { x: 4054, y: 2262, radius: 46, color: 0xffa54d, flicker: 0.16 },
   { x: 4052, y: 3044, radius: 42, color: 0xffd88a }, // đèn kho
   { x: 4043, y: 3065, radius: 34, color: 0xffd27f }, // cửa sổ kho
   { x: 6282, y: 3047, radius: 34, color: 0xffe0a0 }, // chòi gác cổng xuất
@@ -86,7 +87,7 @@ const SCRAP_AMBIENCE: AmbienceSpec = {
   smoke: [
     { x: 4020, y: 3032 }, // ống khói nhà kho
     { x: 5270, y: 2148 }, // ống khói lò xưởng tái chế (ngay trên miệng lò)
-    { x: 4136, y: 2182 }, // thùng phuy đốt ở khu ve chai
+    { x: 4055, y: 2256 }, // thùng phuy đốt ở khu ve chai (trùng đúng toạ độ light)
     { x: 6400, y: 3480 }, // đống sắt vụn âm ỉ ở bãi đông-nam
     { x: 1500, y: 3900 }, // lửa trại ven hồ
     { x: 8300, y: 3500 }, // lửa trại trong rừng đông
@@ -124,7 +125,7 @@ function openGround(rnd: () => number, count: number): { x: number; y: number }[
 function microProps(): DetailProp[] {
   const props: DetailProp[] = []
   const rnd = makeRandom(20261013)
-  for (const zoneId of ['alley', 'recycle', 'route', 'depot', 'gate']) {
+  for (const zoneId of ['alley', 'tires', 'appliances', 'recycle', 'route', 'depot', 'gate']) {
     const layout = ZONE_LAYOUTS[zoneId]
     if (!layout) continue
     const rect = layout.rect
@@ -145,7 +146,7 @@ function microProps(): DetailProp[] {
 function nanoProps(): DetailProp[] {
   const props: DetailProp[] = []
   const rnd = makeRandom(777001)
-  for (const zoneId of ['alley', 'recycle', 'route', 'depot', 'gate']) {
+  for (const zoneId of ['alley', 'tires', 'appliances', 'recycle', 'route', 'depot', 'gate']) {
     const layout = ZONE_LAYOUTS[zoneId]
     if (!layout) continue
     const rect = layout.rect

@@ -49,11 +49,24 @@ export interface TraceCall {
 }
 
 /**
+ * A network of trails that follows paths (a fork between yards). Unlike `PathCall` it is
+ * not axis-bound: the band bends with each centreline — the only way to link places that
+ * are not in a straight line, since chaining rect bands leaves a transition lip across
+ * every joint. All branches are painted as ONE union, so a fork has no seam.
+ */
+export interface TrailCall {
+  readonly branches: readonly { readonly points: readonly Point[]; readonly width: number }[]
+  readonly kind: TerrainId
+  readonly seed: number
+  readonly outside?: TerrainId
+}
+
+/**
  * One project's ground plan, as data: what gets painted, where and with which
  * seed, in an order the kit owns. The kit's `paintGrounds` runs the passes in
  * the order the comments in the scrap map explain — base → texture scatter →
- * lanes (their mouths tuck under the floors) → floors → clearings → usage
- * traces → connectors → links → debris → water → hand-placed decor.
+ * lanes (their mouths tuck under the floors) → floors → trails → clearings →
+ * usage traces → connectors → links → debris → water → hand-placed decor.
  */
 export interface GroundMap {
   readonly width: number
@@ -64,6 +77,8 @@ export interface GroundMap {
   readonly floraSeed: number
   readonly lanes: readonly PathCall[]
   readonly floors: readonly FloorCall[]
+  /** Trails between yards, painted after the floors so they stay visible on them. */
+  readonly trails?: readonly TrailCall[]
   readonly clearings: readonly BlobCall[]
   readonly traces: readonly TraceCall[]
   readonly connectors: {
@@ -105,6 +120,7 @@ export interface PlannedChunkCalls {
   readonly base: Rect
   readonly lanes: readonly PathCall[]
   readonly floors: readonly FloorCall[]
+  readonly trails: readonly TrailCall[]
   readonly clearings: readonly BlobCall[]
   readonly traces: readonly TraceCall[]
   readonly connectors: readonly { readonly rect: Rect; readonly seed: number }[]
@@ -114,12 +130,14 @@ export interface PlannedChunkCalls {
 
 export function planChunkCalls(map: GroundMap, window?: Rect): PlannedChunkCalls {
   const connectors = map.connectors.rects.map((rect, index) => ({ rect, seed: map.connectors.seedBase + index }))
+  const trails = map.trails ?? []
   const world: Rect = { x: 0, y: 0, width: map.width, height: map.height }
   if (!window) {
     return {
       base: world,
       lanes: map.lanes,
       floors: map.floors,
+      trails,
       clearings: map.clearings,
       traces: map.traces,
       connectors,
@@ -134,6 +152,9 @@ export function planChunkCalls(map: GroundMap, window?: Rect): PlannedChunkCalls
     base: area,
     lanes: map.lanes.filter((call) => near(call.rect, (call.flare ?? 0) + (call.ramp ?? call.flare ?? 0) + CALL_MARGIN)),
     floors: map.floors.filter((floor) => near(floor.rect, floor.pad + CALL_MARGIN)),
+    trails: trails.filter((trail) =>
+      trail.branches.some((branch) => near(boundsOf(branch.points), branch.width + CALL_MARGIN)),
+    ),
     clearings: map.clearings.filter((patch) => near(patch.rect, (patch.pad ?? 16) + CALL_MARGIN)),
     traces: map.traces.filter((trace) => near(boundsOf(trace.points), CALL_MARGIN)),
     connectors: connectors.filter((entry) => near(entry.rect, CALL_MARGIN)),
@@ -168,6 +189,18 @@ export function paintGrounds(
     painter.scatter(ground, plan.base, map.floraSeed, 'flora', 22, skip)
 
     for (const lane of plan.lanes) paintCall(painter, ground, lane, map.base)
+    // Trails go in with the lanes, BEFORE the floors: a trail's end tucks under the
+    // yard floor it runs to, so the last stretch (which lies on the yard's dirt, not
+    // on grass) never has to fake a transition — the floor's own edge covers it.
+    for (const trail of plan.trails) {
+      painter.paintTrailNetwork(
+        ground,
+        trail.branches,
+        trail.seed,
+        trail.kind,
+        trail.outside ?? map.base,
+      )
+    }
     for (const floor of plan.floors) {
       painter.paintBlob(ground, floor.rect, floor.kind, floor.seed, floor.pad, map.base)
     }
@@ -286,6 +319,16 @@ export function validateGroundMap(pack: GroundPack, map: GroundMap): string[] {
   map.floors.forEach((floor, index) => {
     check(floor.kind, `floor ${index}`)
     insideWorld(floor.rect, `floor ${index}`)
+  })
+  map.trails?.forEach((trail, index) => {
+    check(trail.kind, `trail ${index}`)
+    check(trail.outside, `trail ${index} outside`)
+    if (trail.branches.length === 0) errors.push(`trail ${index} has no branches`)
+    trail.branches.forEach((branch, branchIndex) => {
+      if (branch.points.length < 2) errors.push(`trail ${index} branch ${branchIndex} needs at least two points`)
+      if (!(branch.width > 0)) errors.push(`trail ${index} branch ${branchIndex} needs a positive width`)
+      insideWorld(boundsOf(branch.points), `trail ${index} branch ${branchIndex}`)
+    })
   })
   map.clearings.forEach((patch, index) => {
     check(patch.kind, `clearing ${index}`)

@@ -21,10 +21,12 @@ const TRACKED = new Set([
 
 export interface MoveKeys {
   readonly pressed: ReadonlySet<string>
+  /** Drop every held key — used when a full-screen HUD panel freezes the walker. */
+  clear(): void
   dispose(): void
 }
 
-function isTypingTarget(target: EventTarget | null): boolean {
+export function isTypingTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false
   const tag = target.tagName
   return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable
@@ -59,6 +61,7 @@ export function installMoveKeys(): MoveKeys {
   window.addEventListener('blur', onBlur)
   return {
     pressed,
+    clear: () => pressed.clear(),
     dispose: () => {
       window.removeEventListener('keydown', onKeyDown)
       window.removeEventListener('keyup', onKeyUp)

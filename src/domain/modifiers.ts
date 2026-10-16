@@ -39,7 +39,7 @@ export function applyModifiers(base: Decimal, mods: Modifiers | undefined): Deci
   return value
 }
 
-/** Aggregates every purchased upgrade effect into per-target modifier sets. */
+/** Aggregates every purchased upgrade and owned piece of gear into modifier sets. */
 export function collectModifiers(state: GameState, content: GameContent): Map<string, Modifiers> {
   const result = new Map<string, Modifiers>()
   for (const branch of Object.values(content.branches)) {
@@ -50,6 +50,16 @@ export function collectModifiers(state: GameState, content: GameContent): Map<st
       for (const effect of upgrade.effects) {
         addEffect(result, effect)
       }
+    }
+  }
+
+  // Gear is bought once and worn from then on, so owning it is the whole state.
+  // It flows through the same pipeline as everything else — the UI and the scene
+  // read the resulting player stats instead of doing any math of their own.
+  for (const piece of content.gear ?? []) {
+    if (!state.gear[piece.id]) continue
+    for (const effect of piece.effects) {
+      addEffect(result, effect)
     }
   }
 

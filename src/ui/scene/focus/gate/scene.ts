@@ -10,6 +10,7 @@ import { createPopups } from '../popups'
 import type { DetailScene, DetailSceneState } from '@scene/core/types'
 import { LANE_Y, createTruck, type TruckActor } from './actors'
 import { drawCrateStack } from './sprites'
+import type { ZoneProp } from '../props'
 
 const CAP = 2
 const MAX_CRATES = 8
@@ -20,6 +21,21 @@ const MAX_CRATES = 8
  * đứng ngay cạnh chồng kiện khi xe đỗ ở dock".
  */
 export const CRATE_STACK = { x: 96, y: 24 }
+
+/**
+ * Đế chặn của cổng xuất — art vẽ tay trong scene nên ở đây chỉ khai ĐẾ (xem
+ * `../props.ts`). Hai trụ cổng chặn riêng từng trụ (KHÔNG bao tấm biển nằm ngang trên
+ * đầu, kẻo chặn luôn cả làn xe). Chồng kiện KHÔNG khai đế: nó lớn lên theo tồn kho,
+ * rỗng thì chẳng có gì ở đó.
+ */
+export const GATE_PROPS: readonly ZoneProp[] = [
+  { kind: 'fixed', x: 37, y: 42, half: 21, height: 38 },
+  { kind: 'fixed', x: 207, y: 32, half: 3, height: 14 },
+  { kind: 'fixed', x: 207, y: 72, half: 3, height: 14 },
+  { kind: 'fixed', x: 168, y: 72, half: 5, height: 7 },
+  { kind: 'fixed', x: 176, y: 24, half: 5, height: 7 },
+  { kind: 'fixed', x: 193, y: 72, half: 3, height: 4 },
+]
 
 /** Detailed city gate: booth, waving flags, boom barrier + trucks loading/departing. */
 export function createGateDetail(rect: ZoneRect, tiles: TilePainter): DetailScene {

@@ -93,7 +93,10 @@ describe('recycle detail scene', () => {
     expect(scene.root.children.length).toBeGreaterThan(5)
   })
 
-  it('is registered for its zone id', async () => {
+  // Import động kéo cả registry 5 scene khu (mỗi khu một bộ art riêng), mà vitest
+  // chạy song song: dưới tải nặng lần nạp nguội này vượt mốc 5s mặc định và test đỏ
+  // dù logic đúng. Nới cho đúng bản chất "nạp nguội", không phải nới điều kiện kiểm.
+  it('is registered for its zone id', { timeout: 30_000 }, async () => {
     const { detailSceneFor } = await import('@ui/scene/focus')
     expect(detailSceneFor('recycle')).toBeDefined()
   })

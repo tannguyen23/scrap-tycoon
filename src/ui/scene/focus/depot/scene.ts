@@ -6,6 +6,7 @@ import {
   paintPuddle,
   paintRuts,
   paintStain,
+  paintWearPatch,
   paintWearPath,
 } from '@ground/packs/scrapYard/decals'
 import { drawZoneFence } from '../fence'
@@ -14,12 +15,27 @@ import type { DetailScene, DetailSceneState, Spot } from '@scene/core/types'
 import { createHauler, type HaulerActor } from './actors'
 import { createDepotLife } from './life'
 import { drawPalletStack } from './sprites'
+import type { ZoneProp } from '../props'
 
 const CAP = 5
 const MAX_PILE_SACKS = 18
 const MAX_PALLETS = 8
 /** Chồng pallet phôi xe ba gác trút xuống cạnh cổng kho (local; world 284, 586). */
 const PALLET_STACK = { x: 204, y: 26 }
+
+/**
+ * Đế chặn của kho — art vẽ tay ngay trong scene nên ở đây chỉ khai ĐẾ, khai cạnh chỗ vẽ
+ * (xem `../props.ts`). Hai chồng hàng (bao vào, pallet ra) KHÔNG khai đế: chúng lớn lên
+ * theo tồn kho, rỗng thì chẳng có gì ở đó — hộp chặn tĩnh là "chiếm chỗ" vô hình.
+ */
+export const DEPOT_PROPS: readonly ZoneProp[] = [
+  { kind: 'fixed', x: 63, y: 76, half: 51, height: 68 },
+  { kind: 'fixed', x: 134, y: 68, half: 14, height: 20 },
+  { kind: 'fixed', x: 128, y: 20, half: 8, height: 20 },
+  { kind: 'fixed', x: 60, y: 80, half: 12, height: 10 },
+  { kind: 'fixed', x: 89, y: 74, half: 9, height: 14 },
+  { kind: 'fixed', x: 116, y: 22, half: 4, height: 12 },
+]
 
 /** Detailed depot yard: warehouse, scale, lamp, sack pile + haulers at work. */
 export function createDepotDetail(rect: ZoneRect, tiles: TilePainter): DetailScene {
@@ -39,11 +55,12 @@ export function createDepotDetail(rect: ZoneRect, tiles: TilePainter): DetailSce
   const pickup: Spot = { x: 134, y: 60 }
   const dropoff: Spot = { x: 208, y: 72 }
 
-  // Dấu vết sử dụng: tuyến cân → đống bao mòn nhẵn, rãnh xe cút kít từ chỗ để
-  // xe tới bàn cân, vết dầu dưới cân và một vũng nước cạnh lối đi.
+  // Dấu vết sử dụng: tuyến cân → đống bao mòn nhẵn, nền chỗ bốc hàng bị giẫm thành mảng,
+  // rãnh xe cút kít từ chỗ để xe tới bàn cân, vết dầu dưới cân và một vũng nước cạnh lối đi.
   const decals = new Graphics()
   paintWearPath(decals, [pickup, dropoff], { seed: 321, strength: 0.9 })
-  paintWearPath(decals, [dropoff, { x: dropoff.x + 12, y: dropoff.y + 22 }], { seed: 322, strength: 0.6 })
+  // Chỗ bốc hàng là nơi mọi chuyến dừng lại ⇒ mòn thành MẢNG, không phải một vệt đường.
+  paintWearPatch(decals, dropoff, { radius: 22, seed: 322, strength: 0.8 })
   paintRuts(decals, [{ x: 60, y: 82 }, pickup], { seed: 331, strength: 0.8 })
   paintFootprints(decals, [pickup, dropoff], { seed: 341, strength: 0.9 })
   paintStain(decals, { x: 134, y: 52 }, { radius: 13, seed: 351 })

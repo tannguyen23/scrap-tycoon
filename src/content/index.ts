@@ -2,6 +2,7 @@ import type { GameContent } from '@domain/types'
 import { MANUAL_ACTIONS } from './actions'
 import { BALANCE } from './balance'
 import { SCRAP_BRANCH } from './branches/scrap'
+import { GEAR } from './gear'
 import { ITEMS, MONEY_ITEM } from './items'
 import { MILESTONES } from './milestones'
 import { WEATHER } from './weather'
@@ -20,6 +21,7 @@ export const GAME_CONTENT: GameContent = {
   },
   milestones: MILESTONES,
   actions: MANUAL_ACTIONS,
+  gear: GEAR,
   weather: WEATHER,
   simulation: { offlineChunkSeconds: BALANCE.offlineChunkSeconds },
 }

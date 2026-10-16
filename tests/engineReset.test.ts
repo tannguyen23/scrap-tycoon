@@ -36,6 +36,8 @@ describe('engine save reset', () => {
     const { engine, store, saveManager } = makeRig()
     store.update((draft) => {
       draft.resources['money'] = new Decimal(5000)
+      draft.bag['sack'] = new Decimal(3)
+      draft.gear['vest'] = true
     })
     expect(engine.buyWorker('scrap', 'scavenger', 2).ok).toBe(true)
     engine.saveNow()
@@ -52,10 +54,14 @@ describe('engine save reset', () => {
     if (!file) throw new Error('the post-reset autosave did not write')
     const hydrated = stateFromSerialized(file.state, GAME_CONTENT, BALANCE.startMoney)
     expect(workerCount(hydrated.state, 'scrap', 'scavenger')).toBe(0)
+    expect(hydrated.state.bag).toEqual({})
+    expect(hydrated.state.gear).toEqual({})
 
     const live = store.getSnapshot()
     expect(workerCount(live, 'scrap', 'scavenger')).toBe(0)
     expect(live.resources['money']?.toString()).toBe(BALANCE.startMoney.toString())
+    expect(live.bag).toEqual({})
+    expect(live.gear).toEqual({})
   })
 
   it('re-arms milestone announcements for the new run', () => {

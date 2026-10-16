@@ -1,15 +1,28 @@
 import { cornerHash } from '@ground/core/edgeGeometry'
 import type { GroundCanvas } from '@ground/core/groundCanvas'
-import type { FenceOpening } from '@ground/packs/scrapYard/worldLayout'
+import {
+  gateEdge,
+  outlineEdgeOf,
+  outlineRuns,
+  rectFenceRuns,
+  type FenceOpening,
+  type FenceRun,
+  type Point,
+  type ZoneGate,
+  type ZoneLayout,
+} from '@ground/packs/scrapYard/worldLayout'
 
 /**
  * Hàng rào bãi ghép tạm: từng tấm tôn gỉ hoặc ván gỗ mục khác cỡ, đóng lệch vào cọc
  * gỗ cao thấp so le — bãi nhặt đồ không ai dựng hàng rào thẳng tắp. Vật liệu và chiều
  * cao từng tấm chọn theo hash của chỉ số tấm nên mỗi cạnh mỗi khác mà vẫn tất định.
  * Chiều cao theo hướng vẫn cùng thang với `wallBands`: nam (gần người xem) cao nhất,
- * hai hông thấp hơn, bắc xa nhất thấp nhất. Lỗ mở khai ở `fenceOpenings`
- * (worldLayout); hai bên mỗi lỗ mở là trụ cổng thép — chỗ duy nhất của hàng rào trông
- * "được xây tử tế", còn lại là đồ nhặt về đóng lại.
+ * hai hông thấp hơn, bắc xa nhất thấp nhất. Lỗ mở khai ở `fenceOpenings` (khu rào
+ * quanh rect) và `outline` + `gates` (khu có vành gấp khúc): `rectFenceRuns`/`outlineRuns`
+ * cắt cổng ra thành
+ * từng ĐOẠN rào, nên art vẽ đoạn nào thì `walkable` chặn đúng đoạn đó. Hai bên mỗi lỗ
+ * mở là trụ cổng thép — chỗ duy nhất của hàng rào trông "được xây tử tế", còn lại là
+ * đồ nhặt về đóng lại.
  */
 
 const SECTION_MIN = 18
@@ -115,8 +128,12 @@ function drawLeaningPanel(g: GroundCanvas, section: Section, lineY: number, heig
   }
   g.rect(section.start + lean, lineY - height - 0.4, width - lean, 0.8).fill(TIN.lit)
   g.rect(section.start, lineY - 1, width - lean, 1).fill(TIN.dark)
-  g.rect(section.start + 3 + lean / 2, lineY - height + 1.4, 0.9, height - 2.8).fill(TIN.rib)
-  g.rect(section.start + 7 + lean / 2, lineY - height + 1.4, 0.9, height - 2.8).fill(TIN.rib)
+  // Gân dọc phải kẹp trong tấm: tấm nghiêng ở cuối cạnh mà vẽ gân theo offset cứng
+  // thì gân thò ra ngoài khung rào (bắt được bằng test bound của hàng rào).
+  for (const offset of [3, 7]) {
+    const ribX = Math.min(section.start + lean / 2 + offset, section.end - 1.2)
+    g.rect(ribX, lineY - height + 1.4, 0.9, height - 2.8).fill(TIN.rib)
+  }
   g.rect(section.start + 1, lineY - 0.6, width - lean - 2, 1).fill({ color: 0x000000, alpha: 0.18 })
 }
 
@@ -215,21 +232,18 @@ function verticalRun(g: GroundCanvas, side: 'east' | 'west', from: number, to: n
   g.rect(lineX + inward * 3.6, from, 0.8, to - from).fill({ color: 0x000000, alpha: 0.18 })
 }
 
-/** Các đoạn rào còn lại của một cạnh sau khi trừ lỗ mở. */
-function runs(length: number, openings: readonly FenceOpening[], edge: Edge): Array<[number, number]> {
-  const gaps = openings
-    .filter((opening) => opening.edge === edge)
-    .map((opening) => [Math.max(0, opening.from), Math.min(length, opening.to)] as [number, number])
-    .filter(([from, to]) => to > from)
-    .sort((a, b) => a[0] - b[0])
-  const segments: Array<[number, number]> = []
-  let cursor = 0
-  for (const [from, to] of gaps) {
-    if (from > cursor) segments.push([cursor, from])
-    cursor = Math.max(cursor, to)
+const CORNER_NORTH = PANELS.north.base + PANELS.north.vary + 1.4
+const CORNER_SOUTH = PANELS.south.base + PANELS.south.vary + 1.4
+
+/** Một đoạn rào (đã trừ cổng) — mặt của nó quyết định dáng tấm. */
+function drawRun(g: GroundCanvas, run: FenceRun): void {
+  if (run.y1 === run.y2) {
+    if (run.edge !== 'north' && run.edge !== 'south') return
+    horizontalRun(g, run.edge, Math.min(run.x1, run.x2), Math.max(run.x1, run.x2), run.y1)
+    return
   }
-  if (cursor < length) segments.push([cursor, length])
-  return segments
+  if (run.edge !== 'east' && run.edge !== 'west') return
+  verticalRun(g, run.edge, Math.min(run.y1, run.y2), Math.max(run.y1, run.y2), run.x1)
 }
 
 /** Vẽ hàng rào quanh khu trong TOẠ ĐỘ LOCAL của scene khu (gốc ở góc tây-bắc). */
@@ -238,19 +252,15 @@ export function drawZoneFence(
   size: { width: number; height: number },
   openings: readonly FenceOpening[] = [],
 ): void {
-  // Xa trước, gần sau: bắc → hai hông → nam.
-  for (const [from, to] of runs(size.width, openings, 'north')) horizontalRun(g, 'north', from, to, 0)
-  for (const [from, to] of runs(size.height, openings, 'west')) verticalRun(g, 'west', from, to, 0)
-  for (const [from, to] of runs(size.height, openings, 'east')) verticalRun(g, 'east', from, to, size.width)
-  for (const [from, to] of runs(size.width, openings, 'south')) horizontalRun(g, 'south', from, to, size.height)
+  for (const run of rectFenceRuns({ x: 0, y: 0, width: size.width, height: size.height }, openings)) {
+    drawRun(g, run)
+  }
 
   // Trụ góc: cọc gỗ dày hơn, cao hơn tấm một mẩu.
-  const northCorner = PANELS.north.base + PANELS.north.vary + 1.4
-  const southCorner = PANELS.south.base + PANELS.south.vary + 1.4
-  stake(g, 0, 0, northCorner, 3.2)
-  stake(g, size.width, 0, northCorner, 3.2)
-  stake(g, 0, size.height, southCorner, 3.2)
-  stake(g, size.width, size.height, southCorner, 3.2)
+  stake(g, 0, 0, CORNER_NORTH, 3.2)
+  stake(g, size.width, 0, CORNER_NORTH, 3.2)
+  stake(g, 0, size.height, CORNER_SOUTH, 3.2)
+  stake(g, size.width, size.height, CORNER_SOUTH, 3.2)
 
   for (const opening of openings) {
     if (opening.edge === 'north' || opening.edge === 'south') {
@@ -261,4 +271,57 @@ export function drawZoneFence(
       for (const y of [opening.from, opening.to]) gatePost(g, postX, y, GATE_HEIGHT[opening.edge])
     }
   }
+}
+
+/** Mặt của hàng rào trong ¾ view: các đoạn nam là MẶT TIỀN, nằm trước lòng khu. */
+export type FenceFace = 'back' | 'front'
+
+function faceOf(edge: FenceRun['edge']): FenceFace {
+  return edge === 'south' ? 'front' : 'back'
+}
+
+/** Góc nào dính đoạn mặt tiền thì cọc thuộc mặt tiền — nó phải che được actor. */
+function cornerFace(outline: readonly Point[], index: number): FenceFace {
+  const count = outline.length
+  const here = outline[index]
+  const before = outline[(index - 1 + count) % count]
+  const after = outline[(index + 1) % count]
+  if (!here || !before || !after) return 'back'
+  return [outlineEdgeOf(before, here), outlineEdgeOf(here, after)].includes('south') ? 'front' : 'back'
+}
+
+/** Trụ cổng: hai mép khổ cổng, kẹp vào trong lòng khu như vành rect. */
+function ringGatePosts(g: GroundCanvas, outline: readonly Point[], gates: readonly ZoneGate[], face: FenceFace): void {
+  for (const gate of gates) {
+    const edge = gateEdge(outline, gate)
+    if (!edge || faceOf(edge) !== face) continue
+    const half = gate.width / 2
+    if (edge === 'north' || edge === 'south') {
+      for (const x of [gate.at.x - half, gate.at.x + half]) gatePost(g, x, gate.at.y, GATE_HEIGHT[edge])
+    } else {
+      const postX = edge === 'west' ? gate.at.x + 1.7 : gate.at.x - 1.7
+      for (const y of [gate.at.y - half, gate.at.y + half]) gatePost(g, postX, y, GATE_HEIGHT[edge])
+    }
+  }
+}
+
+/**
+ * Vành của MỘT khu khai bằng `outline`, vẽ theo từng MẶT: scene gọi hai lần — mặt sau
+ * (bắc + hai hông) vào node depth ở đường chân bắc, mặt tiền (các đoạn nam) vào node ở
+ * đường chân nam — nên người chơi đứng trong khu được mặt tiền che, đứng ngoài thì che
+ * nó. Khu không khai vành (rào quanh rect) vẽ bằng `drawZoneFence`.
+ */
+export function drawZoneRing(g: GroundCanvas, layout: ZoneLayout, face: FenceFace): void {
+  const outline = layout.outline
+  if (!outline || outline.length < 3) return
+  const gates = layout.gates ?? []
+
+  for (const run of outlineRuns(outline, gates)) {
+    if (faceOf(run.edge) === face) drawRun(g, run)
+  }
+  outline.forEach((point, index) => {
+    if (cornerFace(outline, index) !== face) return
+    stake(g, point.x, point.y, face === 'front' ? CORNER_SOUTH : CORNER_NORTH, 3.2)
+  })
+  ringGatePosts(g, outline, gates, face)
 }

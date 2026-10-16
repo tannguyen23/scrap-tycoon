@@ -2,7 +2,7 @@ import { Container, Graphics, Sprite, type Renderer, type Texture } from 'pixi.j
 import { makeRandom } from './random'
 import { insideAnyRect, type Rect } from './metrics'
 import { generateEdgeTiles } from './edgeTiles'
-import { TILE_SIZE, blobContour, cornerHash, cornerMask, rectContour } from './edgeGeometry'
+import { TILE_SIZE, blobContour, contourBounds, cornerHash, cornerMaskAny, pointInPolygon, rectContour, trailContour } from './edgeGeometry'
 import { paintWallBands } from './wallBands'
 import { contourSteps } from './groundCanvas'
 import { DEFAULT_FRINGE, type FringePalette, type GroundPack } from './pack'
@@ -165,7 +165,7 @@ export class TilePainter {
 
     const tileLayer = new Container()
     root.addChild(tileLayer)
-    this.paintTiles(tileLayer, rect, pad, points, seed, kind, outside)
+    this.paintTiles(tileLayer, rect, pad, [points], seed, kind, outside)
 
     // Tông nền, cụm chi tiết, rác mép, chuyện nền: cắt theo đa giác nên không tràn ra.
     const def = this.defOf(kind)
@@ -221,7 +221,7 @@ export class TilePainter {
     const points = rectContour(rect, flare, ramp, mouths, jitter)
     const tileLayer = new Container()
     root.addChild(tileLayer)
-    this.paintTiles(tileLayer, rect, 0, points, seed, kind, outside)
+    this.paintTiles(tileLayer, rect, 0, [points], seed, kind, outside)
 
     const dressed = new Container()
     const clip = new Graphics().poly(points).fill(0xffffff)
@@ -235,12 +235,70 @@ export class TilePainter {
     this.fringeInside(root, points, seed, outside, kind)
   }
 
-  /** Lays the ground tiles for a region, using `points` to pick the edge cases. */
+  /**
+   * A NETWORK of trails that follows paths — the trail a yard wears between its plots,
+   * forks included. `paintPath` can only run straight along an axis, and chaining bands
+   * to fake a bend leaves a transition lip across every joint; this offsets a smoothed
+   * centreline instead (see `trailContour`) and dresses the result exactly like a path:
+   * tiles, interior tones/clusters/litter, fringe.
+   *
+   * The branches are **unioned**: a tile's edge case is decided against "inside ANY
+   * branch", so a fork comes out as one band. Painted branch by branch, each one would
+   * draw its `kind ↔ outside` transition along its own outline — including the stretches
+   * buried inside another branch — and a junction would read as two paths laid side by
+   * side with a stripe of grass between them. The fringe is skipped where it is buried
+   * for the same reason.
+   *
+   * Paint it BEFORE the floors it runs to, the same way lanes are painted: the ends
+   * then tuck under a floor, so the stretch lying on that area's ground never has to
+   * fake a transition — and `outside` stays the ground around the *rest* of the band.
+   */
+  paintTrailNetwork(
+    root: Container,
+    branches: readonly { readonly points: readonly { x: number; y: number }[]; readonly width: number }[],
+    seed: number,
+    kind: TerrainId,
+    outside: TerrainId = 'grass',
+  ): void {
+    const contours = branches
+      .filter((branch) => branch.points.length >= 2)
+      .map((branch, index) => trailContour(branch.points, branch.width / 2, seed + index * 17))
+      .filter((contour) => contour.length >= 6)
+    if (contours.length === 0) return
+
+    const rect = contourBounds(contours.flat())
+    const tileLayer = new Container()
+    root.addChild(tileLayer)
+    this.paintTiles(tileLayer, rect, 0, contours, seed, kind, outside)
+
+    const dressed = new Container()
+    const clip = new Graphics()
+    for (const contour of contours) clip.poly(contour)
+    clip.fill(0xffffff)
+    root.addChild(dressed, clip)
+    dressed.mask = clip
+    this.tonesInside(dressed, rect, 0, seed, kind)
+    this.clustersInside(dressed, rect, 0, seed, kind)
+    for (const contour of contours) this.litterInside(dressed, contour, seed, kind)
+    this.groundStories(dressed, rect, 0, seed, kind)
+
+    contours.forEach((contour, index) => {
+      const buried = (x: number, y: number): boolean =>
+        contours.some((other, otherIndex) => otherIndex !== index && pointInPolygon(x, y, other))
+      this.fringeInside(root, contour, seed, outside, kind, buried)
+    })
+  }
+
+  /**
+   * Lays the ground tiles for a region, using `contours` to pick the edge cases: the
+   * mask is computed against the UNION, so a network of overlapping bands gets its
+   * transitions only on the outer boundary.
+   */
   private paintTiles(
     container: Container,
     rect: Rect,
     pad: number,
-    points: readonly number[],
+    contours: readonly (readonly number[])[],
     seed: number,
     kind: TerrainId,
     outside: TerrainId,
@@ -270,7 +328,7 @@ export class TilePainter {
 
     for (let y = startY; y < endY; y += TILE_SIZE) {
       for (let x = startX; x < endX; x += TILE_SIZE) {
-        const mask = cornerMask(x, y, points, seed)
+        const mask = cornerMaskAny(x, y, contours, seed)
         if (mask === 0) continue
         if (mask === 15) {
           this.addTile(container, dither, kind, x, y, seed)
@@ -646,6 +704,8 @@ export class TilePainter {
     seed: number,
     outside: TerrainId,
     innerKind: TerrainId,
+    /** Steps buried under another band of the same surface — skipped (trail forks). */
+    buried?: (x: number, y: number) => boolean,
   ): void {
     const g = new Graphics()
     const grassLike = this.defOf(outside).grassLike === true
@@ -661,6 +721,7 @@ export class TilePainter {
       const step = index
       index++
       if (!this.within(spot.x, spot.y, 20)) continue
+      if (buried?.(spot.x, spot.y)) continue
       // Per-step stream, so a chunk shows exactly the steps it owns.
       const rnd = makeRandom(cornerHash(step, 1, seed * 31 + 7))
       // Cụm cỏ mọc lấn vào trong mép (2–3 lá so le).

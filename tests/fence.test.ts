@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { drawZoneFence } from '@ui/scene/focus/fence'
+import { drawZoneFence, drawZoneRing } from '@ui/scene/focus/fence'
 import type { GroundCanvas } from '@ground/core/groundCanvas'
-import type { FenceOpening } from '@ground/packs/scrapYard/worldLayout'
+import type { FenceOpening, ZoneLayout } from '@ground/packs/scrapYard/worldLayout'
 
 interface Draw {
   kind: 'rect' | 'ellipse'
@@ -117,6 +117,46 @@ describe('zone fence', () => {
 
     // Mỗi lỗ mở được chốt bằng đúng hai trụ cổng.
     expect(cut.filter((draw) => draw.color === GATE_POST).length).toBe(OPENINGS.length * 2)
+  })
+
+  it('wraps a bent zone ring without leaking past its own bands', () => {
+    // Khu khai vành GẤP KHÚC (chữ L ở đây) vẽ thành hai mặt depth riêng — art phải bám
+    // đúng các đoạn của chính nó, không thì rào vẽ lạc sang chỗ khác của bãi.
+    const layout: ZoneLayout = {
+      rect: { x: 0, y: 0, width: 320, height: 220 },
+      style: { color: 0x7cc45c, css: '#7cc45c' },
+      outline: [
+        { x: 120, y: 80 },
+        { x: 300, y: 80 },
+        { x: 300, y: 200 },
+        { x: 200, y: 200 },
+        { x: 200, y: 140 },
+        { x: 120, y: 140 },
+      ],
+      gates: [{ at: { x: 250, y: 200 }, width: 60 }],
+    }
+    const { canvas, draws } = recorder()
+    drawZoneRing(canvas, layout, 'back')
+    drawZoneRing(canvas, layout, 'front')
+    expect(draws.length).toBeGreaterThan(20)
+
+    for (const draw of draws) {
+      expect(draw.alpha).toBeGreaterThan(0)
+      expect(draw.alpha).toBeLessThanOrEqual(1)
+      const box = extents(draw)
+      expect(box.minX, 'west band').toBeGreaterThanOrEqual(117.5)
+      expect(box.maxX, 'east band').toBeLessThanOrEqual(302.5)
+      expect(box.minY, 'north band').toBeGreaterThanOrEqual(69)
+      expect(box.maxY, 'south band').toBeLessThanOrEqual(202)
+    }
+
+    // Cổng bị cắt đúng khổ: không tấm nào trong lòng cổng, còn đúng hai trụ chốt mép.
+    const inGate = draws.filter((draw) => {
+      const box = extents(draw)
+      return box.maxX > 223 && box.minX < 277 && box.maxY > 185
+    })
+    expect(inGate.length).toBe(0)
+    expect(draws.filter((draw) => draw.color === GATE_POST).length).toBe(2)
   })
 
   it('mixes tin and wood in uneven panels instead of one uniform fence', () => {

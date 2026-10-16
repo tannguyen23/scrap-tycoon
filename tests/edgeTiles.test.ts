@@ -8,11 +8,13 @@ import {
   cliffBandEdges,
   clipPolygonToTile,
   cornerMask,
+  cornerMaskAny,
   distanceToContour,
   pointInPolygon,
   polygonCentroid,
   rectContour,
   scaleAboutCentroid,
+  trailContour,
 } from '@ground/core/edgeGeometry'
 
 const TILE = 16
@@ -386,5 +388,91 @@ describe('cliff bands (plateau walls)', () => {
     expect(distanceToContour(square, 8, 8)).toBeGreaterThan(0)
     expect(distanceToContour(square, 8, 15)).toBeCloseTo(1, 5)
     expect(distanceToContour(square, 8, 25)).toBeCloseTo(9, 5)
+  })
+})
+
+/** Width of a trail band at every sample: |left[i] → right[i]|, both edges of the contour. */
+function trailWidths(contour: readonly number[]): number[] {
+  const count = contour.length / 2 / 2
+  const widths: number[] = []
+  for (let i = 0; i < count; i++) {
+    const lx = contour[i * 2] ?? 0
+    const ly = contour[i * 2 + 1] ?? 0
+    const back = (count - 1 - i) * 2
+    const rx = contour[count * 2 + back] ?? 0
+    const ry = contour[count * 2 + back + 1] ?? 0
+    widths.push(Math.hypot(lx - rx, ly - ry))
+  }
+  expect(widths.length).toBeGreaterThan(10)
+  return widths
+}
+
+describe('contour networks', () => {
+  it('reads the union, so a fork has no internal edge to draw', () => {
+    // Hai contour chồng nhau (tim trục + tim nhánh của một ngã ba). Xét một ô nằm vắt
+    // qua ranh giới của cả hai: đọc TỪNG contour thì mỗi cái chỉ thấy nửa ô — đó chính
+    // là "mép" mà lượt vẽ chuyển tiếp bám vào, thành vệt cỏ cắt ngang mối nối.
+    const trunk = [-6, -6, 12, -6, 12, 24, -6, 24]
+    const branch = [4, -6, 28, -6, 28, 24, 4, 24]
+    const seed = 5
+    expect(cornerMask(0, 0, trunk, seed)).toBe(1 | 8)
+    expect(cornerMask(0, 0, branch, seed)).toBe(2 | 4)
+    // Đọc theo MẠNG thì cả ô nằm trong HỢP ⇒ không còn mép nào để vẽ chuyển tiếp.
+    expect(cornerMaskAny(0, 0, [trunk, branch], seed)).toBe(15)
+    // Ô nằm ngoài cả hai vẫn là ngoài.
+    expect(cornerMaskAny(200, 200, [trunk, branch], seed)).toBe(0)
+  })
+})
+
+describe('trail contours', () => {
+  // Một đường cong qua ba điểm gãy: chỗ gãy chính là thứ dễ ra "góc vuông".
+  const path = [
+    { x: 100, y: 320 },
+    { x: 210, y: 250 },
+    { x: 330, y: 262 },
+    { x: 430, y: 210 },
+  ]
+  const HALF = 17
+
+  it('follows the centreline, so the band covers the path it was given', () => {
+    const contour = trailContour(path, HALF, 60)
+    expect(contour.length).toBeGreaterThan(40)
+    const samples: { x: number; y: number }[] = []
+    for (let i = 0; i + 1 < path.length; i++) {
+      const a = path[i]
+      const b = path[i + 1]
+      if (!a || !b) continue
+      const steps = Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / 4)
+      for (let s = 0; s <= steps; s++) {
+        const t = s / steps
+        samples.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t })
+      }
+    }
+    // Bỏ vài mẫu sát hai đầu: đầu dải thon lại nên đúng điểm cuối nằm TRÊN mép contour.
+    for (const point of samples.slice(3, -3)) {
+      expect(pointInPolygon(point.x, point.y, contour), `tim đường hở ở ${point.x},${point.y}`).toBe(true)
+    }
+  })
+
+  it('tapers both ends instead of stopping on a square edge', () => {
+    const widths = trailWidths(trailContour(path, HALF, 60))
+    const middle = widths[Math.floor(widths.length / 2)] ?? 0
+    // Giữa dải quanh cỡ khai báo (hai mép wobble độc lập nên không bao giờ bằng đúng).
+    expect(middle).toBeGreaterThan(HALF * 2 * 0.8)
+    expect(middle).toBeLessThan(HALF * 2 * 1.2)
+    // Hai đầu thon lại — đầu dải cắt phẳng đọc ra hình chữ nhật.
+    const first = widths[0] ?? 0
+    const last = widths[widths.length - 1] ?? 0
+    expect(first).toBeLessThan(middle * 0.8)
+    expect(last).toBeLessThan(middle * 0.8)
+  })
+
+  it('wobbles, and wobbles the same way every time', () => {
+    const widths = trailWidths(trailContour(path, HALF, 60))
+    const spread = Math.max(...widths) - Math.min(...widths)
+    expect(spread, 'bề ngang phải lay, không thì ra dải băng dán').toBeGreaterThan(HALF * 0.15)
+    // Khoá theo vị trí: cùng đường, cùng seed ⇒ cùng dải (chunk nào vẽ cũng vậy).
+    expect(trailContour(path, HALF, 60)).toEqual(trailContour(path, HALF, 60))
+    expect(trailContour(path, HALF, 61)).not.toEqual(trailContour(path, HALF, 60))
   })
 })

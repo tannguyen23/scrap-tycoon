@@ -90,3 +90,10 @@ export function isUpgradeUnlocked(
   if (!upgrade) return false
   return upgrade.requires ? isConditionMet(state, upgrade.requires) : true
 }
+
+/** Gear has no branch of its own — only its own gate. */
+export function isGearUnlocked(state: GameState, content: GameContent, gearId: string): boolean {
+  const gear = content.gear?.find((piece) => piece.id === gearId)
+  if (!gear) return false
+  return gear.requires ? isConditionMet(state, gear.requires) : true
+}

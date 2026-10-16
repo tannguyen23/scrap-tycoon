@@ -321,6 +321,142 @@ function roughenBand(points: readonly number[], jitter: number, axis: 'x' | 'y')
   return out
 }
 
+/** Sampling step along a trail's centreline, px — fine enough that a bend reads as a curve. */
+const TRAIL_SAMPLE_STEP = 8
+
+interface TrailPoint {
+  x: number
+  y: number
+}
+
+/**
+ * Catmull-Rom through the control points, sampled every few px: a waypoint list is
+ * a *polyline*, and every control point would otherwise show up as a corner in the
+ * finished band. The curve passes through the very same points, so the trail still
+ * aims exactly at the gates.
+ */
+function smoothTrail(path: readonly TrailPoint[], step: number): TrailPoint[] {
+  if (path.length < 3) return resampleTrail(path, step)
+
+  const out: TrailPoint[] = []
+  for (let i = 0; i + 1 < path.length; i++) {
+    const p1 = path[i]
+    const p2 = path[i + 1]
+    if (!p1 || !p2) continue
+    const p0 = path[i - 1] ?? p1
+    const p3 = path[i + 2] ?? p2
+    const steps = Math.max(2, Math.ceil(Math.hypot(p2.x - p1.x, p2.y - p1.y) / step))
+    for (let s = 0; s < steps; s++) out.push(catmullRom(p0, p1, p2, p3, s / steps))
+  }
+  const last = path[path.length - 1]
+  if (last) out.push({ x: last.x, y: last.y })
+  return out
+}
+
+function catmullRom(p0: TrailPoint, p1: TrailPoint, p2: TrailPoint, p3: TrailPoint, t: number): TrailPoint {
+  const t2 = t * t
+  const t3 = t2 * t
+  return {
+    x: 0.5 * (2 * p1.x + (-p0.x + p2.x) * t + (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t2 + (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t3),
+    y: 0.5 * (2 * p1.y + (-p0.y + p2.y) * t + (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2 + (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3),
+  }
+}
+
+/** Evenly spaced points along a polyline, both ends included. */
+function resampleTrail(path: readonly TrailPoint[], step: number): TrailPoint[] {
+  const out: TrailPoint[] = []
+  for (let i = 0; i + 1 < path.length; i++) {
+    const a = path[i]
+    const b = path[i + 1]
+    if (!a || !b) continue
+    const length = Math.hypot(b.x - a.x, b.y - a.y)
+    const steps = Math.max(1, Math.ceil(length / step))
+    for (let s = 0; s < steps; s++) {
+      const t = s / steps
+      out.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t })
+    }
+  }
+  const last = path[path.length - 1]
+  if (last) out.push({ x: last.x, y: last.y })
+  return out
+}
+
+/** Samples over which a trail's ends taper in, so a band never stops on a square edge. */
+const TRAIL_TAPER_SAMPLES = 4
+
+/**
+ * Contour of a band that follows a **path** (a trail through a yard). The centreline
+ * is smoothed (see `smoothTrail`) and then offset to both sides, so the band bends
+ * with it — something a rect band cannot do, and chaining rect bands leaves a lip
+ * across every joint.
+ *
+ * Both edges wobble **independently**, keyed on position: a constant-width ribbon
+ * reads as an extruded stripe, and a wobbling outline is also what keeps its tile
+ * edges from lining up like a ruler. The ends taper, because a flat butt cap reads
+ * as a cut rectangle wherever a floor does not happen to cover it.
+ */
+export function trailContour(path: readonly TrailPoint[], half: number, seed: number): number[] {
+  const samples = smoothTrail(path, TRAIL_SAMPLE_STEP)
+  const count = samples.length
+  if (count < 2) return []
+
+  const left: number[] = []
+  const right: number[] = []
+  for (let i = 0; i < count; i++) {
+    const at = samples[i]
+    if (!at) continue
+    const before = samples[Math.max(0, i - 1)] ?? at
+    const after = samples[Math.min(count - 1, i + 1)] ?? at
+    const dx = after.x - before.x
+    const dy = after.y - before.y
+    const length = Math.hypot(dx, dy) || 1
+
+    const taper = Math.min(1, Math.min(i, count - 1 - i) / TRAIL_TAPER_SAMPLES + 0.42)
+    // Mỗi mép một muối riêng: hai bên wobble độc lập nên bề ngang và cả đường tim
+    // đều lay, chứ không phải một dải băng dánh đều hai mép song song.
+    const edgeWidth = (salt: number): number => {
+      const hash = (cornerHash(Math.round(at.x), Math.round(at.y), seed + salt) % 1000) / 1000
+      return half * taper * (0.86 + hash * 0.28)
+    }
+    const shift = ((cornerHash(Math.round(at.x), Math.round(at.y), seed + 977) % 201) / 200 - 0.5) * half * 0.16
+
+    const nx = dy / length
+    const ny = -dx / length
+    const outL = edgeWidth(11)
+    const outR = edgeWidth(53)
+    left.push(Math.round((at.x + nx * outL + ny * shift) * 4) / 4, Math.round((at.y + ny * outL - nx * shift) * 4) / 4)
+    right.push(Math.round((at.x - nx * outR + ny * shift) * 4) / 4, Math.round((at.y - ny * outR - nx * shift) * 4) / 4)
+  }
+
+  const out = [...left]
+  for (let i = count - 1; i >= 0; i--) {
+    out.push(right[i * 2] ?? 0, right[i * 2 + 1] ?? 0)
+  }
+  return out
+}
+
+/** Bounding box of a contour — what the dressed passes iterate over. */
+export function contourBounds(points: readonly number[]): Rect {
+  let minX = Number.POSITIVE_INFINITY
+  let minY = Number.POSITIVE_INFINITY
+  let maxX = Number.NEGATIVE_INFINITY
+  let maxY = Number.NEGATIVE_INFINITY
+  for (let i = 0; i + 1 < points.length; i += 2) {
+    const x = points[i] ?? 0
+    const y = points[i + 1] ?? 0
+    minX = Math.min(minX, x)
+    maxX = Math.max(maxX, x)
+    minY = Math.min(minY, y)
+    maxY = Math.max(maxY, y)
+  }
+  return {
+    x: minX,
+    y: minY,
+    width: Math.max(0, maxX - minX),
+    height: Math.max(0, maxY - minY),
+  }
+}
+
 export function pointInPolygon(x: number, y: number, points: readonly number[]): boolean {
   const count = points.length / 2
   let inside = false
@@ -381,6 +517,30 @@ export function cornerMask(x: number, y: number, points: readonly number[], seed
     (insideCorner(x + TILE_SIZE, y, points, seed) ? 2 : 0) |
     (insideCorner(x + TILE_SIZE, y + TILE_SIZE, points, seed) ? 4 : 0) |
     (insideCorner(x, y + TILE_SIZE, points, seed) ? 8 : 0)
+  )
+}
+
+/**
+ * 4-corner mask against a whole NETWORK of contours: a corner counts as inside when it
+ * is inside ANY of them, so the mask describes the **union** — which is what a fork
+ * needs. With one contour per branch, the edge pass draws a transition along every
+ * branch boundary, including the stretches buried inside another branch, and a
+ * junction ends up reading as two paths laid side by side with a stripe of grass
+ * between them.
+ */
+export function cornerMaskAny(
+  x: number,
+  y: number,
+  contours: readonly (readonly number[])[],
+  seed: number,
+): number {
+  const anyInside = (px: number, py: number): boolean =>
+    contours.some((points) => insideCorner(px, py, points, seed))
+  return (
+    (anyInside(x, y) ? 1 : 0) |
+    (anyInside(x + TILE_SIZE, y) ? 2 : 0) |
+    (anyInside(x + TILE_SIZE, y + TILE_SIZE) ? 4 : 0) |
+    (anyInside(x, y + TILE_SIZE) ? 8 : 0)
   )
 }
 

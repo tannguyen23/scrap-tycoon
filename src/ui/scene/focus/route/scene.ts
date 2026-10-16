@@ -5,11 +5,24 @@ import { Particles, SHADOW, depthArt, depthSlot, sortByDepth } from '../parts'
 import type { DetailScene, DetailSceneState } from '@scene/core/types'
 import { createRouteVehicle, type VehicleActor } from './actors'
 import { drawBilletStack } from './sprites'
+import type { ZoneProp } from '../props'
 
 const CAP = 5
 const MAX_BARS = 12
 /** Chồng phôi ở ngã ba làn xưởng → mặt đường (local; world 724, 374). */
 const BILLET_STACK = { x: 724, y: -6 }
+
+/**
+ * Đế chặn của tuyến xe — art vẽ tay trong scene nên ở đây chỉ khai ĐẾ (xem `../props.ts`).
+ * Xe ba gác chạy theo kịch bản nên không đụng mấy hộp này. Chồng phôi KHÔNG khai đế: nó
+ * lớn lên theo tồn kho, rỗng thì chẳng có gì ở đó.
+ */
+export const ROUTE_PROPS: readonly ZoneProp[] = [
+  { kind: 'fixed', x: 120, y: 17, half: 6, height: 9 },
+  { kind: 'fixed', x: 537, y: 19, half: 7, height: 13 },
+  { kind: 'fixed', x: 930, y: 29, half: 5, height: 27 },
+  { kind: 'fixed', x: 240, y: 29, half: 5, height: 27 },
+]
 
 /** Detailed cart route: sidewalks, road wear and carts looping both lanes. */
 export function createRouteDetail(rect: ZoneRect, tiles: TilePainter): DetailScene {

@@ -1,4 +1,4 @@
-import { pointInPolygon } from '@ground/core/edgeGeometry'
+import { distanceToSegment, pointInPolygon } from '@ground/core/edgeGeometry'
 import type { Rect } from '@ground/core/metrics'
 import { DECOR_PLACEMENTS } from '@ground/packs/scrapYard/decorPlacements'
 import { SOLID_DECOR } from '@ground/packs/scrapYard/decorItems'
@@ -7,21 +7,43 @@ import {
   WORLD_HEIGHT,
   WORLD_WIDTH,
   ZONE_LAYOUTS,
-  type FenceOpening,
+  zoneFenceRuns,
+  type FenceRun,
 } from '@ground/packs/scrapYard/worldLayout'
+import { ALLEY_PROPS } from '../focus/alley/scene'
+import { APPLIANCES_PROPS } from '../focus/appliances/scene'
+import { DEPOT_PROPS } from '../focus/depot/scene'
+import { GATE_PROPS } from '../focus/gate/scene'
+import { propBase, type ZoneProp } from '../focus/props'
+import { RECYCLE_PROPS } from '../focus/recycle/scene'
+import { ROUTE_PROPS } from '../focus/route/scene'
+import { TIRES_PROPS } from '../focus/tires/scene'
 import { scrapWaterBodies } from '../waterBodies'
+
+/** Vật đứng của từng khu (toạ độ LOCAL) — đúng danh sách mà scene khu vẽ ra. */
+const ZONE_PROPS: Record<string, readonly ZoneProp[]> = {
+  alley: ALLEY_PROPS,
+  tires: TIRES_PROPS,
+  appliances: APPLIANCES_PROPS,
+  recycle: RECYCLE_PROPS,
+  depot: DEPOT_PROPS,
+  gate: GATE_PROPS,
+  route: ROUTE_PROPS,
+}
 
 /**
  * What a walker can stand on, derived from the world data the map is painted
  * from — no second map, no pathfinding. Three kinds of "no":
  *
- *   • **fences**: a painted zone fence is a line on its rect edge, crossable only
- *     at a declared `fenceOpenings` gate (zones without gates are unfenced, like
- *     the avenue band);
+ *   • **fences**: the painted fence of every zone and of every pen inside it,
+ *     which is a list of straight runs with the gates already cut out of them —
+ *     the same runs the art draws, so what you see is what blocks;
  *   • **water**: the exact painted waterline (`blobContour`, same rect/pad/seed),
  *     so a step can never land on ground the map drew as pond;
- *   • **props**: raised clearings (their edges are walls) and the BASE of every
- *     `solid` decor specimen — only the base blocks, so a canopy overhangs.
+ *   • **props**: raised clearings (their edges are walls), the BASE of every `solid`
+ *     decor specimen on the map, and the BASE of every standing prop a zone scene
+ *     draws (`ZONE_PROPS`) — only the base blocks, so a canopy or a heap's top
+ *     overhangs the path. Flat things are never declared: you step over them.
  *
  * Everything here is pure so `tests/walkable.test.ts` can walk the real map.
  */
@@ -31,17 +53,13 @@ export interface Spot {
   y: number
 }
 
-interface FenceBand {
-  readonly rect: Rect
-  readonly openings: readonly FenceOpening[]
-}
-
 export interface Blockers {
   /** Raised clearings and prop bases. */
   readonly rects: readonly Rect[]
   /** Pond/lake outlines. */
   readonly polys: readonly (readonly number[])[]
-  readonly fences: readonly FenceBand[]
+  /** Fence runs, world space — gates are gaps between runs, not something you test for. */
+  readonly fences: readonly FenceRun[]
 }
 
 /**
@@ -80,24 +98,12 @@ export function solidBox(specimen: { width: number; height: number }, x: number,
   return { x: x - half, y: y - height, width: half * 2, height: height + BASE_FOOT }
 }
 
-/** Is (x, y) on a fenced edge, and if so which one. */
-function fenceEdge(rect: Rect, x: number, y: number): FenceOpening['edge'] | null {
-  if (x < rect.x - FENCE_HALF || x > rect.x + rect.width + FENCE_HALF) return null
-  if (y < rect.y - FENCE_HALF || y > rect.y + rect.height + FENCE_HALF) return null
-  if (Math.abs(y - rect.y) <= FENCE_HALF) return 'north'
-  if (Math.abs(y - (rect.y + rect.height)) <= FENCE_HALF) return 'south'
-  if (Math.abs(x - rect.x) <= FENCE_HALF) return 'west'
-  if (Math.abs(x - (rect.x + rect.width)) <= FENCE_HALF) return 'east'
-  return null
-}
-
-/** True when the fence line at (x, y) is closed — a gate opening lets you through. */
-function fenceBlocks(band: FenceBand, x: number, y: number): boolean {
-  const edge = fenceEdge(band.rect, x, y)
-  if (!edge) return false
-  const along =
-    edge === 'north' || edge === 'south' ? x - band.rect.x : y - band.rect.y
-  return !band.openings.some((opening) => opening.edge === edge && along >= opening.from && along <= opening.to)
+/** Is (x, y) on a fence run? Gates are gaps in the run list, so they never hit. */
+function fenceBlocks(fences: readonly FenceRun[], x: number, y: number): boolean {
+  for (const run of fences) {
+    if (distanceToSegment(x, y, run.x1, run.y1, run.x2, run.y2) <= FENCE_HALF) return true
+  }
+  return false
 }
 
 /**
@@ -124,12 +130,28 @@ export function buildBlockers(): Blockers {
     rects.push(solidBox(specimen, placement.x, placement.y))
   }
 
-  const fences: FenceBand[] = []
+  // Props standing inside a yard block at their base, exactly the way map decor does
+  // (same base-box numbers). The list is the one the zone scene DRAWS from, so art and
+  // collision cannot drift; flat things (lying tyres, pallets, bags, bottles, weeds)
+  // are not declared at all — you step over them on purpose.
+  for (const [zoneId, layout] of Object.entries(ZONE_LAYOUTS)) {
+    for (const prop of ZONE_PROPS[zoneId] ?? []) {
+      const base = propBase(prop)
+      rects.push({
+        x: layout.rect.x + base.x,
+        y: layout.rect.y + base.y,
+        width: base.width,
+        height: base.height + BASE_FOOT,
+      })
+    }
+  }
+
+  // Fences come from the layout: every zone that declares a ring (`outline` + gates)
+  // or a rect fence (`fenceOpenings`) gets its runs — the very ones the scene draws.
+  const fences: FenceRun[] = []
   for (const layout of Object.values(ZONE_LAYOUTS)) {
-    const openings = layout.fenceOpenings
-    // An unfenced zone (the avenue band) has no gate list at all.
-    if (!openings || openings.length === 0) continue
-    fences.push({ rect: layout.rect, openings })
+    const fenced = (layout.outline?.length ?? 0) >= 3 || (layout.fenceOpenings?.length ?? 0) > 0
+    if (fenced) fences.push(...zoneFenceRuns(layout))
   }
 
   return {
@@ -143,9 +165,7 @@ export function buildBlockers(): Blockers {
 export function canStand(blockers: Blockers, x: number, y: number, radius = WALKER_RADIUS): boolean {
   if (x < radius || y < radius || x > WORLD_WIDTH - radius || y > WORLD_HEIGHT - radius) return false
   // Fences: a line, so the centre is what may not cross it.
-  for (const band of blockers.fences) {
-    if (fenceBlocks(band, x, y)) return false
-  }
+  if (fenceBlocks(blockers.fences, x, y)) return false
   // Solid volumes: every corner of the body has to fit.
   for (const [sx, sy] of CORNERS) {
     const px = x + sx * radius

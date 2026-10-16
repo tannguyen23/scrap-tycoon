@@ -1,9 +1,11 @@
 import type { ZoneId } from '@domain/types'
 import { createAlleyDetail } from './alley/scene'
+import { createAppliancesDetail } from './appliances/scene'
 import { createDepotDetail } from './depot/scene'
 import { createGateDetail } from './gate/scene'
 import { createRecycleDetail } from './recycle/scene'
 import { createRouteDetail } from './route/scene'
+import { createTiresDetail } from './tires/scene'
 import type { DetailSceneFactory } from '@scene/core/types'
 
 /**
@@ -16,6 +18,8 @@ import type { DetailSceneFactory } from '@scene/core/types'
  */
 const FACTORIES: Record<ZoneId, DetailSceneFactory> = {
   alley: createAlleyDetail,
+  tires: createTiresDetail,
+  appliances: createAppliancesDetail,
   recycle: createRecycleDetail,
   route: createRouteDetail,
   depot: createDepotDetail,

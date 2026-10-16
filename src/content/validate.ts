@@ -1,4 +1,5 @@
 import type { BranchDef, Condition, GameContent, WeatherProfile, WeatherVisual } from '@domain/types'
+import { GEAR_SLOTS } from '@domain/types'
 import { itemZoneMap } from '@domain/zones'
 import { BALANCE } from './balance'
 
@@ -16,6 +17,9 @@ export function validateContent(content: GameContent): string[] {
     }
     if (item.cap && item.cap.lte(0)) {
       errors.push(`item "${key}" cap must be > 0 (or null/absent for uncapped)`)
+    }
+    if (item.carry && item.carry.lte(0)) {
+      errors.push(`item "${key}" carry must be > 0 (or null/absent for a bag that never limits it)`)
     }
   }
 
@@ -35,6 +39,11 @@ export function validateContent(content: GameContent): string[] {
   for (const [key, branch] of Object.entries(content.branches)) {
     if (branch.id !== key) {
       errors.push(`branch key "${key}" does not match id "${branch.id}"`)
+    }
+    for (const zoneId of branch.zones ?? []) {
+      if (!(zoneId in content.zones)) {
+        errors.push(`branch "${key}" lists unknown zone "${zoneId}"`)
+      }
     }
     validateBranch(branch, content, errors)
   }
@@ -61,6 +70,10 @@ export function validateContent(content: GameContent): string[] {
 
   if (content.actions) {
     validateManualActions(content, errors)
+  }
+
+  if (content.gear) {
+    validateGear(content, errors)
   }
 
   return errors
@@ -110,6 +123,38 @@ function validateManualActions(content: GameContent, errors: string[]): void {
 
     if (action.requires) {
       validateCondition(action.requires, content, where, errors)
+    }
+  }
+}
+
+/**
+ * Gear: money-only purchases the character wears. One piece per slot is a hard
+ * rule, because owning a piece IS wearing it (`GameState.gear`) — two pieces in
+ * one slot would fight over the body and over the same stat key.
+ */
+function validateGear(content: GameContent, errors: string[]): void {
+  const seen = new Set<string>()
+  const slots = new Set<string>()
+  for (const piece of content.gear ?? []) {
+    const where = `gear "${piece.id}"`
+    if (seen.has(piece.id)) errors.push(`${where}: duplicate id`)
+    seen.add(piece.id)
+    if (!GEAR_SLOTS.includes(piece.slot)) {
+      errors.push(`${where}: unknown slot "${piece.slot}"`)
+    } else if (slots.has(piece.slot)) {
+      errors.push(`${where}: slot "${piece.slot}" already has a piece`)
+    } else {
+      slots.add(piece.slot)
+    }
+    if (piece.cost.lte(0)) errors.push(`${where}: cost must be > 0`)
+    if (piece.style.length === 0) errors.push(`${where}: style must not be empty`)
+    if (piece.effects.length === 0) errors.push(`${where}: has no effects`)
+    for (const effect of piece.effects) {
+      if (effect.target.length === 0) errors.push(`${where}: effect target must not be empty`)
+      if (effect.value.lte(0)) errors.push(`${where}: effect value must be > 0`)
+    }
+    if (piece.requires) {
+      validateCondition(piece.requires, content, where, errors)
     }
   }
 }

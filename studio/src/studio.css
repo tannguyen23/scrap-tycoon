@@ -70,6 +70,49 @@
   color: var(--text);
 }
 
+/* Icon túi đồ: ô túi thật của game + ba cỡ để soi luật "đọc được ở 1×". */
+.studio-icons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.studio-icon-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+}
+
+.studio-icon-card figcaption {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.studio-icon-slot {
+  width: 96px;
+  height: 96px;
+  cursor: default;
+}
+
+/* Ô túi thật trong game chỉ rộng ~60px; ở đây phóng to để soi nét icon. */
+.studio-icon-slot .inv-icon {
+  width: 64px;
+  height: 64px;
+}
+
+.studio-icon-sizes {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.studio-icon-sizes img {
+  image-rendering: pixelated;
+}
 .studio-panel h3::after {
   content: '';
   display: block;

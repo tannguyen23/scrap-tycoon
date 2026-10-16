@@ -1,5 +1,5 @@
 import { Decimal } from '@core/num'
-import { branchRecipeOutput, branchWorkerOutput, workerStepOutput } from '@domain/statKeys'
+import { GLOBAL_CARRY, branchRecipeOutput, branchWorkerOutput, workerStepOutput } from '@domain/statKeys'
 import type { BranchDef, BranchState, GameContent, GameState, WeatherProfile } from '@domain/types'
 import { weatherWorkMultiplier } from '@domain/weather'
 import { expect } from 'vitest'
@@ -18,6 +18,18 @@ export const TEST_CONTENT: GameContent = {
       actionDesc: { vi: 'Thợ đào quặng.', en: 'Diggers mine ore.' },
     },
   },
+  // One piece so save/hydrate tests cover the gear section.
+  gear: [
+    {
+      id: 'vest',
+      slot: 'shirt',
+      name: { vi: 'Áo', en: 'Vest' },
+      desc: { vi: 'Túi áo.', en: 'Pockets.' },
+      cost: new Decimal(100),
+      effects: [{ target: GLOBAL_CARRY, kind: 'mult', value: new Decimal('1.5') }],
+      style: 'vest',
+    },
+  ],
   branches: {
     mine: {
       id: 'mine',

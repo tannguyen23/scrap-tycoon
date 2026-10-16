@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest'
+import { distanceToSegment } from '@ground/core/edgeGeometry'
 import { DECOR_SPECIMENS, decorBox } from '@ground/packs/scrapYard/decorItems'
 import { DECOR_PLACEMENTS } from '@ground/packs/scrapYard/decorPlacements'
 import { SCRAP_MAP } from '@ground/packs/scrapYard/worldGrounds'
 import {
   CONNECTORS,
+  TRAILS,
   WATER_AREAS,
   WORLD_HEIGHT,
   WORLD_WIDTH,
@@ -66,6 +68,22 @@ describe('world decor placement', () => {
       }
       for (const painted of PAINTED) {
         expect(overlaps(box, painted), `${placement.key} @ ${placement.x},${placement.y} trên mặt đường`).toBe(false)
+      }
+      // Lối đi là đường gấp khúc nên phải đo bằng khoảng cách: một bụi nằm đúng ngã ba
+      // là thứ làm mối nối trông sai, mà nhìn từ trên lại y như lỗi vẽ.
+      for (const trail of TRAILS) {
+        const reach = trail.width / 2
+        let closest = Number.POSITIVE_INFINITY
+        for (let i = 0; i + 1 < trail.points.length; i++) {
+          const a = trail.points[i]
+          const b = trail.points[i + 1]
+          if (!a || !b) continue
+          closest = Math.min(
+            closest,
+            distanceToSegment(placement.x, placement.y, a.x, a.y, b.x, b.y) - reach,
+          )
+        }
+        expect(closest, `${placement.key} @ ${placement.x},${placement.y} trên lối đi`).toBeGreaterThan(0)
       }
     }
   })

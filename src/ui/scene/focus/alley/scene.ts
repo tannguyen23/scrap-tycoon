@@ -7,11 +7,13 @@ import {
   paintPuddle,
   paintRuts,
   paintStain,
+  paintWearPatch,
   paintWearPath,
 } from '@ground/packs/scrapYard/decals'
-import { drawZoneFence } from '../fence'
+import { drawZoneRing } from '../fence'
 import { Particles, depthArt, sortByDepth } from '../parts'
 import { createPopups } from '../popups'
+import { drawProp, type ZoneProp } from '../props'
 import type { DetailScene, DetailSceneState, Spot } from '@scene/core/types'
 import { CALM_WIND, type SceneWind } from '@scenery/core/ambience'
 import { createPicker, createPorter, type PickerActor, type PorterActor } from './actors'
@@ -19,22 +21,11 @@ import { createAlleyLife } from './life'
 import {
   drawBagPile,
   drawBottle,
-  drawBrokenTv,
-  drawCrate,
-  drawDrum,
-  drawDumpster,
   drawFlatTire,
-  drawFridge,
-  drawGreenBin,
-  drawJunkHeap,
-  drawLeaningSheet,
-  drawLeaningTire,
   drawPallet,
   drawTippedBin,
   drawTippedDrum,
-  drawTireStack,
   drawTrashBag,
-  drawWasher,
   drawWeedTuft,
 } from './sprites'
 
@@ -42,15 +33,106 @@ const PICKER_CAP = 8
 const PORTER_CAP = 4
 
 /**
- * Bãi rác của khu ve chai: bảy đống phế liệu so le cỡ, thùng rác công nghiệp, hai
- * thùng nhựa xanh (một nắp mở), một thùng đổ nghiêng, bao vứt lẻ, chai lọ lăn quanh,
- * xác tủ lạnh/máy giặt, lốp, pallet và hai món đổ nghiêng. Sàn đất do `worldGrounds`
- * vẽ (một nguồn cho cả map lẫn studio) — ở đây chỉ thêm lớp của khu.
+ * Đống phế liệu thợ chọt (toạ độ LOCAL của bãi làm việc): rải so le khắp thửa, không
+ * đống nào chạm vành và không đống nào đè lên nhau — bãi trông bừa mà vẫn đi lại được.
+ */
+const ALLEY_PILES: Spot[] = [
+  { x: 60, y: 56 },
+  { x: 170, y: 52 },
+  { x: 280, y: 60 },
+  { x: 355, y: 70 },
+  { x: 60, y: 190 },
+  { x: 170, y: 200 },
+  { x: 280, y: 150 },
+  { x: 355, y: 170 },
+  { x: 120, y: 255 },
+]
+
+/** Điểm đổ bao — nơi picker dồn hàng về, cũng là chỗ porter bốc bao lên. */
+export const ALLEY_DROPOFF: Spot = { x: 256, y: 262 }
+/** Lỗ cổng đông (local y 68..116) — porter vác bao ra đây, courier bắt hàng ở đây. */
+export const ALLEY_HAUL_OUT: Spot = { x: 404, y: 72 }
+
+// Chỗ rác tươi: thùng nhựa xanh cạnh thùng công nghiệp, một thùng đổ nghiêng, bao vứt lẻ
+// rải quanh bãi — ruồi tụ quanh đây chứ không tụ ở đống sắt.
+const BIN_A: Spot = { x: 302, y: 112 }
+const BIN_B: Spot = { x: 322, y: 116 }
+const TIPPED_BIN: Spot = { x: 340, y: 128 }
+const LOOSE_BAGS: readonly Spot[] = [
+  { x: 228, y: 176 },
+  { x: 110, y: 205 },
+  { x: 296, y: 260 },
+]
+
+/**
+ * Vật ĐỨNG của bãi làm việc — nguồn DUY NHẤT cho cả art lẫn đế va chạm (`walkable` dựng
+ * hộp chặn từ chính danh sách này). Vật NẰM (pallet, lốp nằm, thùng đổ nghiêng, bao vứt
+ * lẻ, chai, cỏ) không khai: bước qua được.
+ *
+ * Đống bao gom (`ALLEY_DROPOFF`) và mọi chồng kho khác CỐ Ý không khai đế: chúng lớn lên
+ * theo tồn kho nên lúc rỗng chẳng có gì ở đó — một hộp chặn tĩnh là "chiếm chỗ" vô hình
+ * (người chơi đâm vào khoảng không). Xem luật trong `AGENTS.md`.
+ *
+ * Món cuối là `fixed`: thùng phuy cháy do `life.ts` vẽ.
+ */
+export const ALLEY_PROPS: readonly ZoneProp[] = [
+  ...ALLEY_PILES.map((pile, index): ZoneProp => ({ kind: 'heap', x: pile.x, y: pile.y, variant: index })),
+  { kind: 'dumpster', x: 110, y: 90 },
+  { kind: 'crate', x: 176, y: 104 },
+  { kind: 'fridge', x: 368, y: 136 },
+  { kind: 'washer', x: 70, y: 240 },
+  { kind: 'tireStack', x: 140, y: 140, variant: 3 },
+  { kind: 'leaningTire', x: 200, y: 90 },
+  { kind: 'leaningSheet', x: 250, y: 110 },
+  { kind: 'drum', x: 230, y: 90, variant: 0 },
+  { kind: 'drum', x: 28, y: 84, variant: 1 },
+  { kind: 'drum', x: 106, y: 162, variant: 2 },
+  { kind: 'brokenTv', x: 58, y: 254 },
+  { kind: 'greenBin', x: BIN_A.x, y: BIN_A.y },
+  { kind: 'greenBin', x: BIN_B.x, y: BIN_B.y, variant: 1 },
+  { kind: 'fixed', x: 214, y: 134, half: 9, height: 10 },
+]
+
+/**
+ * Mọi điểm thợ dừng lại làm việc (toạ độ LOCAL). Xuất ra để test khoá luật quan trọng
+ * nhất của bãi: picker/porter **đi thẳng** giữa hai waypoint (không pathfind), nên
+ * không waypoint nào được nằm trong chuồng và đoạn thẳng của mỗi chặng không được cắt
+ * rào chuồng — cắt là thợ xuyên rào.
+ */
+export const ALLEY_WORK_SPOTS: readonly Spot[] = [...ALLEY_PILES, ALLEY_DROPOFF, ALLEY_HAUL_OUT]
+
+/**
+ * Các CHẶNG thợ thực sự đi: picker chọt ở một đống rồi vác bao về điểm đổ (lúc vào ca
+ * còn đi từ đống mình đứng sang đống nhận được), porter bốc bao ở điểm đổ vác ra cổng
+ * đông. Đây mới là tập tuyến phải kiểm — không phải mọi cặp điểm làm việc.
+ */
+export const ALLEY_WORK_RUNS: readonly (readonly [Spot, Spot])[] = [
+  ...ALLEY_PILES.map((pile): [Spot, Spot] => [pile, ALLEY_DROPOFF]),
+  ...ALLEY_PILES.flatMap((from): [Spot, Spot][] =>
+    ALLEY_PILES.filter((to) => to !== from).map((to): [Spot, Spot] => [from, to]),
+  ),
+  [ALLEY_DROPOFF, ALLEY_HAUL_OUT],
+]
+
+/**
+ * Lối đi nối ba thửa nằm ở TẦNG BẢN ĐỒ (`SCRAP_MAP.trails` trong `worldGrounds`) chứ
+ * không ở đây: đường nối các khu là địa lý của cả bãi, không thuộc riêng thửa nào.
+ */
+
+/**
+ * Bãi rác của khu ve chai — thửa ĐÔNG-NAM của bãi, chỗ thợ làm việc: chín đống phế
+ * liệu so le, thùng rác công nghiệp, hai thùng nhựa xanh (một nắp mở), một thùng đổ
+ * nghiêng, bao vứt lẻ, chai lọ lăn quanh, xác tủ lạnh/máy giặt, lốp, pallet và hai món
+ * đổ nghiêng. Sàn đất do `worldGrounds` vẽ (một nguồn cho cả map lẫn studio) — ở đây
+ * chỉ thêm lớp của khu.
  *
  * Vòng logistics nhìn thấy được: pickers toả từ các đống chọt lon rồi mang bao GOM
  * VỀ MỘT MỐI tại điểm đổ (đống bao lớn dần theo tồn `scrap`); porters bốc bao từ đống
  * đó vác ra cổng đông — đúng lối mòn sang xưởng tái chế. Bãi trông thật vì các đống
  * LỆCH nhau: cỡ lấy từ bảng trong `sprites.ts`, vị trí thì so le chứ không chia đều.
+ *
+ * Đống phải nằm TRONG thửa, không đống nào chạm vành: picker/porter đi thẳng giữa hai
+ * waypoint (không pathfind) nên vành cắt ngang tuyến là thợ xuyên rào.
  */
 export function createAlleyDetail(rect: ZoneRect, tiles: TilePainter): DetailScene {
   const root = new Container()
@@ -58,52 +140,40 @@ export function createAlleyDetail(rect: ZoneRect, tiles: TilePainter): DetailSce
   const width = rect.width
   const height = rect.height
 
-  // Đống gạch vụn giữa bãi: blob sỏi NẰM TRONG nền đất nên dùng cặp sỏi↔đất.
-  tiles.paintBlob(root, { x: 20, y: 150, width: 130, height: 84 }, 'gravel', 102, 14, 'dirt')
+  // Đống gạch vụn giữa sàn: blob sỏi NẰM TRONG nền đất nên dùng cặp sỏi↔đất.
+  tiles.paintBlob(root, { x: 28, y: 174, width: 66, height: 42 }, 'gravel', 102, 14, 'dirt')
+  // Mảnh vụn rải theo ô lưới nên mật độ tự giữ nguyên theo diện tích.
   tiles.scatter(root, { x: 0, y: 0, width, height }, 111, 'debris', 30)
 
-  const piles: Spot[] = [
-    { x: 34, y: 56 },
-    { x: 118, y: 46 },
-    { x: 196, y: 40 },
-    { x: 300, y: 92 },
-    { x: 36, y: 168 },
-    { x: 138, y: 156 },
-    { x: 280, y: 214 },
-  ]
-  const dropoff: Spot = { x: 192, y: 246 }
-  /** Lỗ cổng đông mở đúng lối mòn sang xưởng tái chế (local y 52..100) — porter vác bao ra đây. */
-  const haulOut: Spot = { x: 340, y: 76 }
+  const piles = ALLEY_PILES
+  const dropoff = ALLEY_DROPOFF
+  const haulOut = ALLEY_HAUL_OUT
 
-  // Chỗ rác tươi: thùng nhựa xanh cạnh thùng công nghiệp, một thùng đổ nghiêng trên
-  // mảng sỏi, bao vứt lẻ rải quanh bãi — ruồi tụ quanh đây chứ không tụ ở đống sắt.
-  const binA: Spot = { x: 238, y: 96 }
-  const binB: Spot = { x: 258, y: 100 }
-  const tippedBin: Spot = { x: 140, y: 210 }
-  const looseBags: Spot[] = [
-    { x: 208, y: 168 },
-    { x: 96, y: 180 },
-    { x: 272, y: 244 },
-  ]
-
-  // Dấu vết sử dụng: lối mòn toả từ điểm đổ ra từng đống, vết chân trên hai tuyến
-  // chính, vệt kéo đồ từ thùng rác ra đống gần nhất, rãnh bánh xe trên làn ra và
-  // vũng dầu dưới thùng phuy.
+  // Dấu vết sử dụng: nền bị giẫm ở điểm đổ, vệt hằn trên những chặng đi lại nhiều, vệt
+  // kéo đồ, rãnh bánh và vũng dầu dưới thùng phuy.
   const decals = new Graphics()
-  for (const pile of piles) {
-    paintWearPath(decals, [dropoff, pile], { seed: 121 + pile.x, strength: 0.6 })
-  }
-  paintWearPath(decals, [piles[0] ?? dropoff, piles[6] ?? dropoff], { seed: 131, strength: 0.8 })
-  paintFootprints(decals, [dropoff, piles[0] ?? dropoff], { seed: 141, strength: 0.9 })
-  paintFootprints(decals, [dropoff, piles[4] ?? dropoff], { seed: 142, strength: 0.8 })
+  // Điểm đổ là chỗ MỌI tuyến hội tụ ⇒ nền ở đó mòn thành MẢNG. Vẽ mỗi chặng một vệt toả
+  // ra từ đây là ra "mấy đường như để nhân vật đi theo", không ra bãi thật.
+  paintWearPatch(decals, dropoff, { radius: 26, seed: 120, strength: 0.85 })
+  // Chỉ những đống GẦN nhất mới hằn thành vệt: chuyến ngắn thì đi lại nhiều lần. Xa hơn
+  // thì nền còn nguyên (xe đẩy mới đi tới đó, và không phải ngày nào cũng đi).
+  const busiest = [...piles].sort(
+    (a, b) => Math.hypot(a.x - dropoff.x, a.y - dropoff.y) - Math.hypot(b.x - dropoff.x, b.y - dropoff.y),
+  )
+  busiest.slice(0, 2).forEach((pile, index) => {
+    paintWearPath(decals, [dropoff, pile], { seed: 121 + index, strength: 0.5 - index * 0.12 })
+  })
+  paintFootprints(decals, [dropoff, busiest[0] ?? dropoff], { seed: 141, strength: 0.8 })
   // Đường vác bao: porter đi từ đống gom ra cổng đông suốt ngày.
   paintWearPath(decals, [dropoff, haulOut], { seed: 133, strength: 0.5 })
-  paintDragMarks(decals, [{ x: 258, y: 62 }, piles[2] ?? dropoff], { seed: 151, strength: 0.6 })
-  paintRuts(decals, [{ x: 196, y: 238 }, { x: 188, y: 116 }], { seed: 152, strength: 0.7 })
-  paintStain(decals, { x: 166, y: 82 }, { radius: 14, soot: true, seed: 161 })
-  paintStain(decals, { x: 286, y: 56 }, { radius: 12, soot: true, seed: 162 })
-  paintPuddle(decals, 62, 240, 6, 2.6, 171)
-  paintPuddle(decals, 236, 240, 5, 2.2, 172)
+  paintDragMarks(decals, [{ x: 250, y: 120 }, piles[6] ?? dropoff], { seed: 151, strength: 0.6 })
+  paintRuts(decals, [{ x: 240, y: 250 }, { x: 228, y: 190 }], { seed: 152, strength: 0.6 })
+  paintStain(decals, { x: 230, y: 92 }, { radius: 14, soot: true, seed: 161 })
+  paintStain(decals, { x: 350, y: 128 }, { radius: 12, soot: true, seed: 162 })
+  paintPuddle(decals, 60, 272, 6, 2.6, 171)
+  paintPuddle(decals, 300, 268, 5, 2.2, 172)
+  // Lối vào bãi: mòn dần từ cổng nam vào sàn.
+  paintWearPath(decals, [{ x: 258, y: 282 }, { x: 262, y: 240 }], { seed: 184, strength: 0.5 })
   root.addChild(decals)
 
   // Lớp depth của khu: actor + prop cao cùng xếp theo y — nhân vật đi RA SAU đống
@@ -113,55 +183,61 @@ export function createAlleyDetail(rect: ZoneRect, tiles: TilePainter): DetailSce
 
   // Thứ nằm PHẲNG trên nền (bao vứt lẻ, chai lọ lăn, cụm cỏ) vẫn ở lớp tĩnh.
   const props = new Graphics()
-  looseBags.forEach((bag, index) => drawTrashBag(props, bag.x, bag.y, 4.5 + (index % 2)))
+  LOOSE_BAGS.forEach((bag, index) => drawTrashBag(props, bag.x, bag.y, 4.5 + (index % 2)))
   for (const bottle of [
-    [230, 112, 0, true],
-    [264, 110, 1, false],
-    [128, 216, 0, false],
-    [153, 206, 2, true],
-    [136, 198, 1, true],
-    [54, 204, 0, true],
-    [250, 182, 2, true],
+    [294, 128, 0, true],
+    [328, 126, 1, false],
+    [192, 232, 0, false],
+    [217, 222, 2, true],
+    [200, 214, 1, true],
+    [96, 244, 0, true],
+    [314, 198, 2, true],
+    [60, 120, 1, false],
+    [150, 120, 2, true],
+    [330, 160, 0, false],
+    [90, 70, 0, false],
+    [200, 60, 1, true],
+    [40, 230, 1, true],
   ] as const) {
     drawBottle(props, bottle[0], bottle[1], bottle[2], bottle[3])
   }
   for (const tuft of [
-    [18, 26],
-    [318, 30],
-    [16, 130],
-    [240, 122],
-    [100, 20],
-    [326, 214],
-    [204, 262],
+    [16, 16],
+    [200, 16],
+    [388, 16],
+    [14, 150],
+    [14, 272],
+    [200, 272],
+    [300, 272],
+    [388, 180],
+    [60, 230],
+    [250, 30],
   ] as const) {
     drawWeedTuft(props, tuft[0], tuft[1])
   }
   root.addChild(props)
 
-  // Mỗi món ĐỨNG là một node depth theo đường chân của nó.
-  piles.forEach((pile, index) => drawJunkHeap(depthArt(actors, pile.y), pile.x, pile.y, index))
-  drawDumpster(depthArt(actors, 44), 250, 44)
-  drawCrate(depthArt(actors, 88), 112, 88)
-  drawPallet(depthArt(actors, 232), 110, 232)
-  drawFridge(depthArt(actors, 158), 306, 158)
-  drawWasher(depthArt(actors, 244), 22, 244)
-  drawTireStack(depthArt(actors, 108), 86, 108, 3)
-  drawFlatTire(depthArt(actors, 114), 68, 114, 6.4)
-  drawLeaningTire(depthArt(actors, 47), 240, 47, 6.2)
-  drawLeaningSheet(depthArt(actors, 40), 56, 40)
-  drawDrum(depthArt(actors, 74), 166, 74, 0x5d8a74, 0x7aa884)
-  drawDrum(depthArt(actors, 176), 322, 176, 0x5a6a8a, 0x78899f)
-  drawDrum(depthArt(actors, 118), 24, 118, 0x9c5a48, 0xba7059)
-  drawTippedDrum(depthArt(actors, 244), 316, 244, 0x9c5a48, 0xba7059)
-  drawBrokenTv(depthArt(actors, 216), 66, 216)
-  drawGreenBin(depthArt(actors, binA.y), binA.x, binA.y)
-  drawGreenBin(depthArt(actors, binB.y), binB.x, binB.y, true)
-  drawTippedBin(depthArt(actors, tippedBin.y), tippedBin.x, tippedBin.y)
+  // Mỗi món ĐỨNG là một node depth theo đường chân của nó — vẽ từ ĐÚNG danh sách mà
+  // `walkable` dựng đế chặn, nên art và va chạm không thể lệch nhau.
+  for (const prop of ALLEY_PROPS) drawProp(depthArt(actors, prop.y), prop)
 
-  // Hàng rào bao bãi, cổng mở đúng chỗ làn đất bãi → đường cắt qua cạnh nam.
-  const fence = new Graphics()
-  drawZoneFence(fence, rect, ZONE_LAYOUTS.alley?.fenceOpenings)
-  root.addChild(fence)
+  // Hai món NẰM: bước qua được nên không khai đế.
+  drawPallet(depthArt(actors, 230), 214, 230)
+  drawFlatTire(depthArt(actors, 136), 80, 136, 6.4)
+  drawTippedDrum(depthArt(actors, 234), 288, 234, 0x9c5a48, 0xba7059)
+  drawTippedBin(depthArt(actors, TIPPED_BIN.y), TIPPED_BIN.x, TIPPED_BIN.y)
+
+  // Vành của thửa này: hai node depth — mặt sau (bắc + hai hông) ở đường chân bắc, mặt
+  // tiền (các đoạn nam) ở đường chân nam — nên người chơi đứng trong bãi được mặt tiền
+  // che, đứng ngoài thì che nó. Một node tĩnh duy nhất là hỏng luật hình #4.
+  const alleyLayout = ZONE_LAYOUTS.alley
+  if (alleyLayout) {
+    const ring = alleyLayout.outline ?? []
+    const top = Math.min(...ring.map((point) => point.y))
+    const bottom = Math.max(...ring.map((point) => point.y))
+    drawZoneRing(depthArt(actors, top), alleyLayout, 'back')
+    drawZoneRing(depthArt(actors, bottom), alleyLayout, 'front')
+  }
 
   // Đống gom MỘT MỐI: bao thợ nhặt mang về chất tại điểm đổ, lớn dần theo tồn `scrap`
   // (đầy = thợ nhặt đứng chờ, porter hết bao để vác). Nằm trong lớp depth nên người
@@ -170,10 +246,10 @@ export function createAlleyDetail(rect: ZoneRect, tiles: TilePainter): DetailSce
   scrapPile.label = 'warehouse'
 
   const life = createAlleyLife(piles, [
-    binA,
-    binB,
-    tippedBin,
-    ...looseBags,
+    BIN_A,
+    BIN_B,
+    TIPPED_BIN,
+    ...LOOSE_BAGS,
     { x: dropoff.x, y: dropoff.y - 2 },
   ])
 

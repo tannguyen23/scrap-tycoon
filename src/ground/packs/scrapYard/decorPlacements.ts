@@ -1,4 +1,5 @@
 import { makeRandom } from '@ground/core/random'
+import { distanceToSegment } from '@ground/core/edgeGeometry'
 import type { Rect } from '@ground/core/metrics'
 import type { Graphics } from 'pixi.js'
 import { DECOR_SPECIMENS, decorBox } from './decorItems'
@@ -7,6 +8,7 @@ import {
   AVENUE_Y,
   CLEARINGS,
   CONNECTORS,
+  TRAILS,
   WATER_AREAS,
   WORLD_HEIGHT,
   WORLD_WIDTH,
@@ -37,8 +39,10 @@ const YARD_LINKS: readonly ZoneRect[] = [
 
 /**
  * Where decor may NOT stand: every yard, every drop of water, every painted lane,
- * link, driveway and the avenue itself. A tree on a road reads as a bug even
- * before the player can walk into it — `tests/worldDecor.test.ts` locks this
+ * link, driveway, the avenue itself — and the gravel trails, which are polylines
+ * rather than rects, so they are tested by distance. A tree on a road reads as a
+ * bug even before the player can walk into it (and a bush sitting on the fork is
+ * exactly what makes a junction look wrong); `tests/worldDecor.test.ts` locks this
  * against the real map data, so the list cannot drift from `worldGrounds`.
  */
 const KEEP_OUT: readonly ZoneRect[] = [
@@ -50,8 +54,22 @@ const KEEP_OUT: readonly ZoneRect[] = [
   { x: 0, y: AVENUE_Y, width: WORLD_WIDTH, height: AVENUE_HEIGHT },
 ]
 
+/** True when (x, y) is within `pad` of a trail's band — trails are paths, not rects. */
+function nearTrail(x: number, y: number, pad: number): boolean {
+  for (const trail of TRAILS) {
+    const reach = trail.width / 2 + pad
+    for (let i = 0; i + 1 < trail.points.length; i++) {
+      const a = trail.points[i]
+      const b = trail.points[i + 1]
+      if (!a || !b) continue
+      if (distanceToSegment(x, y, a.x, a.y, b.x, b.y) <= reach) return true
+    }
+  }
+  return false
+}
+
 function blocked(x: number, y: number, pad: number): boolean {
-  return insideAnyRect(inflateAll(KEEP_OUT, pad), x, y)
+  return insideAnyRect(inflateAll(KEEP_OUT, pad), x, y) || nearTrail(x, y, pad)
 }
 
 const padded = new Map<number, ZoneRect[]>()

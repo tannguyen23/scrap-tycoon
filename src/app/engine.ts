@@ -2,7 +2,19 @@ import type Decimal from 'break_eternity.js'
 import { fail, type Result } from '@core/result'
 import type { SaveManager } from '@core/save/saveManager'
 import type { ObservableStore } from '@core/store'
-import { buyUpgrade, buyWorker, performAction, type BuyUpgradeValue, type BuyWorkerValue, type PerformActionValue } from '@domain/commands'
+import {
+  buyGear,
+  buyUpgrade,
+  buyWorker,
+  performAction,
+  putFromBag,
+  takeToBag,
+  type BagMoveValue,
+  type BuyGearValue,
+  type BuyUpgradeValue,
+  type BuyWorkerValue,
+  type PerformActionValue,
+} from '@domain/commands'
 import type { EngineApi } from '@domain/engine-api'
 import { completedMilestoneIds, newlyCompletedMilestones } from '@domain/milestones'
 import { createFreshState, stateToSerialized } from '@domain/state'
@@ -65,12 +77,36 @@ export class Engine implements EngineApi {
     return result ?? fail('command-did-not-run')
   }
 
+  buyGear(gearId: string): Result<BuyGearValue> {
+    let result: Result<BuyGearValue> | undefined
+    this.store.update((draft) => {
+      result = buyGear(draft, this.content, gearId)
+    })
+    return result ?? fail('command-did-not-run')
+  }
+
   performAction(actionId: string): Result<PerformActionValue> {
     let result: Result<PerformActionValue> | undefined
     this.store.update((draft) => {
       result = performAction(draft, this.content, actionId)
     })
     this.syncMilestones()
+    return result ?? fail('command-did-not-run')
+  }
+
+  takeToBag(zoneId: string, itemId: string): Result<BagMoveValue> {
+    let result: Result<BagMoveValue> | undefined
+    this.store.update((draft) => {
+      result = takeToBag(draft, this.content, zoneId, itemId)
+    })
+    return result ?? fail('command-did-not-run')
+  }
+
+  putFromBag(zoneId: string, itemId: string): Result<BagMoveValue> {
+    let result: Result<BagMoveValue> | undefined
+    this.store.update((draft) => {
+      result = putFromBag(draft, this.content, zoneId, itemId)
+    })
     return result ?? fail('command-did-not-run')
   }
 

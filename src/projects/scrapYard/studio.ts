@@ -4,8 +4,10 @@ import type { StudioProject, StudioTab } from '@studio/types'
 import { installCursor } from '@ui/cursor'
 import { installAudioUnlock } from '@ui/sound/player'
 import {
+  BagIconsTab,
   CharactersTab,
   DecorTab,
+  GearTab,
   LayoutTab,
   LightingTab,
   PropsTab,
@@ -20,7 +22,9 @@ const ZONE_TABS: readonly StudioTab[] = [
   { id: 'rules', label: 'Luật hình', render: () => createElement(RulesTab) },
   { id: 'decor', label: 'Decor', render: () => createElement(DecorTab) },
   { id: 'characters', label: 'Nhân vật', render: () => createElement(CharactersTab) },
+  { id: 'gear', label: 'Trang bị', render: () => createElement(GearTab) },
   { id: 'props', label: 'Props & xe', render: () => createElement(PropsTab) },
+  { id: 'bag-icons', label: 'Icon túi đồ', render: () => createElement(BagIconsTab) },
   { id: 'zones', label: 'Khu', render: () => createElement(ZonesTab) },
   { id: 'layout', label: 'Sơ đồ & nối khu', render: () => createElement(LayoutTab) },
   { id: 'lighting', label: 'Ánh sáng', render: () => createElement(LightingTab) },

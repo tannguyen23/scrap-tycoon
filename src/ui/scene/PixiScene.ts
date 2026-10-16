@@ -1,11 +1,13 @@
 import type { ObservableStore } from '@core/store'
 import type { Rect } from '@ground/core/metrics'
+import { playerWalkSpeed } from '@domain/selectors'
 import type { GameContent, GameState, WorkPose } from '@domain/types'
 import type { LocaleStore } from '@i18n/locale'
 import type { Locale } from '@i18n/types'
 import { mountScene, type SceneHandle } from '@scene/core/scene'
 import { DEFAULT_SERVICES, type SceneServices } from '@scene/core/services'
 import { buildSceneFeed } from './feed'
+import { gearLook } from './gearLook'
 import type { PlayerReadout } from './player'
 import { createScrapScene } from './scrapPack'
 
@@ -20,6 +22,8 @@ export interface GameScene extends SceneHandle {
   player(): PlayerReadout | null
   focusPlayer(): void
   setWorking(pose: WorkPose | null): void
+  /** Freeze the walker while a full-screen HUD panel is up (the inventory). */
+  freezeWalk(frozen: boolean): void
 }
 
 export interface SceneOptions {
@@ -59,8 +63,23 @@ export async function mountGameScene(
   const player = scene.player()
   if (player) handle.setFollow(player.position)
 
+  // The body is dressed from gear and the walk speed comes out of the modifier
+  // pipeline — both read straight from state, and only rebuilt when the look
+  // actually changes (a rebuild re-creates the sprite).
+  let lookKey = JSON.stringify(gearLook(store.getSnapshot(), content))
+
   const push = (): void => {
-    handle.setFeed(buildSceneFeed(content, store.getSnapshot(), locale))
+    const state = store.getSnapshot()
+    handle.setFeed(buildSceneFeed(content, state, locale))
+    if (player) {
+      const look = gearLook(state, content)
+      const key = JSON.stringify(look)
+      if (key !== lookKey) {
+        lookKey = key
+        player.setLook(look)
+      }
+      player.setWalkMultiplier(playerWalkSpeed(state, content).toNumber())
+    }
   }
 
   const unsubscribe = store.subscribe(push)
@@ -88,5 +107,6 @@ export async function mountGameScene(
       if (player) handle.focusOn(player.position.x, player.position.y)
     },
     setWorking: (pose) => player?.setWorking(pose),
+    freezeWalk: (frozen) => player?.setFrozen(frozen),
   }
 }

@@ -1,7 +1,7 @@
 import { GAME_CONTENT } from '@content/index'
 import { validateContent } from '@content/validate'
 import { Decimal } from '@core/num'
-import type { GameContent } from '@domain/types'
+import type { GameContent, GearSlot } from '@domain/types'
 import { describe, expect, it } from 'vitest'
 import { TEST_CHAIN_CONTENT, TEST_CONTENT } from './fixtures'
 
@@ -248,5 +248,53 @@ describe('content validation', () => {
     expect(errors.some((error) => error.includes('amount must be > 0'))).toBe(true)
     expect(errors.some((error) => error.includes('milestone duplicate id'))).toBe(true)
     expect(errors.some((error) => error.includes('empty target'))).toBe(true)
+  })
+
+  it('catches gear that would fight over a slot or grant nothing', () => {
+    const broken: GameContent = {
+      ...TEST_CONTENT,
+      gear: [
+        {
+          id: 'dup',
+          slot: 'shirt',
+          name: { vi: 'x', en: 'x' },
+          desc: { vi: 'x', en: 'x' },
+          cost: new Decimal(0),
+          effects: [],
+          style: '',
+        },
+        {
+          id: 'dup',
+          slot: 'shirt',
+          name: { vi: 'x', en: 'x' },
+          desc: { vi: 'x', en: 'x' },
+          cost: new Decimal(10),
+          effects: [{ target: 'x', kind: 'mult', value: new Decimal(0) }],
+          style: 'vest',
+          requires: { kind: 'workers', branch: 'ghost-branch', worker: 'ghost', count: 1 },
+        },
+        {
+          id: 'moon-boots',
+          // Deliberately outside the slot union — the validator must catch content
+          // that was never type-checked against this build.
+          slot: 'spacesuit' as GearSlot,
+          name: { vi: 'x', en: 'x' },
+          desc: { vi: 'x', en: 'x' },
+          cost: new Decimal(10),
+          effects: [{ target: 'x', kind: 'mult', value: new Decimal(1) }],
+          style: 'boot',
+        },
+      ],
+    }
+
+    const errors = validateContent(broken)
+    expect(errors.some((error) => error.includes('gear "dup": duplicate id'))).toBe(true)
+    expect(errors.some((error) => error.includes('slot "shirt" already has a piece'))).toBe(true)
+    expect(errors.some((error) => error.includes('unknown slot "spacesuit"'))).toBe(true)
+    expect(errors.some((error) => error.includes('cost must be > 0'))).toBe(true)
+    expect(errors.some((error) => error.includes('has no effects'))).toBe(true)
+    expect(errors.some((error) => error.includes('style must not be empty'))).toBe(true)
+    expect(errors.some((error) => error.includes('effect value must be > 0'))).toBe(true)
+    expect(errors.some((error) => error.includes('unknown branch'))).toBe(true)
   })
 })

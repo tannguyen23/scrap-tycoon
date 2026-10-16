@@ -9,6 +9,7 @@ import {
   AVENUE_Y,
   CLEARINGS,
   CONNECTORS,
+  TRAILS,
   WATER_AREAS,
   WORLD_HEIGHT,
   WORLD_WIDTH,
@@ -28,6 +29,19 @@ function zoneRect(id: string): Rect {
  * where. `lanes` are painted before the floors (their mouths tuck under them);
  * `traces` after, so the worn lines run right up to the gates.
  */
+/**
+ * Hình học lối đi nối ba thửa khai ở `worldLayout.TRAILS` (nằm cùng chỗ với zone/ao để
+ * decor và test đọc được mà không phải chạm file này). Ở đây chỉ gắn vật liệu + seed:
+ *
+ * **Sỏi, không phải đất**: sàn ba thửa đã là đất, nên một dải đất nữa ở giữa là mảng
+ * đất liền mạch — ba khu đọc ra dính nhau và "đường" chẳng khác gì nền bãi.
+ *
+ * Vẽ CÙNG LƯỢT VỚI LÀN ĐẤT, TRƯỚC `floors`: hai đầu dải cắm sâu vào thửa rồi bị sàn
+ * phủ lên, nên đoạn cuối (nằm trên nền của thửa) không phải giả bộ chuyển tiếp — chính
+ * mép sàn lo chỗ nối. Vì vậy `outside` phải là CỎ: nền THẬT hai bên dải, đúng luật
+ * "đừng lấy nền không có thật làm môi" (môi sai = vành màu lạ chạy quanh dải).
+ */
+
 export const SCRAP_MAP: GroundMap = {
   width: WORLD_WIDTH,
   height: WORLD_HEIGHT,
@@ -64,9 +78,21 @@ export const SCRAP_MAP: GroundMap = {
   ],
   floors: [
     { rect: zoneRect('alley'), kind: 'dirt', seed: 11, pad: 24 },
+    { rect: zoneRect('tires'), kind: 'dirt', seed: 19, pad: 24 },
+    { rect: zoneRect('appliances'), kind: 'dirt', seed: 20, pad: 24 },
     { rect: zoneRect('recycle'), kind: 'dirt', seed: 16, pad: 24 },
     { rect: zoneRect('depot'), kind: 'dirt', seed: 13, pad: 24 },
     { rect: zoneRect('gate'), kind: 'gravel', seed: 14, pad: 28 },
+  ],
+  // MỘT mạng lối đi: trục + nhánh là hai nhánh của cùng một dải, vẽ chung một lượt nên
+  // ngã ba không có mối nối (xem `paintTrailNetwork`).
+  trails: [
+    {
+      branches: TRAILS.map((trail) => ({ points: trail.points, width: trail.width })),
+      kind: 'gravel',
+      seed: 60,
+      outside: 'grass',
+    },
   ],
   clearings: CLEARINGS.map((patch, index) => ({
     rect: patch.rect,
@@ -83,6 +109,13 @@ export const SCRAP_MAP: GroundMap = {
     { kind: 'footprints', points: [{ x: 4252, y: 2219 }, { x: 5108, y: 2221 }], seed: 138, strength: 0.9 },
     { kind: 'wear', points: [{ x: 4098, y: 2254 }, { x: 4098, y: 2842 }], seed: 139, strength: 0.7 },
     { kind: 'ruts', points: [{ x: 4090, y: 2262 }, { x: 4090, y: 2836 }], seed: 140, strength: 0.55 },
+    // Vệt mòn dọc lối sỏi: đường có người đi mới ra đường, không thì chỉ là mảng sỏi.
+    ...TRAILS.map((trail, index) => ({
+      kind: 'wear' as const,
+      points: trail.points,
+      seed: 64 + index,
+      strength: 0.55,
+    })),
   ],
   connectors: { rects: CONNECTORS, kind: 'asphalt', seedBase: 15 },
   links: [
