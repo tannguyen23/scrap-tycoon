@@ -38,7 +38,7 @@ import {
 } from '@ground/packs/scrapYard/worldLayout'
 
 /** Popup wording for studio previews — the real labels come localized from content. */
-const STUDIO_LABELS = { produced: 'Sắt vụn', money: 'Tiền' }
+const STUDIO_LABELS = { produced: 'Sắt vụn', money: 'Tiền', hold: 'GIỮ' }
 
 /**
  * The studio previews one district, not the whole world: the ground is painted

@@ -71,9 +71,25 @@ export async function mountGameScene(
   // actually changes (a rebuild re-creates the sprite).
   let lookKey = JSON.stringify(gearLook(store.getSnapshot(), content))
 
+  /** The piece of debris nearest the player that is within reach, or null. */
+  const nearestPick = (): { id: number; item: string } | null => {
+    const spot = player?.position
+    if (!spot) return null
+    let best: { id: number; item: string; distance: number } | null = null
+    for (const piece of store.getSnapshot().loose.items) {
+      const world = looseWorldPoint(piece.zone, piece.id)
+      const distance = Math.hypot(world.x - spot.x, world.y - spot.y)
+      if (distance > LOOSE_REACH) continue
+      if (!best || distance < best.distance) best = { id: piece.id, item: piece.item, distance }
+    }
+    return best ? { id: best.id, item: best.item } : null
+  }
+
   const push = (): void => {
     const state = store.getSnapshot()
-    handle.setFeed(buildSceneFeed(content, state, locale))
+    // The zone feed carries the prompt for the piece in reach, so its detail scene
+    // can hang the "pick up" sign right at that piece.
+    handle.setFeed(buildSceneFeed(content, state, locale, nearestPick()?.id ?? null))
     if (player) {
       const look = gearLook(state, content)
       const key = JSON.stringify(look)
@@ -106,18 +122,7 @@ export async function mountGameScene(
     focusOn: handle.focusOn,
     setFollow: handle.setFollow,
     player: () => player?.readout() ?? null,
-    pickable: () => {
-      const spot = player?.position
-      if (!spot) return null
-      let best: { id: number; item: string; distance: number } | null = null
-      for (const piece of store.getSnapshot().loose.items) {
-        const world = looseWorldPoint(piece.zone, piece.id)
-        const distance = Math.hypot(world.x - spot.x, world.y - spot.y)
-        if (distance > LOOSE_REACH) continue
-        if (!best || distance < best.distance) best = { id: piece.id, item: piece.item, distance }
-      }
-      return best ? { id: best.id, item: best.item } : null
-    },
+    pickable: nearestPick,
     focusPlayer: () => {
       if (player) handle.focusOn(player.position.x, player.position.y)
     },

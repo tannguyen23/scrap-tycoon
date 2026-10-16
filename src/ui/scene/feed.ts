@@ -1,5 +1,6 @@
 import { stockRatio, zoneStockItem, zoneTiers } from '@domain/selectors'
 import type { GameContent, GameState } from '@domain/types'
+import { UI } from '@i18n/text'
 import { t, type Locale } from '@i18n/types'
 import type { LooseFeed, SceneFeed, ZoneFeed } from '@scene/core/feed'
 import { looseLocalPoint } from './loose'
@@ -8,8 +9,17 @@ import { looseLocalPoint } from './loose'
  * Turns the game's state into the plain readout the scene kit renders from. This
  * is the only place that knows both sides: the kit stays domain-free, and the
  * store stays out of the kit.
+ *
+ * `pickId` is the debris the player is standing next to (only the project knows
+ * where the player is): that zone's feed names the piece so its detail scene can
+ * hang the pick key right at it.
  */
-export function buildSceneFeed(content: GameContent, state: GameState, locale: Locale): SceneFeed {
+export function buildSceneFeed(
+  content: GameContent,
+  state: GameState,
+  locale: Locale,
+  pickId: number | null = null,
+): SceneFeed {
   const workers: Record<string, number> = {}
   const zoneWorkers: Record<string, number> = {}
   const zoneActions: Record<string, Record<string, number>> = {}
@@ -50,6 +60,8 @@ export function buildSceneFeed(content: GameContent, state: GameState, locale: L
     const point = looseLocalPoint(piece.zone, piece.id)
     list.push({ id: piece.id, item: piece.item, x: point.x, y: point.y })
   }
+  const picked =
+    pickId === null ? null : (state.loose.items.find((piece) => piece.id === pickId) ?? null)
   for (const zoneId of Object.keys(content.zones)) {
     const stockItem = zoneStockItem(content, zoneId)
     const ratio = stockItem ? stockRatio(state, content, stockItem) : null
@@ -58,8 +70,9 @@ export function buildSceneFeed(content: GameContent, state: GameState, locale: L
       actions: zoneActions[zoneId] ?? {},
       tier: tiers.get(zoneId) ?? 0,
       stock01: ratio ?? -1,
-      labels: { produced: itemLabel(zoneItems[zoneId]), money: moneyLabel },
+      labels: { produced: itemLabel(zoneItems[zoneId]), money: moneyLabel, hold: t(UI.holdWord, locale) },
       loose: looseByZone[zoneId] ?? [],
+      pick: picked && picked.zone === zoneId ? picked.id : null,
     }
   }
 

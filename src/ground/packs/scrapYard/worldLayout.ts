@@ -244,6 +244,13 @@ export interface ZoneLayout {
   outline?: readonly Point[]
   /** Cổng trên vành — bắt buộc có khi khai `outline`, không thì khu thành cái hộp kín. */
   gates?: readonly ZoneGate[]
+  /**
+   * Sân CHỪA TRỐNG cho món rời, toạ độ LOCAL như `rect`. Scene khu không đặt prop/
+   * litter trong đây và lớp rải rác của khu bỏ qua nó; `ui/scene/loose.ts` CHỈ rải món
+   * rời trong vùng này — nên món vừa hiện là thứ duy nhất nằm trên sàn thoáng, không
+   * bị đống/thùng che. Khu không khai thì món rải khắp thửa như cũ.
+   */
+  looseBay?: ZoneRect
 }
 
 export const DEFAULT_ZONE_STYLE: ZoneStyle = { color: 0x8b93a7, css: '#8b93a7' }
@@ -283,6 +290,12 @@ export const ZONE_LAYOUTS: Record<string, ZoneLayout> = {
       { at: { x: 394, y: 92 }, width: 48 },
       { at: { x: 6, y: 238 }, width: 56 },
     ],
+    // Sân chừa trống cho món rời: dải giữa-nam, ngay trên đống bao gom — chỗ người
+    // chơi từ cổng nam bước vào. Tây là đống `heap` #5 (đã lùi tây cho khỏi chạm),
+    // bắc là thùng phuy cháy, nam là đống gom (mọc theo tồn nên chừa thêm lề). Mọi
+    // thứ từng nằm trong đây (pallet, thùng phuy đổ, bao vứt lẻ, chai) đã dời ra —
+    // `tests/loosePlacement.test.ts` khoá lại, đừng đặt gì vào giữa sân này.
+    looseBay: { x: 192, y: 168, width: 116, height: 72 },
   },
   tires: {
     style: { color: 0x6f7a8c, css: '#6f7a8c' },

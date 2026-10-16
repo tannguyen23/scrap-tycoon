@@ -9,6 +9,8 @@ import { describeCondition } from '@ui/progression'
 import { describeReason } from '@ui/reasons'
 import type { PickableLoose } from '@ui/scene/player'
 import { playSound } from '@ui/sound/player'
+import { WORK_KEY } from '@ui/workKey'
+import type Decimal from 'break_eternity.js'
 import { useEffect, useRef, useState } from 'react'
 
 /**
@@ -22,8 +24,6 @@ import { useEffect, useRef, useState } from 'react'
  * comes from a poll of `bridge.player()` for the same reason (like the minimap).
  */
 
-/** The key that works by hand. */
-export const WORK_KEY = 'F'
 /** A stroke's progress when the bar is idle. */
 const IDLE_PROGRESS = '0%'
 /** Picking a piece of debris off the floor is a quick scoop, not a full stroke. */
@@ -32,9 +32,11 @@ const PICK_SECONDS = 0.45
 export interface ActionBarProps {
   /** True while a panel that owns the keyboard is open (the bag) — no strokes then. */
   paused?: boolean
+  /** Nhặt được món thì báo lên HUD để hiện “+N <tên>” ở góc màn. */
+  onLoot?: (loot: { item: ItemId; amount: Decimal }) => void
 }
 
-export function ActionBar({ paused = false }: ActionBarProps) {
+export function ActionBar({ paused = false, onLoot }: ActionBarProps) {
   const content = useContent()
   const engine = useEngine()
   const bridge = useSceneBridge()
@@ -74,10 +76,12 @@ export function ActionBar({ paused = false }: ActionBarProps) {
   const lockedRef = useRef<boolean>(requirement !== null)
   const pausedRef = useRef<boolean>(paused)
   const reasonRef = useRef<(reason: string) => string>(() => '')
+  const lootRef = useRef<(loot: { item: ItemId; amount: Decimal }) => void>(() => {})
   const speedRef = useRef(workSpeed)
   jobRef.current = job
   lockedRef.current = requirement !== null
   reasonRef.current = (reason) => describeReason(text, reason)
+  lootRef.current = (loot) => onLoot?.(loot)
   // Set from an effect rather than during render: the rAF loop below is the only
   // reader, and the bar already keeps the keys it needs out of its dependency list.
   useEffect(() => {
@@ -95,6 +99,16 @@ export function ActionBar({ paused = false }: ActionBarProps) {
         poseRef.current = null
         bridge.setWorking(null)
       }
+    }
+
+    // A full bag or a full bin stops the stroke: the key has to be pressed again,
+    // which is also what clears this line.
+    const deny = (reason: string): void => {
+      blockedRef.current = true
+      const note = reasonRef.current(reason)
+      setNote(note)
+      if (note) playSound('deny')
+      release()
     }
 
     const onKeyDown = (event: KeyboardEvent): void => {
@@ -162,19 +176,13 @@ export function ActionBar({ paused = false }: ActionBarProps) {
         if (barRef.current) barRef.current.style.width = `${Math.round(progress * 100)}%`
         if (progress >= 1) {
           elapsedRef.current = 0
-          const result = target
-            ? engine.pickLoose(target.id)
-            : action
-              ? engine.performAction(action.id)
-              : null
-          if (result && !result.ok) {
-            // A full bag or a full bin stops the stroke: the key has to be pressed
-            // again, which is also what clears this line.
-            blockedRef.current = true
-            const reason = reasonRef.current(result.reason)
-            setNote(reason)
-            if (reason) playSound('deny')
-            release()
+          if (target) {
+            const result = engine.pickLoose(target.id)
+            if (result.ok) lootRef.current({ item: result.value.item, amount: result.value.amount })
+            else deny(result.reason)
+          } else if (action) {
+            const result = engine.performAction(action.id)
+            if (!result.ok) deny(result.reason)
           }
         }
       }
@@ -204,15 +212,11 @@ export function ActionBar({ paused = false }: ActionBarProps) {
       {note ? (
         <span className="action-note">{note}</span>
       ) : pickable ? (
-        <>
-          <span className="action-line">
-            {text(UI.pickUp, { key: WORK_KEY, name: itemLabel(pickable.item) })}
-          </span>
-          <span className="cost-bar" role="img" aria-label={itemLabel(pickable.item)}>
-            <span className="cost-bar-fill" ref={barRef} />
-          </span>
-          <span className="action-hint">{text(UI.workHint)}</span>
-        </>
+        /* Câu "giữ F — nhặt …" treo NGAY TẠI món (xem `focus/pickTag.ts`): HUD chỉ
+           còn thanh tiến trình để biết nhát nhặt đang chạy. */
+        <span className="cost-bar" role="img" aria-label={itemLabel(pickable.item)}>
+          <span className="cost-bar-fill" ref={barRef} />
+        </span>
       ) : requirement ? (
         <span className="action-locked">{describeCondition(text, locale, content, requirement)}</span>
       ) : job ? (
@@ -221,7 +225,6 @@ export function ActionBar({ paused = false }: ActionBarProps) {
           <span className="cost-bar" role="img" aria-label={text(job.name)}>
             <span className="cost-bar-fill" ref={barRef} />
           </span>
-          <span className="action-hint">{text(UI.workHint)}</span>
         </>
       ) : (
         <span className="action-line">{text(UI.moveHint)}</span>

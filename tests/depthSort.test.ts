@@ -38,7 +38,7 @@ describe('depth sorting', () => {
       actions: {},
       earnedLog10: 5,
       tier: 0,
-      labels: { produced: 'Phôi tái chế', money: 'Tiền' },
+      labels: { produced: 'Phôi tái chế', money: 'Tiền', hold: 'GIỮ' },
       stock01: 0.4,
     })
     const actors = scene.root.children.find((child) => child.label === 'actors')

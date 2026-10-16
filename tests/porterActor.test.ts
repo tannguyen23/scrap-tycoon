@@ -73,7 +73,7 @@ describe('alley detail scene', () => {
       scatter: () => {},
     } as unknown as TilePainter
     const scene = createAlleyDetail({ ...ALLEY.rect, x: 48, y: 48 }, painter)
-    const labels = { produced: 'Sắt vụn', money: 'Tiền' }
+    const labels = { produced: 'Sắt vụn', money: 'Tiền', hold: 'GIỮ' }
 
     scene.setState({ workers: 4, actions: { pick: 3, haul: 1 }, earnedLog10: 4, tier: 0, labels, stock01: 0.5 })
     for (let i = 0; i < 60 * 15; i++) scene.update(1 / 60, i / 60)

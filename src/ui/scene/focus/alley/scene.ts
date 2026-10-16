@@ -12,6 +12,7 @@ import {
 } from '@ground/packs/scrapYard/decals'
 import { drawZoneRing } from '../fence'
 import { Particles, depthArt, sortByDepth } from '../parts'
+import { createPickTag } from '../pickTag'
 import { createPopups } from '../popups'
 import { drawProp, type ZoneProp } from '../props'
 import type { DetailScene, DetailSceneState, Spot } from '@scene/core/types'
@@ -43,7 +44,7 @@ const ALLEY_PILES: Spot[] = [
   { x: 280, y: 60 },
   { x: 355, y: 70 },
   { x: 60, y: 190 },
-  { x: 170, y: 200 },
+  { x: 164, y: 200 },
   { x: 280, y: 150 },
   { x: 355, y: 170 },
   { x: 120, y: 255 },
@@ -60,7 +61,7 @@ const BIN_A: Spot = { x: 302, y: 112 }
 const BIN_B: Spot = { x: 322, y: 116 }
 const TIPPED_BIN: Spot = { x: 340, y: 128 }
 const LOOSE_BAGS: readonly Spot[] = [
-  { x: 228, y: 176 },
+  { x: 236, y: 158 },
   { x: 110, y: 205 },
   { x: 296, y: 260 },
 ]
@@ -143,8 +144,11 @@ export function createAlleyDetail(rect: ZoneRect, tiles: TilePainter): DetailSce
 
   // Đống gạch vụn giữa sàn: blob sỏi NẰM TRONG nền đất nên dùng cặp sỏi↔đất.
   tiles.paintBlob(root, { x: 28, y: 174, width: 66, height: 42 }, 'gravel', 102, 14, 'dirt')
+  // Sân chừa trống cho món rời (`ZONE_LAYOUTS.alley.looseBay`) — prop, bao vứt lẻ và
+  // CẢ lớp rải vụn nền phải tránh: mẩu sắt 4px chỉ đọc ra khi nó là thứ duy nhất ở đó.
+  const looseBay = ZONE_LAYOUTS.alley?.looseBay
   // Mảnh vụn rải theo ô lưới nên mật độ tự giữ nguyên theo diện tích.
-  tiles.scatter(root, { x: 0, y: 0, width, height }, 111, 'debris', 30)
+  tiles.scatter(root, { x: 0, y: 0, width, height }, 111, 'debris', 30, looseBay ? [looseBay] : [])
 
   const piles = ALLEY_PILES
   const dropoff = ALLEY_DROPOFF
@@ -188,9 +192,9 @@ export function createAlleyDetail(rect: ZoneRect, tiles: TilePainter): DetailSce
   for (const bottle of [
     [294, 128, 0, true],
     [328, 126, 1, false],
-    [192, 232, 0, false],
-    [217, 222, 2, true],
-    [200, 214, 1, true],
+    [150, 262, 0, false],
+    [26, 120, 2, true],
+    [206, 258, 1, true],
     [96, 244, 0, true],
     [314, 198, 2, true],
     [60, 120, 1, false],
@@ -222,10 +226,11 @@ export function createAlleyDetail(rect: ZoneRect, tiles: TilePainter): DetailSce
   // `walkable` dựng đế chặn, nên art và va chạm không thể lệch nhau.
   for (const prop of ALLEY_PROPS) drawProp(depthArt(actors, prop.y), prop)
 
-  // Hai món NẰM: bước qua được nên không khai đế.
-  drawPallet(depthArt(actors, 230), 214, 230)
+  // Hai món NẰM: bước qua được nên không khai đế. Pallet và thùng phuy đổ đã dời ra
+  // khỏi sân chừa trống (`looseBay`) — chúng nằm đè lên đúng chỗ món rời hiện ra.
+  drawPallet(depthArt(actors, 238), 168, 238)
   drawFlatTire(depthArt(actors, 136), 80, 136, 6.4)
-  drawTippedDrum(depthArt(actors, 234), 288, 234, 0x9c5a48, 0xba7059)
+  drawTippedDrum(depthArt(actors, 208), 330, 208, 0x9c5a48, 0xba7059)
   drawTippedBin(depthArt(actors, TIPPED_BIN.y), TIPPED_BIN.x, TIPPED_BIN.y)
 
   // Vành của thửa này: hai node depth — mặt sau (bắc + hai hông) ở đường chân bắc, mặt
@@ -256,8 +261,11 @@ export function createAlleyDetail(rect: ZoneRect, tiles: TilePainter): DetailSce
 
   const particles = new Particles()
   const popups = createPopups()
+  // Phím "F" treo ngay tại món trong tầm: vẽ SAU actors nên luôn nổi trên đống/thùng
+  // (đúng thứ tự của một dấu hiệu UI, không phải vật trong bãi).
+  const pickTag = createPickTag()
   // Ruồi/chuột/hải âu + thùng phuy đốt nằm TRÊN lớp depth (đống bao, thùng rác, lốp).
-  root.addChild(actors, life.container, particles.container, popups.container)
+  root.addChild(actors, life.container, particles.container, popups.container, pickTag.container)
 
   const pickers: PickerActor[] = []
   const porters: PorterActor[] = []
@@ -327,6 +335,13 @@ export function createAlleyDetail(rect: ZoneRect, tiles: TilePainter): DetailSce
       actors.addChild(node)
       looseNodes.set(piece.id, node)
     }
+
+    // Dấu hiệu nhặt: feed chỉ nói ID món đang trong tầm + chữ "GIỮ"/"HOLD" đã dịch;
+    // scene tra `loose` để lấy đúng chỗ món — người chơi đi ngang là thấy dấu hiệu
+    // treo ngay trên mẩu sắt đó.
+    const pick = state.pick ?? null
+    const picked = pick === null ? undefined : loose.find((piece) => piece.id === pick)
+    pickTag.set(picked ? { x: picked.x, y: picked.y } : null, state.labels.hold)
   }
 
   const update = (dt: number, elapsed: number): void => {
@@ -342,6 +357,7 @@ export function createAlleyDetail(rect: ZoneRect, tiles: TilePainter): DetailSce
     life.update(dt, elapsed, ambient)
     particles.update(dt)
     popups.update(dt)
+    pickTag.update(dt, elapsed)
   }
 
   return {

@@ -1,14 +1,16 @@
 import type { OfflineReport } from '@domain/systems/offline'
-import type { MilestoneDef } from '@domain/types'
+import type { ItemId, MilestoneDef } from '@domain/types'
 import type { Rect } from '@ground/core/metrics'
 import { UI } from '@i18n/text'
 import { SceneBridgeContext, useContent, useEngine, useLocaleStore, useText, type SceneBridge } from '@ui/hooks'
 import { mountGameScene, type GameScene } from '@ui/scene/PixiScene'
 import { isTypingTarget } from '@ui/scene/player/keys'
 import { playSound } from '@ui/sound/player'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import type Decimal from 'break_eternity.js'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ActionBar } from './ActionBar'
 import { InventoryPanel, type SheetTab } from './InventoryPanel'
+import { LootToast } from './LootToast'
 import { MenuModal, type MenuTab } from './MenuModal'
 import { MilestoneToast } from './MilestoneToast'
 import { Minimap } from './Minimap'
@@ -24,7 +26,16 @@ interface MilestoneToastEntry {
   milestone: MilestoneDef
 }
 
+interface LootEntry {
+  key: number
+  item: ItemId
+  amount: Decimal
+}
+
 const TOAST_LIFETIME_MS = 5200
+/** Nhật ký nhặt đồ: bay nhanh hơn toast mốc, và chỉ giữ vài dòng gần nhất. */
+const LOOT_LIFETIME_MS = 2400
+const LOOT_STACK_MAX = 4
 
 export function App({ initialOfflineReport }: AppProps) {
   const engine = useEngine()
@@ -39,12 +50,14 @@ export function App({ initialOfflineReport }: AppProps) {
   const [zoomLevel, setZoomLevel] = useState(0)
   const [sceneHandle, setSceneHandle] = useState<GameScene | null>(null)
   const [toasts, setToasts] = useState<MilestoneToastEntry[]>([])
+  const [loot, setLoot] = useState<LootEntry[]>([])
   // The E sheet keeps the tab you left it on — bag and character are two halves of
   // one screen, not two screens.
   const [sheetOpen, setSheetOpen] = useState(false)
   const [sheetTab, setSheetTab] = useState<SheetTab>('items')
   const viewRef = useRef<Rect | null>(null)
   const toastKeyRef = useRef(0)
+  const lootKeyRef = useRef(0)
   const sceneHostRef = useRef<HTMLDivElement | null>(null)
   // Sheet and menu both own the screen: the work bar pauses and the walker freezes
   // while either is up.
@@ -67,6 +80,17 @@ export function App({ initialOfflineReport }: AppProps) {
     })
     return () => engine.setMilestoneHandler(null)
   }, [engine])
+
+  // Loot feed: mỗi món nhặt được một dòng "+N <tên>", tự tắt sau ít giây; stack bị
+  // chặn trần để spam nhặt không tràn màn hình.
+  const pushLoot = useCallback((picked: { item: ItemId; amount: Decimal }): void => {
+    const key = lootKeyRef.current
+    lootKeyRef.current += 1
+    setLoot((current) => [...current, { key, ...picked }].slice(-LOOT_STACK_MAX))
+    window.setTimeout(() => {
+      setLoot((current) => current.filter((entry) => entry.key !== key))
+    }, LOOT_LIFETIME_MS)
+  }, [])
 
   // One chime per report; the ref keeps StrictMode's double effect from doubling it.
   const offlineChimedRef = useRef(false)
@@ -193,7 +217,14 @@ export function App({ initialOfflineReport }: AppProps) {
           {sheetOpen && (
             <InventoryPanel tab={sheetTab} onTabChange={setSheetTab} onClose={() => setSheetOpen(false)} />
           )}
-          <ActionBar paused={overlayOpen} />
+          <ActionBar paused={overlayOpen} onLoot={pushLoot} />
+          {loot.length > 0 && (
+            <div className="loot-stack">
+              {loot.map((entry) => (
+                <LootToast key={entry.key} item={entry.item} amount={entry.amount} />
+              ))}
+            </div>
+          )}
         </div>
         {toasts.length > 0 && (
           <div className="toast-stack">

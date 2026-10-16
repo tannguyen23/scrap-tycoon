@@ -62,7 +62,7 @@ describe('warehouse stacks', () => {
       actions: {},
       earnedLog10: 5,
       tier: 0,
-      labels: { produced: 'Phôi tái chế', money: 'Tiền' },
+      labels: { produced: 'Phôi tái chế', money: 'Tiền', hold: 'GIỮ' },
     }
 
     alley.setState({ ...base, stock01: 0 })
@@ -98,7 +98,7 @@ describe('zone warehouse readouts', () => {
       actions: {},
       earnedLog10: 5,
       tier: 0,
-      labels: { produced: 'Phôi tái chế', money: 'Tiền' },
+      labels: { produced: 'Phôi tái chế', money: 'Tiền', hold: 'GIỮ' },
     }
 
     // Kho nằm trong LỚP DEPTH của khu (cùng chỗ actor để che nhau theo y), nên tìm

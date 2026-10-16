@@ -37,12 +37,18 @@ export interface ZoneFeed {
    */
   readonly stock01: number
   /** Popup wording already translated to the active locale. */
-  readonly labels: { readonly produced: string; readonly money: string }
+  readonly labels: { readonly produced: string; readonly money: string; readonly hold: string }
   /**
    * Debris lying on this zone's floor. The kit only carries it through — the
    * zone's own detail scene places and draws each piece.
    */
   readonly loose?: readonly LooseFeed[]
+  /**
+   * Id of this zone's piece the player is standing next to (its LOCAL placement is
+   * in `loose`), or null. The detail scene hangs its pick sign there — the kit
+   * never decides what is in reach, the project's player does.
+   */
+  readonly pick?: number | null
 }
 
 /** The whole scene readout: per-zone feeds plus the globals art reacts to. */

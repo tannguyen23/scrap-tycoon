@@ -73,7 +73,7 @@ describe('recycle detail scene', () => {
       actions: {},
       earnedLog10: 5,
       tier: 0,
-      labels: { produced: 'Phôi tái chế', money: 'Tiền' },
+      labels: { produced: 'Phôi tái chế', money: 'Tiền', hold: 'GIỮ' },
       stock01: 0.4,
     })
     for (let i = 0; i < 60 * 20; i++) scene.update(1 / 60, i / 60)
@@ -83,7 +83,7 @@ describe('recycle detail scene', () => {
       actions: {},
       earnedLog10: 5,
       tier: 0,
-      labels: { produced: 'Phôi tái chế', money: 'Tiền' },
+      labels: { produced: 'Phôi tái chế', money: 'Tiền', hold: 'GIỮ' },
     }
     scene.setState({ ...base, workers: 0, stock01: 0 })
     scene.update(1 / 60, 0)
