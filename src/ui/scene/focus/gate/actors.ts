@@ -12,16 +12,17 @@ const GROUND_Y = LANE_Y + 10
 
 /** Loading bay in the yard; the crate stack sits just west of the roll door. */
 const DOCK_X = 134
-/** North lane of the main road (the route band, world y 396) the truck arrives on. */
+/** North lane of the main road (the avenue, world y 2864) the truck arrives on. */
 const ROAD_Y = -152
-/** Service driveway down from the road into the yard (world x 924..960). */
+/** Service driveway down from the road into the yard (world x 6324..6360). */
 const DRIVEWAY_X = 78
 /**
- * The exit lane in `worldLayout.CONNECTORS` runs past the zone's east edge all the
- * way to the map edge — so "off-map" in the zone's local space is
- * `width + ROAD_TAIL` (world x 1280).
+ * The exit lane in `worldLayout.GATE_EXIT_LANE` runs east from the zone's east
+ * edge to the merge ramp back onto the avenue — so "off-map" in the zone's local
+ * space is `width + ROAD_TAIL` (world x 7196, the corner by the trees where the
+ * truck turns onto the highway).
  */
-const ROAD_TAIL = 164
+const ROAD_TAIL = 680
 
 const ROAD_SPEED = 72
 const DRIVEWAY_SPEED = 42

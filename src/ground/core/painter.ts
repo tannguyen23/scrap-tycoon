@@ -8,7 +8,7 @@ import { contourSteps } from './groundCanvas'
 import { DEFAULT_FRINGE, type FringePalette, type GroundPack } from './pack'
 import { terrainMap, type TerrainDef, type TerrainId } from './terrain'
 import { generateTileSet, tileBaseTone, type TileSet } from './tileSet'
-import { boundaryDitherWeight, groundTint, groundVariant, scatterDensity, scatterMix, variantBoundaryBlend } from './variety'
+import { groundTint, groundVariant, scatterDensity, scatterMix, variantBoundaryBlend } from './variety'
 
 export interface MaskedOptions {
   /** Draw the thin border stroke around the rect (roads keep theirs). */
@@ -50,6 +50,8 @@ export class TilePainter {
   private readonly fringe: FringePalette
   private readonly set: TileSet
   private readonly edgeCache = new Map<string, (Texture[] | undefined)[]>()
+  /** Window every pass is currently restricted to (chunk painting); null = whole map. */
+  private clip: Rect | null = null
 
   constructor(renderer: Renderer, pack: GroundPack, set?: TileSet) {
     this.renderer = renderer
@@ -62,6 +64,39 @@ export class TilePainter {
     this.set = set ?? generateTileSet(renderer, pack)
   }
 
+  /**
+   * Restricts every pass to a window, so a big world can be painted chunk by
+   * chunk. The painting itself stays **position-anchored**: every random draw
+   * comes from a per-cell (or per-step) hash, never from a sequential stream, so
+   * a cell painted inside a chunk is identical to the same cell painted while
+   * laying the whole map. Overlapping windows are safe — content that reaches
+   * past a chunk edge is simply drawn by both neighbours.
+   */
+  setClip(rect: Rect | null): void {
+    this.clip = rect
+  }
+
+  /** The part of `rect` inside the clip window, or null when fully clipped away. */
+  private clipped(rect: Rect): Rect | null {
+    const clip = this.clip
+    if (!clip) return rect
+    const x = Math.max(rect.x, clip.x)
+    const y = Math.max(rect.y, clip.y)
+    const right = Math.min(rect.x + rect.width, clip.x + clip.width)
+    const bottom = Math.min(rect.y + rect.height, clip.y + clip.height)
+    if (right <= x || bottom <= y) return null
+    return { x, y, width: right - x, height: bottom - y }
+  }
+
+  /** True when a point is worth drawing at all under the current clip. */
+  private within(x: number, y: number, pad = 0): boolean {
+    const clip = this.clip
+    if (!clip) return true
+    return (
+      x >= clip.x - pad && x <= clip.x + clip.width + pad && y >= clip.y - pad && y <= clip.y + clip.height + pad
+    )
+  }
+
   private defOf(kind: TerrainId): TerrainDef {
     const def = this.defs.get(kind)
     if (!def) throw new Error(`unknown terrain "${kind}" in ground pack "${this.pack.id}"`)
@@ -72,12 +107,14 @@ export class TilePainter {
   paint(container: Container, rect: Rect, kind: TerrainId, seed: number): void {
     const textures = this.set[kind]
     if (!textures || textures.length === 0) return
+    const area = this.clipped(rect)
+    if (!area) return
 
     const dither = new Graphics()
-    const startX = Math.floor(rect.x / TILE_SIZE) * TILE_SIZE
-    const startY = Math.floor(rect.y / TILE_SIZE) * TILE_SIZE
-    const endX = rect.x + rect.width
-    const endY = rect.y + rect.height
+    const startX = Math.floor(area.x / TILE_SIZE) * TILE_SIZE
+    const startY = Math.floor(area.y / TILE_SIZE) * TILE_SIZE
+    const endX = area.x + area.width
+    const endY = area.y + area.height
 
     for (let y = startY; y < endY; y += TILE_SIZE) {
       for (let x = startX; x < endX; x += TILE_SIZE) {
@@ -215,10 +252,21 @@ export class TilePainter {
     // merge it instead.
     const edges = kind === outside ? [] : this.edgesFor(kind, outside)
     const dither = new Graphics()
-    const startX = Math.floor((rect.x - pad - TILE_SIZE) / TILE_SIZE) * TILE_SIZE
-    const startY = Math.floor((rect.y - pad - TILE_SIZE) / TILE_SIZE) * TILE_SIZE
-    const endX = rect.x + rect.width + pad + TILE_SIZE
-    const endY = rect.y + rect.height + pad + TILE_SIZE
+    const box: Rect = {
+      x: rect.x - pad - TILE_SIZE,
+      y: rect.y - pad - TILE_SIZE,
+      width: rect.width + (pad + TILE_SIZE) * 2,
+      height: rect.height + (pad + TILE_SIZE) * 2,
+    }
+    const area = this.clipped(box)
+    if (!area) {
+      container.addChild(dither)
+      return
+    }
+    const startX = Math.floor(area.x / TILE_SIZE) * TILE_SIZE
+    const startY = Math.floor(area.y / TILE_SIZE) * TILE_SIZE
+    const endX = area.x + area.width
+    const endY = area.y + area.height
 
     for (let y = startY; y < endY; y += TILE_SIZE) {
       for (let x = startX; x < endX; x += TILE_SIZE) {
@@ -241,17 +289,25 @@ export class TilePainter {
 
   /** Large soft tonal patches so grass reads as terrain, not one flat mass. */
   patchwork(container: Container, rect: Rect, seed: number, block = 96): void {
-    const rnd = makeRandom(seed)
     const g = new Graphics()
-    for (let y = rect.y; y < rect.y + rect.height; y += block) {
-      for (let x = rect.x; x < rect.x + rect.width; x += block) {
-        if (rnd() > 0.45) continue
-        const cx = Math.round(x + block * (0.25 + rnd() * 0.5))
-        const cy = Math.round(y + block * (0.25 + rnd() * 0.5))
-        const rx = 16 + rnd() * 18
-        const ry = 9 + rnd() * 12
-        const dark = rnd() < 0.5
-        g.ellipse(cx, cy, rx, ry).fill({ color: dark ? 0x2f4029 : 0x8cc46a, alpha: dark ? 0.1 : 0.08 })
+    const area = this.clipped(rect)
+    if (area) {
+      // Blocks are anchored to the world grid, so a chunk boundary never shifts them.
+      const fromX = Math.floor(area.x / block) * block
+      const fromY = Math.floor(area.y / block) * block
+      const toX = area.x + area.width
+      const toY = area.y + area.height
+      for (let y = fromY; y < toY; y += block) {
+        for (let x = fromX; x < toX; x += block) {
+          const rnd = makeRandom(cornerHash(x, y, seed))
+          if (rnd() > 0.45) continue
+          const cx = Math.round(x + block * (0.25 + rnd() * 0.5))
+          const cy = Math.round(y + block * (0.25 + rnd() * 0.5))
+          const rx = 16 + rnd() * 18
+          const ry = 9 + rnd() * 12
+          const dark = rnd() < 0.5
+          g.ellipse(cx, cy, rx, ry).fill({ color: dark ? 0x2f4029 : 0x8cc46a, alpha: dark ? 0.1 : 0.08 })
+        }
       }
     }
     container.addChild(g)
@@ -265,9 +321,9 @@ export class TilePainter {
    * before the dirt blobs so clearings stay clean. `debris` works on any terrain.
    *
    * `skip` lists no-go rects (the zones plus their floor lip — see
-   * `worldGrounds.SCATTER_SKIP`): specimens landing there are dropped. The kind
-   * is still drawn from the RNG *before* the check, so clearing a region never
-   * shifts the rest of the map's scatter by one draw.
+   * `worldGrounds.SCATTER_SKIP`): specimens landing there are dropped. Each cell
+   * draws from its own hashed stream, so clearing a region never shifts the rest
+   * of the map's scatter — and chunked painting never re-rolls a neighbouring cell.
    */
   scatter(
     container: Container,
@@ -277,27 +333,41 @@ export class TilePainter {
     cell = 22,
     skip: readonly Rect[] = [],
   ): void {
-    const rnd = makeRandom(seed)
     const g = new Graphics()
-    for (let y = rect.y + SCATTER_MARGIN; y < rect.y + rect.height - SCATTER_MARGIN; y += cell) {
-      for (let x = rect.x + SCATTER_MARGIN; x < rect.x + rect.width - SCATTER_MARGIN; x += cell) {
-        const cx = Math.round(x + rnd() * (cell - SCATTER_MARGIN))
-        const cy = Math.round(y + rnd() * (cell - SCATTER_MARGIN))
-        const density = scatterDensity(cx, cy, seed) * (variant === 'water' ? 0.85 : 1)
-        // Ngưỡng đẩy cao: nền phần lớn phải SẠCH, rác chỉ tụ thành cụm rõ rệt —
-        // rắc đều tay (ngưỡng cũ) làm cả map thành "trường chấm bi".
-        const clean = variant === 'water' ? 0.4 : 0.3
-        const maxCount = variant === 'water' ? 2 : 3
-        const count = density < clean ? 0 : density < 0.7 ? 1 : density < 0.92 ? 2 : maxCount
-        const mix = scatterMix(cx, cy, seed)
-        for (let i = 0; i < count; i++) {
-          if (i > 0 && rnd() > density) break
-          const px = i === 0 ? cx : Math.round(cx + (rnd() - 0.5) * cell * 0.8)
-          const py = i === 0 ? cy : Math.round(cy + (rnd() - 0.5) * cell * 0.8)
-          const specimens = this.pack.specimens[variant]
-          const kind = specimens.pick(mix, rnd)
-          if (insideAnyRect(skip, px, py)) continue
-          specimens.draw(g, px, py, kind, rnd)
+    const area = this.clipped(rect)
+    if (area) {
+      // Cell grid anchored to the world and one cell of margin on each side, so
+      // whatever a cell draws near an edge is painted by the neighbour too.
+      const fromX = Math.floor((area.x - cell) / cell) * cell + SCATTER_MARGIN
+      const fromY = Math.floor((area.y - cell) / cell) * cell + SCATTER_MARGIN
+      const toX = area.x + area.width + cell
+      const toY = area.y + area.height + cell
+      for (let y = fromY; y < toY; y += cell) {
+        for (let x = fromX; x < toX; x += cell) {
+          // One hashed stream per cell: the same cell paints identically no matter
+          // which chunk (or how many chunks) happen to include it.
+          const rnd = makeRandom(cornerHash(x, y, seed))
+          const cx = Math.round(x + rnd() * (cell - SCATTER_MARGIN))
+          const cy = Math.round(y + rnd() * (cell - SCATTER_MARGIN))
+          const density = scatterDensity(cx, cy, seed) * (variant === 'water' ? 0.85 : 1)
+          // Ngưỡng đẩy cao: nền phần lớn phải SẠCH, rác chỉ tụ thành cụm rõ rệt —
+          // rắc đều tay (ngưỡng cũ) làm cả map thành "trường chấm bi".
+          const clean = variant === 'water' ? 0.4 : 0.3
+          const maxCount = variant === 'water' ? 2 : 3
+          const count = density < clean ? 0 : density < 0.7 ? 1 : density < 0.92 ? 2 : maxCount
+          const mix = scatterMix(cx, cy, seed)
+          for (let i = 0; i < count; i++) {
+            if (i > 0 && rnd() > density) break
+            const px = i === 0 ? cx : Math.round(cx + (rnd() - 0.5) * cell * 0.8)
+            const py = i === 0 ? cy : Math.round(cy + (rnd() - 0.5) * cell * 0.8)
+            const specimens = this.pack.specimens[variant]
+            const kind = specimens.pick(mix, rnd)
+            if (insideAnyRect(skip, px, py)) continue
+            // One specimen belongs to exactly one band/chunk: outside the window it
+            // is the neighbour's business. Without this the band seams double-draw.
+            if (!this.within(px, py)) continue
+            specimens.draw(g, px, py, kind, rnd)
+          }
         }
       }
     }
@@ -380,15 +450,39 @@ export class TilePainter {
     const blend = variantBoundaryBlend(x, y, count, salt)
     if (!blend || blend.amount <= 0.05) return
 
+    // Which edges abut a different tone, resolved ONCE per tile. Asking
+    // `boundaryDitherWeight` per speck meant five `groundVariant` calls — and each
+    // one is a three-octave noise sample — for every single speck, which measured
+    // at ~200ms per 640px chunk (the whole chunk's other passes together: ~30ms).
+    // The weight below is the same formula with those lookups hoisted out.
+    const own = groundVariant(x, y, count, salt)
+    const west = groundVariant(x - TILE_SIZE, y, count, salt) !== own
+    const east = groundVariant(x + TILE_SIZE, y, count, salt) !== own
+    const north = groundVariant(x, y - TILE_SIZE, count, salt) !== own
+    const south = groundVariant(x, y + TILE_SIZE, count, salt) !== own
+    if (!west && !east && !north && !south) return
+
     const tone = tileBaseTone(this.pack, kind, blend.variant)
     const rnd = makeRandom(cornerHash(x, y, salt * 457 + 31))
     const specks = Math.round(TILE_SIZE * TILE_SIZE * DITHER_MAX_DENSITY * blend.amount)
+    let placed = 0
     for (let i = 0; i < specks; i++) {
       const px = Math.round(x + rnd() * (TILE_SIZE - 1))
       const py = Math.round(y + rnd() * (TILE_SIZE - 1))
-      if (rnd() > boundaryDitherWeight(x, y, px, py, count, salt)) continue
-      dither.rect(px, py, 1, 1).fill({ color: tone, alpha: DITHER_ALPHA })
+      const u = (px - x) / TILE_SIZE
+      const v = (py - y) / TILE_SIZE
+      let weight = 0
+      if (west) weight = Math.max(weight, 1 - u)
+      if (east) weight = Math.max(weight, u)
+      if (north) weight = Math.max(weight, 1 - v)
+      if (south) weight = Math.max(weight, v)
+      if (rnd() > weight) continue
+      dither.rect(px, py, 1, 1)
+      placed += 1
     }
+    // One fill for the whole tile: the specks share their style, so batching them
+    // keeps the same pixels with a fraction of the instructions.
+    if (placed > 0) dither.fill({ color: tone, alpha: DITHER_ALPHA })
   }
 
   /**
@@ -401,31 +495,39 @@ export class TilePainter {
     const def = this.defOf(kind)
     if (!def.dressing) return
     const tones = def.tones
-    const rnd = makeRandom(seed * 91 + 13)
     const g = new Graphics()
     const region = 52
+    const area = this.clipped({ x: rect.x - pad, y: rect.y - pad, width: rect.width + pad * 2, height: rect.height + pad * 2 })
 
-    for (let y = rect.y - pad; y < rect.y + rect.height + pad; y += region) {
-      for (let x = rect.x - pad; x < rect.x + rect.width + pad; x += region) {
-        const cx = Math.round(x + rnd() * region)
-        const cy = Math.round(y + rnd() * region)
-        const density = scatterDensity(cx, cy, seed)
-        if (density < 0.25) {
-          // swept clean: nhạt đất, cố tình KHÔNG thêm sỏi (lớp scatter cũng bỏ qua vùng này)
-          g.ellipse(cx, cy, 10 + rnd() * 8, 6 + rnd() * 5).fill({ color: tones?.light ?? 0xa08a63, alpha: 0.1 })
-          continue
-        }
-        if (density < 0.55 || rnd() > 0.7) continue
-        const count = 3 + Math.floor(rnd() * 4)
-        const specimens = this.pack.specimens.debris
-        for (let i = 0; i < count; i++) {
-          specimens.draw(
-            g,
-            cx + Math.round((rnd() - 0.5) * 14),
-            cy + Math.round((rnd() - 0.5) * 10),
-            Math.floor(rnd() * specimens.count),
-            rnd,
-          )
+    if (area) {
+      const fromX = Math.floor(area.x / region) * region
+      const fromY = Math.floor(area.y / region) * region
+      const toX = area.x + area.width
+      const toY = area.y + area.height
+      for (let y = fromY; y < toY; y += region) {
+        for (let x = fromX; x < toX; x += region) {
+          // Per-cell stream (world-anchored grid): identical in every chunk.
+          const rnd = makeRandom(cornerHash(x, y, seed * 91 + 13))
+          const cx = Math.round(x + rnd() * region)
+          const cy = Math.round(y + rnd() * region)
+          const density = scatterDensity(cx, cy, seed)
+          if (density < 0.25) {
+            // swept clean: nhạt đất, cố tình KHÔNG thêm sỏi (lớp scatter cũng bỏ qua vùng này)
+            if (this.within(cx, cy)) {
+              g.ellipse(cx, cy, 10 + rnd() * 8, 6 + rnd() * 5).fill({ color: tones?.light ?? 0xa08a63, alpha: 0.1 })
+            }
+            continue
+          }
+          if (density < 0.55 || rnd() > 0.7) continue
+          const count = 3 + Math.floor(rnd() * 4)
+          const specimens = this.pack.specimens.debris
+          for (let i = 0; i < count; i++) {
+            const px = cx + Math.round((rnd() - 0.5) * 14)
+            const py = cy + Math.round((rnd() - 0.5) * 10)
+            const kind = Math.floor(rnd() * specimens.count)
+            if (!this.within(px, py)) continue
+            specimens.draw(g, px, py, kind, rnd)
+          }
         }
       }
     }
@@ -470,18 +572,28 @@ export class TilePainter {
   /** Tonal patches inside a clearing so the inside is not one flat mass. */
   private tonesInside(layer: Container, rect: Rect, pad: number, seed: number, kind: TerrainId): void {
     const tones = this.defOf(kind).tones
-    const rnd = makeRandom(seed * 53 + 19)
     const g = new Graphics()
     const step = 48
-    for (let y = rect.y - pad; y < rect.y + rect.height + pad; y += step) {
-      for (let x = rect.x - pad; x < rect.x + rect.width + pad; x += step) {
-        if (rnd() > 0.6) continue
-        const cx = Math.round(x + rnd() * step)
-        const cy = Math.round(y + rnd() * step)
-        const rx = 12 + rnd() * 16
-        const ry = 7 + rnd() * 10
-        const dark = rnd() < 0.5
-        g.ellipse(cx, cy, rx, ry).fill({ color: dark ? tones.depth : tones.light, alpha: dark ? 0.07 : 0.05 })
+    const area = this.clipped({ x: rect.x - pad, y: rect.y - pad, width: rect.width + pad * 2, height: rect.height + pad * 2 })
+
+    if (area) {
+      const fromX = Math.floor(area.x / step) * step
+      const fromY = Math.floor(area.y / step) * step
+      const toX = area.x + area.width
+      const toY = area.y + area.height
+      for (let y = fromY; y < toY; y += step) {
+        for (let x = fromX; x < toX; x += step) {
+          // Per-cell stream (world-anchored grid): identical in every chunk.
+          const rnd = makeRandom(cornerHash(x, y, seed * 53 + 19))
+          if (rnd() > 0.6) continue
+          const cx = Math.round(x + rnd() * step)
+          const cy = Math.round(y + rnd() * step)
+          const rx = 12 + rnd() * 16
+          const ry = 7 + rnd() * 10
+          const dark = rnd() < 0.5
+          if (!this.within(cx, cy)) continue
+          g.ellipse(cx, cy, rx, ry).fill({ color: dark ? tones.depth : tones.light, alpha: dark ? 0.07 : 0.05 })
+        }
       }
     }
     layer.addChild(g)
@@ -492,21 +604,28 @@ export class TilePainter {
     const def = this.defOf(kind)
     if (!def.dressing) return
     const tones = def.tones
-    const rnd = makeRandom(seed * 71 + 23)
     const g = new Graphics()
+    let index = 0
     for (const spot of contourSteps(points, 10)) {
+      const step = index
+      index++
+      if (!this.within(spot.x, spot.y, 16)) continue
+      // Per-step stream, so a chunk shows exactly the steps it owns.
+      const rnd = makeRandom(cornerHash(step, 0, seed * 71 + 23))
       if (rnd() < 0.45) {
         const d = 3 + rnd() * 6
         const x = Math.round(spot.x + spot.inwardX * d)
         const y = Math.round(spot.y + spot.inwardY * d)
-        if (rnd() < 0.5) g.rect(x, y, 1.5, 1).fill({ color: tones?.rim ?? 0x6a5738, alpha: 0.9 })
-        else g.rect(x, y, 2, 1).fill({ color: tones?.light ?? 0x95805e, alpha: 0.85 })
+        if (this.within(x, y)) {
+          if (rnd() < 0.5) g.rect(x, y, 1.5, 1).fill({ color: tones?.rim ?? 0x6a5738, alpha: 0.9 })
+          else g.rect(x, y, 2, 1).fill({ color: tones?.light ?? 0x95805e, alpha: 0.85 })
+        }
       }
       if (rnd() < 0.3) {
         const d = 5 + rnd() * 8
         const x = Math.round(spot.x + spot.inwardX * d)
         const y = Math.round(spot.y + spot.inwardY * d)
-        g.rect(x, y, 3, 0.75).fill({ color: 0x6b5136, alpha: 0.7 })
+        if (this.within(x, y)) g.rect(x, y, 3, 0.75).fill({ color: 0x6b5136, alpha: 0.7 })
       }
     }
     layer.addChild(g)
@@ -528,26 +647,37 @@ export class TilePainter {
     outside: TerrainId,
     innerKind: TerrainId,
   ): void {
-    const rnd = makeRandom(seed * 31 + 7)
     const g = new Graphics()
     const grassLike = this.defOf(outside).grassLike === true
     const tones = this.defOf(outside).tones
     const inner = this.defOf(innerKind).tones
+    // One shared guard: an element belongs to exactly ONE band/chunk. The step
+    // guard above keeps the loop cheap; this one keeps the *drawn position* from
+    // spilling into the neighbour, where it would be painted (and blended) twice.
+    const at = (x: number, y: number): boolean => this.within(x, y)
 
+    let index = 0
     for (const spot of contourSteps(points, 4)) {
+      const step = index
+      index++
+      if (!this.within(spot.x, spot.y, 20)) continue
+      // Per-step stream, so a chunk shows exactly the steps it owns.
+      const rnd = makeRandom(cornerHash(step, 1, seed * 31 + 7))
       // Cụm cỏ mọc lấn vào trong mép (2–3 lá so le).
       if (rnd() < 0.85) {
         const d = 1 + rnd() * 3
         const x = Math.round(spot.x + spot.inwardX * d)
         const y = Math.round(spot.y + spot.inwardY * d)
-        if (grassLike) {
-          const height = 3 + Math.round(rnd())
-          g.rect(x, y - height, 1, height).fill({ color: tones.base, alpha: 0.95 })
-          if (rnd() < 0.75) g.rect(x + 1, y - height + 1, 1, height - 1).fill({ color: tones.light, alpha: 0.9 })
-          if (rnd() < 0.5) g.rect(x - 1, y - height + 2, 1, height - 2).fill({ color: tones.depth, alpha: 0.85 })
-        } else {
-          g.rect(x, y - 1, 2, 1).fill({ color: tones.base, alpha: 0.85 })
-          if (rnd() < 0.5) g.rect(x + 1, y - 2, 1, 1).fill({ color: tones.light, alpha: 0.8 })
+        if (at(x, y)) {
+          if (grassLike) {
+            const height = 3 + Math.round(rnd())
+            g.rect(x, y - height, 1, height).fill({ color: tones.base, alpha: 0.95 })
+            if (rnd() < 0.75) g.rect(x + 1, y - height + 1, 1, height - 1).fill({ color: tones.light, alpha: 0.9 })
+            if (rnd() < 0.5) g.rect(x - 1, y - height + 2, 1, height - 2).fill({ color: tones.depth, alpha: 0.85 })
+          } else {
+            g.rect(x, y - 1, 2, 1).fill({ color: tones.base, alpha: 0.85 })
+            if (rnd() < 0.5) g.rect(x + 1, y - 2, 1, 1).fill({ color: tones.light, alpha: 0.8 })
+          }
         }
       }
       // Vài lá cỏ mọc hẳn RA NGOÀI mép, chồng lên ranh giới.
@@ -555,15 +685,17 @@ export class TilePainter {
         const d = 1 + rnd() * 2
         const x = Math.round(spot.x - spot.inwardX * d)
         const y = Math.round(spot.y - spot.inwardY * d)
-        g.rect(x, y - 4, 1, 4).fill({ color: tones.depth, alpha: 0.9 })
-        if (rnd() < 0.5) g.rect(x + 1, y - 3, 1, 3).fill({ color: tones.base, alpha: 0.9 })
+        if (at(x, y)) {
+          g.rect(x, y - 4, 1, 4).fill({ color: tones.depth, alpha: 0.9 })
+          if (rnd() < 0.5) g.rect(x + 1, y - 3, 1, 3).fill({ color: tones.base, alpha: 0.9 })
+        }
       }
       // Vụn của nền trong rơi ra ngoài mép.
       if (rnd() < 0.3) {
         const d = 1 + rnd() * 2
         const x = Math.round(spot.x - spot.inwardX * d)
         const y = Math.round(spot.y - spot.inwardY * d)
-        g.rect(x, y, 1, 1).fill({ color: inner.base, alpha: 0.85 })
+        if (at(x, y)) g.rect(x, y, 1, 1).fill({ color: inner.base, alpha: 0.85 })
       }
       // Sỏi / đá / cục đất vụn cỡ khác nhau nằm dọc mép: phá các đoạn thẳng mà
       // lưới ô tạo ra, để ranh giới không bao giờ có cạnh sạch.
@@ -572,17 +704,19 @@ export class TilePainter {
         const x = Math.round(spot.x + spot.inwardX * d)
         const y = Math.round(spot.y + spot.inwardY * d)
         const size = rnd()
-        if (size < 0.45) {
-          g.rect(x, y, 1, 1).fill({ color: this.fringe.pebble.base, alpha: 0.85 })
-        } else if (size < 0.75) {
-          g.rect(x, y, 2, 1).fill({ color: this.fringe.pebble.base2, alpha: 0.9 })
-          g.rect(x, y - 1, 1, 1).fill({ color: this.fringe.pebble.light, alpha: 0.85 })
-          g.rect(x, y + 1, 2, 1).fill({ color: this.fringe.pebble.edge, alpha: 0.3 })
-        } else {
-          g.rect(x, y, 3, 2).fill({ color: this.fringe.pebble.base3, alpha: 0.95 })
-          g.rect(x, y - 1, 2, 1).fill({ color: this.fringe.pebble.light2, alpha: 0.9 })
-          g.rect(x + 2, y + 1, 1, 1).fill({ color: this.fringe.pebble.edge, alpha: 0.45 })
-          g.rect(x, y + 2, 3, 1).fill({ color: this.fringe.pebble.shadow, alpha: 0.22 })
+        if (at(x, y)) {
+          if (size < 0.45) {
+            g.rect(x, y, 1, 1).fill({ color: this.fringe.pebble.base, alpha: 0.85 })
+          } else if (size < 0.75) {
+            g.rect(x, y, 2, 1).fill({ color: this.fringe.pebble.base2, alpha: 0.9 })
+            g.rect(x, y - 1, 1, 1).fill({ color: this.fringe.pebble.light, alpha: 0.85 })
+            g.rect(x, y + 1, 2, 1).fill({ color: this.fringe.pebble.edge, alpha: 0.3 })
+          } else {
+            g.rect(x, y, 3, 2).fill({ color: this.fringe.pebble.base3, alpha: 0.95 })
+            g.rect(x, y - 1, 2, 1).fill({ color: this.fringe.pebble.light2, alpha: 0.9 })
+            g.rect(x + 2, y + 1, 1, 1).fill({ color: this.fringe.pebble.edge, alpha: 0.45 })
+            g.rect(x, y + 2, 3, 1).fill({ color: this.fringe.pebble.shadow, alpha: 0.22 })
+          }
         }
       }
       // Cục đất vụn của nền trong, rơi lấm tấm qua ranh giới.
@@ -591,18 +725,22 @@ export class TilePainter {
         const x = Math.round(spot.x - spot.inwardX * d)
         const y = Math.round(spot.y - spot.inwardY * d)
         const width = rnd() < 0.5 ? 2 : 3
-        g.rect(x, y, width, 1).fill({ color: inner.base, alpha: 0.9 })
-        if (rnd() < 0.4) g.rect(x, y - 1, 1, 1).fill({ color: inner.light, alpha: 0.85 })
-        g.rect(x, y + 1, width, 1).fill({ color: 0x000000, alpha: 0.12 })
+        if (at(x, y)) {
+          g.rect(x, y, width, 1).fill({ color: inner.base, alpha: 0.9 })
+          if (rnd() < 0.4) g.rect(x, y - 1, 1, 1).fill({ color: inner.light, alpha: 0.85 })
+          g.rect(x, y + 1, width, 1).fill({ color: 0x000000, alpha: 0.12 })
+        }
       }
       // Cỏ dại mọc lẻn vào mép đất.
       if (grassLike && rnd() < 0.35) {
         const d = rnd() * 3
         const x = Math.round(spot.x + spot.inwardX * d)
         const y = Math.round(spot.y + spot.inwardY * d)
-        g.rect(x, y - 2, 1, 2).fill({ color: this.fringe.weed.base, alpha: 0.9 })
-        g.rect(x + 1, y - 3, 1, 3).fill({ color: this.fringe.weed.light, alpha: 0.85 })
-        if (rnd() < 0.5) g.rect(x + 2, y - 2, 1, 2).fill({ color: this.fringe.weed.base, alpha: 0.85 })
+        if (at(x, y)) {
+          g.rect(x, y - 2, 1, 2).fill({ color: this.fringe.weed.base, alpha: 0.9 })
+          g.rect(x + 1, y - 3, 1, 3).fill({ color: this.fringe.weed.light, alpha: 0.85 })
+          if (rnd() < 0.5) g.rect(x + 2, y - 2, 1, 2).fill({ color: this.fringe.weed.base, alpha: 0.85 })
+        }
       }
     }
     root.addChild(g)

@@ -14,8 +14,8 @@ function stubLabel(text: string): Container {
 }
 
 const ZONE_WIDTH = 256
-/** Zone width + the access lane running on to the map edge (world x 1280). */
-const MAP_EDGE_X = ZONE_WIDTH + 164
+/** Zone width + the export lane running east to the merge corner (world x 7196). */
+const MAP_EDGE_X = ZONE_WIDTH + 680
 /** Cửa cuốn nằm ở đuôi tây của sprite nhìn hông xe. */
 const DOOR_OFFSET = -28
 const FRAME = 1 / 60

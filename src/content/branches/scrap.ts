@@ -136,6 +136,7 @@ export const SCRAP_BRANCH: BranchDef = {
       desc: { vi: 'x2 sức chứa Pallet phôi', en: 'x2 billet pallet capacity' },
       cost: new Decimal(4000),
       effects: [{ target: itemCapacity(PALLET_ITEM), kind: 'mult', value: new Decimal(2) }],
+      requires: { kind: 'workers', branch: BRANCH_ID, worker: 'cart', count: 1 },
     },
     {
       id: 'pickup',
@@ -147,6 +148,7 @@ export const SCRAP_BRANCH: BranchDef = {
       cost: new Decimal(2000),
       effects: [{ target: branchWorkerOutput(BRANCH_ID), kind: 'mult', value: new Decimal('1.5') }],
       visual: { zone: 'route', tier: 1 },
+      requires: { kind: 'workers', branch: BRANCH_ID, worker: 'cart', count: 1 },
     },
     {
       id: 'box-truck',
@@ -158,6 +160,7 @@ export const SCRAP_BRANCH: BranchDef = {
       cost: new Decimal(25000),
       effects: [{ target: branchWorkerOutput(BRANCH_ID), kind: 'mult', value: new Decimal(2) }],
       visual: { zone: 'route', tier: 2 },
+      requires: { kind: 'upgrade', branch: BRANCH_ID, upgrade: 'pickup' },
     },
     // Nâng cấp riêng từng chặng (stat key `branch.<branch>.worker.<id>.output`):
     // chỉ chặng đó nhanh hơn, tách khỏi băng chuyền chung ở trên.
@@ -167,6 +170,7 @@ export const SCRAP_BRANCH: BranchDef = {
       desc: { vi: '+50% tốc độ bốc vác', en: '+50% porter speed' },
       cost: new Decimal(150),
       effects: [{ target: workerStepOutput(BRANCH_ID, 'porter'), kind: 'mult', value: new Decimal('1.5') }],
+      requires: { kind: 'workers', branch: BRANCH_ID, worker: 'porter', count: 1 },
     },
     {
       id: 'sack-shed',
@@ -174,6 +178,7 @@ export const SCRAP_BRANCH: BranchDef = {
       desc: { vi: 'x2 sức chứa Bao phế liệu ở xưởng', en: 'x2 sack capacity at the forge' },
       cost: new Decimal(700),
       effects: [{ target: itemCapacity(SACK_ITEM), kind: 'mult', value: new Decimal(2) }],
+      requires: { kind: 'workers', branch: BRANCH_ID, worker: 'porter', count: 1 },
     },
     {
       id: 'bellows',
@@ -181,6 +186,7 @@ export const SCRAP_BRANCH: BranchDef = {
       desc: { vi: '+50% tốc độ thợ rèn', en: '+50% smelter speed' },
       cost: new Decimal(500),
       effects: [{ target: workerStepOutput(BRANCH_ID, 'smelter'), kind: 'mult', value: new Decimal('1.5') }],
+      requires: { kind: 'workers', branch: BRANCH_ID, worker: 'smelter', count: 1 },
     },
     {
       id: 'billet-rack',
@@ -188,6 +194,7 @@ export const SCRAP_BRANCH: BranchDef = {
       desc: { vi: 'x2 sức chứa Phôi tái chế trên tuyến', en: 'x2 billet capacity at the route' },
       cost: new Decimal(1800),
       effects: [{ target: itemCapacity(BILLET_ITEM), kind: 'mult', value: new Decimal(2) }],
+      requires: { kind: 'workers', branch: BRANCH_ID, worker: 'smelter', count: 1 },
     },
     {
       id: 'cart-tune',
@@ -195,6 +202,7 @@ export const SCRAP_BRANCH: BranchDef = {
       desc: { vi: '+50% tốc độ ba gác', en: '+50% cart speed' },
       cost: new Decimal(2500),
       effects: [{ target: workerStepOutput(BRANCH_ID, 'cart'), kind: 'mult', value: new Decimal('1.5') }],
+      requires: { kind: 'workers', branch: BRANCH_ID, worker: 'cart', count: 1 },
     },
     {
       id: 'pack-bench',
@@ -202,6 +210,7 @@ export const SCRAP_BRANCH: BranchDef = {
       desc: { vi: '+50% tốc độ đóng hàng', en: '+50% packing speed' },
       cost: new Decimal(9000),
       effects: [{ target: workerStepOutput(BRANCH_ID, 'depot'), kind: 'mult', value: new Decimal('1.5') }],
+      requires: { kind: 'workers', branch: BRANCH_ID, worker: 'depot', count: 1 },
     },
     {
       id: 'crate-slot',
@@ -209,6 +218,7 @@ export const SCRAP_BRANCH: BranchDef = {
       desc: { vi: 'x2 sức chứa Kiện hàng ở cổng', en: 'x2 crate capacity at the gate' },
       cost: new Decimal(9000),
       effects: [{ target: itemCapacity(CRATE_ITEM), kind: 'mult', value: new Decimal(2) }],
+      requires: { kind: 'workers', branch: BRANCH_ID, worker: 'depot', count: 1 },
     },
     {
       id: 'fleet',
@@ -216,6 +226,7 @@ export const SCRAP_BRANCH: BranchDef = {
       desc: { vi: '+50% tốc độ xe tải xuất', en: '+50% export truck speed' },
       cost: new Decimal(40000),
       effects: [{ target: workerStepOutput(BRANCH_ID, 'truck'), kind: 'mult', value: new Decimal('1.5') }],
+      requires: { kind: 'workers', branch: BRANCH_ID, worker: 'truck', count: 1 },
     },
   ],
 }

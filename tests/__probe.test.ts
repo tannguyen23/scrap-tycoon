@@ -2,6 +2,7 @@ import { describe, it } from 'vitest'
 import { TILE_SIZE } from '@ground/core/metrics'
 import { boundaryDitherWeight, groundVariant, variantBoundaryBlend } from '@ground/core/variety'
 
+/** The probe samples one screen of the world — the map is far bigger than this. */
 const WORLD_W = 1280
 const WORLD_H = 720
 const DITHER_MAX_DENSITY = 0.35
@@ -86,7 +87,7 @@ describe('probe', () => {
     stats('concrete', 4, 36)
     stats('TEST 8/7', 8, 7)
 
-    console.log('\n--- dither budget over the whole map (3600 tiles) ---')
+    console.log(`\n--- dither budget over the whole map (${(WORLD_W / TILE_SIZE) * (WORLD_H / TILE_SIZE)} tiles) ---`)
     budget('grass', 6, 8)
     budget('dirt(alley)', 8, 13)
     budget('dirt(lane)', 8, 14)

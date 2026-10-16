@@ -76,8 +76,12 @@ export interface GroundMap {
   readonly water: readonly BlobCall[]
   /** Extra no-go rects for the random scatter (e.g. a road band). */
   readonly scatterSkip?: readonly Rect[]
-  /** Hand-placed decor, drawn last. */
-  readonly decor?: (decor: Graphics) => void
+  /**
+   * Hand-placed decor, drawn last. `window` (chunk painting) is the rect being
+   * painted — a map with hundreds of props must skip the ones outside it, or every
+   * chunk pays for the whole world's decor.
+   */
+  readonly decor?: (decor: Graphics, window?: Rect) => void
 }
 
 /** No-go rects of the random scatter: the floor blobs plus the map's extras. */
@@ -85,65 +89,156 @@ export function scatterSkipRects(map: GroundMap): Rect[] {
   return [...map.floors.map((floor) => inflate(floor.rect, floor.pad)), ...(map.scatterSkip ?? [])]
 }
 
-/** Paints a map with a pack — the whole composition, in the kit's fixed order. */
+/**
+ * A map call's reach past its own rect: pads, flares and the fringe/decoration
+ * band all draw outside the declared box, and a window that merely touches the
+ * box still has to catch them.
+ */
+const CALL_MARGIN = 72
+
+/**
+ * Which map calls a window (a chunk) actually needs, with the connector seeds
+ * preserved (a connector's seed is its index in the map, so filtering must not
+ * renumber it). Pure, so the chunk plan is testable without a renderer.
+ */
+export interface PlannedChunkCalls {
+  readonly base: Rect
+  readonly lanes: readonly PathCall[]
+  readonly floors: readonly FloorCall[]
+  readonly clearings: readonly BlobCall[]
+  readonly traces: readonly TraceCall[]
+  readonly connectors: readonly { readonly rect: Rect; readonly seed: number }[]
+  readonly links: readonly PathCall[]
+  readonly water: readonly BlobCall[]
+}
+
+export function planChunkCalls(map: GroundMap, window?: Rect): PlannedChunkCalls {
+  const connectors = map.connectors.rects.map((rect, index) => ({ rect, seed: map.connectors.seedBase + index }))
+  const world: Rect = { x: 0, y: 0, width: map.width, height: map.height }
+  if (!window) {
+    return {
+      base: world,
+      lanes: map.lanes,
+      floors: map.floors,
+      clearings: map.clearings,
+      traces: map.traces,
+      connectors,
+      links: map.links,
+      water: map.water,
+    }
+  }
+
+  const area = intersectRect(world, window) ?? { x: window.x, y: window.y, width: 0, height: 0 }
+  const near = (rect: Rect, pad: number): boolean => intersectRect(area, inflate(rect, pad)) !== null
+  return {
+    base: area,
+    lanes: map.lanes.filter((call) => near(call.rect, (call.flare ?? 0) + (call.ramp ?? call.flare ?? 0) + CALL_MARGIN)),
+    floors: map.floors.filter((floor) => near(floor.rect, floor.pad + CALL_MARGIN)),
+    clearings: map.clearings.filter((patch) => near(patch.rect, (patch.pad ?? 16) + CALL_MARGIN)),
+    traces: map.traces.filter((trace) => near(boundsOf(trace.points), CALL_MARGIN)),
+    connectors: connectors.filter((entry) => near(entry.rect, CALL_MARGIN)),
+    links: map.links.filter((call) => near(call.rect, (call.flare ?? 0) + (call.ramp ?? call.flare ?? 0) + CALL_MARGIN)),
+    water: map.water.filter((area) => near(area.rect, (area.pad ?? DEFAULT_BLOB_PAD) + CALL_MARGIN)),
+  }
+}
+
+/**
+ * Paints a map with a pack — the whole composition, in the kit's fixed order.
+ *
+ * `window` (chunk painting) restricts every pass to a rect: the painter culls its
+ * loops to it, and calls that reach outside the window are skipped. Geometry is
+ * **position-anchored**, so a chunk painted on its own carries the very same
+ * tiles, scatter cells and dressing as the full-map pass — chunks can overlap,
+ * be evicted and be repainted without ever drifting.
+ */
 export function paintGrounds(
   pack: GroundPack,
   map: GroundMap,
   painter: TilePainter,
   ground: Container,
   decor: Graphics,
+  window?: Rect,
 ): void {
-  const world: Rect = { x: 0, y: 0, width: map.width, height: map.height }
-  painter.paint(ground, world, map.base, map.baseSeed)
-  painter.patchwork(ground, world, map.patchworkSeed)
-  const skip = scatterSkipRects(map)
-  painter.scatter(ground, world, map.floraSeed, 'flora', 22, skip)
+  const plan = planChunkCalls(map, window)
+  painter.setClip(window ?? null)
+  try {
+    painter.paint(ground, plan.base, map.base, map.baseSeed)
+    painter.patchwork(ground, plan.base, map.patchworkSeed)
+    const skip = scatterSkipRects(map)
+    painter.scatter(ground, plan.base, map.floraSeed, 'flora', 22, skip)
 
-  for (const lane of map.lanes) paintCall(painter, ground, lane, map.base)
-  for (const floor of map.floors) {
-    painter.paintBlob(ground, floor.rect, floor.kind, floor.seed, floor.pad, map.base)
-  }
-  for (const patch of map.clearings) {
-    painter.paintBlob(
-      ground,
-      patch.rect,
-      patch.kind ?? map.base,
-      patch.seed,
-      patch.pad ?? 16,
-      patch.outside ?? map.base,
-      patch.elevation ?? 0,
-    )
-  }
+    for (const lane of plan.lanes) paintCall(painter, ground, lane, map.base)
+    for (const floor of plan.floors) {
+      painter.paintBlob(ground, floor.rect, floor.kind, floor.seed, floor.pad, map.base)
+    }
+    for (const patch of plan.clearings) {
+      painter.paintBlob(
+        ground,
+        patch.rect,
+        patch.kind ?? map.base,
+        patch.seed,
+        patch.pad ?? 16,
+        patch.outside ?? map.base,
+        patch.elevation ?? 0,
+      )
+    }
 
-  const traces = new Graphics()
-  for (const trace of map.traces) {
-    const options = { seed: trace.seed, strength: trace.strength }
-    if (trace.kind === 'wear') pack.decals.wear(traces, trace.points, options)
-    else if (trace.kind === 'footprints') pack.decals.footprints(traces, trace.points, options)
-    else if (trace.kind === 'ruts') pack.decals.ruts(traces, trace.points, options)
-    else pack.decals.dragMarks(traces, trace.points, options)
-  }
-  ground.addChild(traces)
+    const traces = new Graphics()
+    for (const trace of plan.traces) {
+      const options = { seed: trace.seed, strength: trace.strength }
+      if (trace.kind === 'wear') pack.decals.wear(traces, trace.points, options)
+      else if (trace.kind === 'footprints') pack.decals.footprints(traces, trace.points, options)
+      else if (trace.kind === 'ruts') pack.decals.ruts(traces, trace.points, options)
+      else pack.decals.dragMarks(traces, trace.points, options)
+    }
+    ground.addChild(traces)
 
-  map.connectors.rects.forEach((rect, index) => {
-    painter.paint(ground, rect, map.connectors.kind, map.connectors.seedBase + index)
-  })
-  for (const link of map.links) paintCall(painter, ground, link, map.base)
+    for (const connector of plan.connectors) {
+      painter.paint(ground, connector.rect, map.connectors.kind, connector.seed)
+    }
+    for (const link of plan.links) paintCall(painter, ground, link, map.base)
 
-  painter.scatter(ground, world, map.debrisSeed, 'debris', 22, skip)
-  // Water last among the blobs so debris never lands on a water surface.
-  for (const area of map.water) {
-    painter.paintBlob(
-      ground,
-      area.rect,
-      area.kind ?? map.base,
-      area.seed,
-      area.pad ?? DEFAULT_BLOB_PAD,
-      area.outside ?? map.base,
-      area.elevation ?? 0,
-    )
+    painter.scatter(ground, plan.base, map.debrisSeed, 'debris', 22, skip)
+    // Water last among the blobs so debris never lands on a water surface.
+    for (const area of plan.water) {
+      painter.paintBlob(
+        ground,
+        area.rect,
+        area.kind ?? map.base,
+        area.seed,
+        area.pad ?? DEFAULT_BLOB_PAD,
+        area.outside ?? map.base,
+        area.elevation ?? 0,
+      )
+    }
+    map.decor?.(decor, window)
+  } finally {
+    painter.setClip(null)
   }
-  map.decor?.(decor)
+}
+
+function boundsOf(points: readonly Point[]): Rect {
+  let minX = Number.POSITIVE_INFINITY
+  let minY = Number.POSITIVE_INFINITY
+  let maxX = Number.NEGATIVE_INFINITY
+  let maxY = Number.NEGATIVE_INFINITY
+  for (const point of points) {
+    if (point.x < minX) minX = point.x
+    if (point.y < minY) minY = point.y
+    if (point.x > maxX) maxX = point.x
+    if (point.y > maxY) maxY = point.y
+  }
+  if (minX > maxX || minY > maxY) return { x: 0, y: 0, width: 0, height: 0 }
+  return { x: minX, y: minY, width: maxX - minX, height: maxY - minY }
+}
+
+function intersectRect(a: Rect, b: Rect): Rect | null {
+  const x = Math.max(a.x, b.x)
+  const y = Math.max(a.y, b.y)
+  const right = Math.min(a.x + a.width, b.x + b.width)
+  const bottom = Math.min(a.y + a.height, b.y + b.height)
+  if (right <= x || bottom <= y) return null
+  return { x, y, width: right - x, height: bottom - y }
 }
 
 function paintCall(painter: TilePainter, ground: Container, call: PathCall, base: TerrainId): void {

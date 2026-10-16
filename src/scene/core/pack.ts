@@ -3,6 +3,7 @@ import type { TilePainter } from '@ground/core/painter'
 import type { GroundPack } from '@ground/core/pack'
 import type { SceneryPack } from '@scenery/core/pack'
 import type { SceneWind } from '@scenery/core/ambience'
+import type { ViewRect } from '@scenery/core/view'
 import type { Container, Graphics } from 'pixi.js'
 import type { SceneFeed } from './feed'
 import type { SceneServices } from './services'
@@ -18,20 +19,32 @@ export interface SceneZone {
 
 /**
  * How a pack paints its ground. Same call the game uses at map level, so the
- * pack, the game and the studio always draw one world.
+ * pack, the game and the studio always draw one world. The optional `window`
+ * restricts the pass to a rect — that is what lets a big world be painted chunk
+ * by chunk (see `chunks.ts`); painting stays position-anchored, so the window
+ * never changes what a given spot looks like.
  */
 export interface SceneGround {
   readonly pack: GroundPack
-  paint(painter: TilePainter, ground: Container, decor: Graphics): void
+  paint(painter: TilePainter, ground: Container, decor: Graphics, window?: Rect): void
+}
+
+/**
+ * A layer the project owns inside the world: one container in world space plus a
+ * per-frame update. The player is one; couriers are one with a feed on top.
+ */
+export interface WorldLayer {
+  readonly root: Container
+  /** `view` is the world rect on screen. */
+  update(dt: number, view: Rect): void
+  /** Optional teardown (listeners, timers) — the kit calls it on unmount. */
+  destroy?(): void
 }
 
 /** Cross-zone deliveries. Locomotion is the kit's; runs and art are the pack's. */
-export interface Couriers {
-  readonly root: Container
+export interface Couriers extends WorldLayer {
   /** Live counts, pushed whenever the project's state changes. */
   setFeed(feed: SceneFeed): void
-  /** `view` is the world rect on screen — only visible runs are updated. */
-  update(dt: number, view: Rect): void
 }
 
 /** Weather visuals. Machinery is the kit's; the schedule and ponds are the pack's. */
@@ -40,7 +53,8 @@ export interface Weather {
   readonly container: Container
   /** Lightning — added after the grade so it is not multiplied dark. */
   readonly flash: Container
-  update(dt: number, playTimeS: number): void
+  /** `view` (the world rect on screen) keeps clouds, rain and grade screen-sized. */
+  update(dt: number, playTimeS: number, view?: ViewRect): void
   wind(): SceneWind
   dispose(): void
 }
@@ -54,6 +68,12 @@ export interface ScenePack {
   readonly id: string
   readonly label: string
   readonly world: { readonly width: number; readonly height: number }
+  /**
+   * Canvas size in design px. A world bigger than the viewport is painted in
+   * chunks and panned by the camera; absent means the viewport is the world
+   * (small maps keep the whole-map-in-frame look).
+   */
+  readonly viewport?: { readonly width: number; readonly height: number }
   /** Zone rects + outline colour, for culling, `panTo` and `setHighlight`. */
   readonly zones: Readonly<Record<string, SceneZone>>
   readonly ground: SceneGround
@@ -66,6 +86,12 @@ export interface ScenePack {
    * supplies the waterlines and the project's own water tones; the kit animates.
    */
   readonly water?: WaterLayer
+  /**
+   * The player's layer: a world-space container the kit draws right under the
+   * couriers and updates every frame. The pack owns the body, the art and the
+   * input it reads; the camera follows it through `SceneHandle.setFollow`.
+   */
+  makePlayer?(services: SceneServices): WorldLayer | null
   makeCouriers?(services: SceneServices): Couriers | null
   makeWeather?(services: SceneServices): Weather | null
 }

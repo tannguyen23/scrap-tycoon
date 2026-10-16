@@ -14,7 +14,7 @@ import { createBillet } from './focus/recycle/sprites'
 import { restPose, walkPose } from './focus/poses'
 import { routeVehicleSprite } from './focus/route/sprites'
 import type { Spot } from '@scene/core/types'
-import { CONNECTORS } from '@ground/packs/scrapYard/worldLayout'
+import { AVENUE_HEIGHT, AVENUE_Y, CONNECTORS, WORLD_WIDTH } from '@ground/packs/scrapYard/worldLayout'
 import type { Rect } from '@ground/core/metrics'
 import type { SceneFeed } from '@scene/core/feed'
 import type { Couriers } from '@scene/core/pack'
@@ -51,7 +51,7 @@ export interface CourierRun {
 }
 
 export const COURIER_RUNS: Record<string, CourierRun> = {
-  // Dirt path {x:384, y:100, w:224, h:48}: alley east gate → the forge sack stack.
+  // Dirt path {x:4240, y:2196, w:880, h:48}: alley east gate → the forge sack stack.
   // Đẩy xe cút kít theo lối mòn (ghim tier 0 — lối mòn không bao giờ thành xe tải).
   'alley>recycle': {
     kind: 'drive',
@@ -61,14 +61,14 @@ export const COURIER_RUNS: Record<string, CourierRun> = {
     hat: 'cap',
     vehicle: 0,
     path: [
-      { x: 388, y: 124 },
-      { x: 596, y: 124 },
-      { x: 648, y: 112 },
+      { x: 4244, y: 2220 },
+      { x: 5128, y: 2220 },
+      { x: 5162, y: 2208 },
     ],
-    drop: { x: 650, y: 112 },
+    drop: { x: 5162, y: 2208 },
   },
-  // Forge south lane {x:700, y:184, w:48, h:196}: the billet stack down to the
-  // roadside stack at the lane junction (the route zone's warehouse).
+  // Forge south lane {x:5212, y:2280, w:48, h:568}: the billet stack down to the
+  // roadside stack at the lane junction (the route zone's warehouse, world 5236).
   'recycle>route': {
     kind: 'walk',
     speed: 28,
@@ -76,15 +76,15 @@ export const COURIER_RUNS: Record<string, CourierRun> = {
     cargo: 'billet',
     hat: 'straw',
     path: [
-      { x: 724, y: 168 },
-      { x: 724, y: 374 },
+      { x: 5236, y: 2264 },
+      { x: 5236, y: 2842 },
     ],
-    drop: { x: 724, y: 372 },
+    drop: { x: 5236, y: 2840 },
   },
-  // Westbound lane of the road band, then down the depot driveway {x:216, y:444, w:36, h:116}
+  // Westbound along the avenue, then down the depot driveway {x:4072, y:2912, w:36, h:116}
   // into the yard where the pallet stack waits. Đi bộ: driveway là đường DỌC, mà
   // art xe chỉ có hướng đông-tây — chạy xe xuống đây là trôi ngang. Xe chỉ chạy
-  // trên đường ngang (band + làn xuất), mọi chặng dọc do người vác.
+  // trên đường ngang (đại lộ + làn xuất), mọi chặng dọc do người vác.
   'route>depot': {
     kind: 'walk',
     speed: 30,
@@ -92,16 +92,16 @@ export const COURIER_RUNS: Record<string, CourierRun> = {
     hat: 'cap',
     cap: 2,
     path: [
-      { x: 724, y: 418 },
-      { x: 252, y: 418 },
-      { x: 234, y: 436 },
-      { x: 234, y: 552 },
-      { x: 258, y: 562 },
+      { x: 5236, y: 2886 },
+      { x: 4108, y: 2886 },
+      { x: 4090, y: 2904 },
+      { x: 4090, y: 3020 },
+      { x: 4114, y: 3030 },
     ],
-    drop: { x: 280, y: 584 },
+    drop: { x: 4136, y: 3052 },
   },
-  // Depot driveway up to the road, east along the south walk, down the gate
-  // driveway's east side to the crate stack (world 956, beside the truck dock).
+  // Depot driveway up to the avenue, east along it, down the gate driveway's east
+  // side to the crate stack (world 6356, beside the truck dock).
   'depot>gate': {
     kind: 'walk',
     speed: 34,
@@ -109,13 +109,13 @@ export const COURIER_RUNS: Record<string, CourierRun> = {
     cargo: 'crate',
     hat: 'cap',
     path: [
-      { x: 234, y: 556 },
-      { x: 234, y: 447 },
-      { x: 240, y: 441 },
-      { x: 956, y: 441 },
-      { x: 956, y: 552 },
+      { x: 4090, y: 3024 },
+      { x: 4090, y: 2915 },
+      { x: 4096, y: 2909 },
+      { x: 6342, y: 2909 },
+      { x: 6342, y: 3012 },
     ],
-    drop: { x: 956, y: 560 },
+    drop: { x: 6356, y: 3028 },
   },
 }
 
@@ -540,6 +540,9 @@ export function createCouriers(courierLegs: readonly CourierLeg[]): ScrapCourier
 /** Painted links a courier path may use besides the zone rects themselves. */
 export const COURIER_GROUND: readonly Rect[] = [
   ...CONNECTORS,
+  // The avenue the walkers cross between the depot and the gate (painted by
+  // `worldGrounds` as the full-width asphalt lane).
+  { x: 0, y: AVENUE_Y, width: WORLD_WIDTH, height: AVENUE_HEIGHT },
   // The alley→forge dirt path painted by `worldGrounds` (paintPath call there).
-  { x: 384, y: 100, width: 224, height: 48 },
+  { x: 4240, y: 2196, width: 880, height: 48 },
 ]

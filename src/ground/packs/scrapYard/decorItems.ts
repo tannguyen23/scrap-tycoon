@@ -293,6 +293,14 @@ export interface DecorSpecimen {
   /** Declared box: art must stay inside ±width/2 of the anchor and `height` above it. */
   width: number
   height: number
+  /**
+   * Does the prop stop a walker? Only the BASE blocks (see `solidBox` in
+   * `ui/scene/player/walkable.ts`), so a canopy or a tank can overhang the path.
+   * Every specimen must answer this explicitly: a silent default is how a new
+   * prop ends up walk-through (or an invisible wall appears) without anyone
+   * noticing — `tests/walkable.test.ts` locks the field in.
+   */
+  solid: boolean
   draw: (g: GroundCanvas, x: number, y: number) => void
 }
 
@@ -382,32 +390,38 @@ export function drawWaterTower(g: GroundCanvas, x: number, y: number): void {
 
 /** The catalog the studio lists and the tests walk. */
 export const DECOR_SPECIMENS: readonly DecorSpecimen[] = [
-  { key: 'tree0', label: 'cây sồi tối', group: 'Cây cối', width: 48, height: 44, draw: (g, x, y) => drawTree(g, x, y, 0) },
-  { key: 'tree1', label: 'cây sồi tươi', group: 'Cây cối', width: 48, height: 44, draw: (g, x, y) => drawTree(g, x, y, 1) },
-  { key: 'bush0', label: 'bụi cây tối', group: 'Cây cối', width: 30, height: 22, draw: (g, x, y) => drawBush(g, x, y, 0) },
-  { key: 'bush1', label: 'bụi cây tươi', group: 'Cây cối', width: 30, height: 22, draw: (g, x, y) => drawBush(g, x, y, 1) },
-  { key: 'stump', label: 'gốc cây', group: 'Cây cối', width: 20, height: 14, draw: drawStump },
-  { key: 'log', label: 'khúc gỗ', group: 'Cây cối', width: 40, height: 14, draw: drawLog },
-  { key: 'tuft', label: 'cụm cỏ cao', group: 'Cây cối', width: 18, height: 14, draw: drawTuft },
-  { key: 'rock', label: 'hòn đá', group: 'Đá & mặt đất', width: 24, height: 12, draw: (g, x, y) => drawRock(g, x, y, 1) },
-  { key: 'rockSmall', label: 'đá nhỏ', group: 'Đá & mặt đất', width: 22, height: 11, draw: (g, x, y) => drawRock(g, x, y, 0.9) },
-  { key: 'rockBig', label: 'đá lớn', group: 'Đá & mặt đất', width: 27, height: 14, draw: (g, x, y) => drawRock(g, x, y, 1.1) },
-  { key: 'rockCluster', label: 'cụm đá', group: 'Đá & mặt đất', width: 40, height: 14, draw: drawRockCluster },
-  { key: 'barrel0', label: 'thùng phuy xanh', group: 'Phế liệu', width: 22, height: 26, draw: (g, x, y) => drawBarrel(g, x, y) },
-  { key: 'barrel1', label: 'thùng phuy gỉ', group: 'Phế liệu', width: 22, height: 26, draw: (g, x, y) => drawBarrel(g, x, y, 0x8a6a52) },
-  { key: 'tire', label: 'lốp xe', group: 'Phế liệu', width: 24, height: 14, draw: drawTire },
-  { key: 'tireStack', label: 'chồng lốp', group: 'Phế liệu', width: 26, height: 22, draw: drawTireStack },
-  { key: 'pipe', label: 'ống bê tông', group: 'Phế liệu', width: 30, height: 20, draw: drawPipe },
-  { key: 'scrap', label: 'đống sắt vụn', group: 'Phế liệu', width: 44, height: 24, draw: drawScrapPile },
-  { key: 'pallets', label: 'pallet gỗ', group: 'Hàng hoá', width: 32, height: 26, draw: drawPallets },
-  { key: 'crates', label: 'chồng thùng gỗ', group: 'Hàng hoá', width: 40, height: 26, draw: drawCrateStack },
-  { key: 'sign', label: 'biển gỗ', group: 'Hàng hoá', width: 22, height: 34, draw: drawSign },
+  { key: 'tree0', label: 'cây sồi tối', group: 'Cây cối', width: 48, height: 44, solid: true, draw: (g, x, y) => drawTree(g, x, y, 0) },
+  { key: 'tree1', label: 'cây sồi tươi', group: 'Cây cối', width: 48, height: 44, solid: true, draw: (g, x, y) => drawTree(g, x, y, 1) },
+  { key: 'bush0', label: 'bụi cây tối', group: 'Cây cối', width: 30, height: 22, solid: false, draw: (g, x, y) => drawBush(g, x, y, 0) },
+  { key: 'bush1', label: 'bụi cây tươi', group: 'Cây cối', width: 30, height: 22, solid: false, draw: (g, x, y) => drawBush(g, x, y, 1) },
+  { key: 'stump', label: 'gốc cây', group: 'Cây cối', width: 20, height: 14, solid: true, draw: drawStump },
+  { key: 'log', label: 'khúc gỗ', group: 'Cây cối', width: 40, height: 14, solid: true, draw: drawLog },
+  { key: 'tuft', label: 'cụm cỏ cao', group: 'Cây cối', width: 18, height: 14, solid: false, draw: drawTuft },
+  { key: 'rock', label: 'hòn đá', group: 'Đá & mặt đất', width: 24, height: 12, solid: true, draw: (g, x, y) => drawRock(g, x, y, 1) },
+  { key: 'rockSmall', label: 'đá nhỏ', group: 'Đá & mặt đất', width: 22, height: 11, solid: true, draw: (g, x, y) => drawRock(g, x, y, 0.9) },
+  { key: 'rockBig', label: 'đá lớn', group: 'Đá & mặt đất', width: 27, height: 14, solid: true, draw: (g, x, y) => drawRock(g, x, y, 1.1) },
+  { key: 'rockCluster', label: 'cụm đá', group: 'Đá & mặt đất', width: 40, height: 14, solid: true, draw: drawRockCluster },
+  { key: 'barrel0', label: 'thùng phuy xanh', group: 'Phế liệu', width: 22, height: 26, solid: true, draw: (g, x, y) => drawBarrel(g, x, y) },
+  { key: 'barrel1', label: 'thùng phuy gỉ', group: 'Phế liệu', width: 22, height: 26, solid: true, draw: (g, x, y) => drawBarrel(g, x, y, 0x8a6a52) },
+  { key: 'tire', label: 'lốp xe', group: 'Phế liệu', width: 24, height: 14, solid: false, draw: drawTire },
+  { key: 'tireStack', label: 'chồng lốp', group: 'Phế liệu', width: 26, height: 22, solid: true, draw: drawTireStack },
+  { key: 'pipe', label: 'ống bê tông', group: 'Phế liệu', width: 30, height: 20, solid: true, draw: drawPipe },
+  { key: 'scrap', label: 'đống sắt vụn', group: 'Phế liệu', width: 44, height: 24, solid: true, draw: drawScrapPile },
+  { key: 'pallets', label: 'pallet gỗ', group: 'Hàng hoá', width: 32, height: 26, solid: true, draw: drawPallets },
+  { key: 'crates', label: 'chồng thùng gỗ', group: 'Hàng hoá', width: 40, height: 26, solid: true, draw: drawCrateStack },
+  { key: 'sign', label: 'biển gỗ', group: 'Hàng hoá', width: 22, height: 34, solid: true, draw: drawSign },
   {
     key: 'waterTower',
     label: 'tháp nước',
     group: 'Công trình',
     width: 58,
     height: 106,
+    solid: true,
     draw: drawWaterTower,
   },
 ]
+
+/** Specimens a walker is stopped by, by key. */
+export const SOLID_DECOR: ReadonlyMap<string, DecorSpecimen> = new Map(
+  DECOR_SPECIMENS.filter((specimen) => specimen.solid).map((specimen) => [specimen.key, specimen]),
+)

@@ -1,4 +1,5 @@
 import { cornerHash } from '@ground/core/edgeGeometry'
+import type { Rect } from '@ground/core/metrics'
 import { Container, Graphics } from 'pixi.js'
 import type { SceneWind } from '@scenery/core/ambience'
 import type { SceneServices } from './services'
@@ -30,8 +31,12 @@ export interface WaterLayer {
 
 export interface WaterLife {
   readonly container: Container
-  /** `wind` drives the swell and hurries the sets along. */
-  update(dt: number, wind: SceneWind): void
+  /**
+   * `wind` drives the swell and hurries the sets along. `view` (the world rect on
+   * screen) skips the ponds that are off camera — a big map keeps many ponds, and
+   * only the visible ones pay for crests and fish.
+   */
+  update(dt: number, wind: SceneWind, view?: Rect): void
 }
 
 /** One crest line, sloshing between the two shores. */
@@ -416,14 +421,47 @@ export function createWaterLife(layer: WaterLayer, services: SceneServices): Wat
 
   let setClock = 0
   let elapsed = 0
-  const update = (dt: number, wind: SceneWind): void => {
+  // Pond bounds, so the view test is two compares instead of a contour walk.
+  const bodyBounds = new Map<WaterBody, Rect>()
+  for (const body of bodies) {
+    let minX = Number.POSITIVE_INFINITY
+    let minY = Number.POSITIVE_INFINITY
+    let maxX = Number.NEGATIVE_INFINITY
+    let maxY = Number.NEGATIVE_INFINITY
+    for (let i = 0; i < body.contour.length; i += 2) {
+      const x = body.contour[i] ?? 0
+      const y = body.contour[i + 1] ?? 0
+      if (x < minX) minX = x
+      if (y < minY) minY = y
+      if (x > maxX) maxX = x
+      if (y > maxY) maxY = y
+    }
+    bodyBounds.set(body, { x: minX, y: minY, width: maxX - minX, height: maxY - minY })
+  }
+  const onScreen = (body: WaterBody, view?: Rect): boolean => {
+    if (!view) return true
+    const bounds = bodyBounds.get(body)
+    if (!bounds) return true
+    return (
+      view.x < bounds.x + bounds.width &&
+      view.x + view.width > bounds.x &&
+      view.y < bounds.y + bounds.height &&
+      view.y + view.height > bounds.y
+    )
+  }
+
+  const update = (dt: number, wind: SceneWind, view?: Rect): void => {
     const hurry = 1 + wind.strength * 0.5
     setClock += dt / (SET_PERIOD / hurry)
     elapsed += dt
 
-    for (const one of fish) moveFish(one, dt, elapsed)
+    for (const one of fish) {
+      if (!onScreen(one.body, view)) continue
+      moveFish(one, dt, elapsed)
+    }
 
     for (const crest of crests) {
+      if (!onScreen(crest.body, view)) continue
       const { min, max } = crest.range
       const low = min - WRAP_MARGIN
       const high = max + WRAP_MARGIN

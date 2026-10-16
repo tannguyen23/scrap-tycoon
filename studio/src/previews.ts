@@ -7,6 +7,7 @@ import { TilePainter } from '@ground/core/painter'
 import { makeRandom } from '@ground/core/random'
 import { generateTileSet } from '@ground/core/tileSet'
 import { scatterDensity } from '@ground/core/variety'
+import { createChunkedGround } from '@scene/core/chunks'
 import {
   paintDragMarks,
   paintFootprints,
@@ -333,18 +334,98 @@ export function buildSeam(kind: TileKind, seed: number, outside: TileKind = 'gra
   }
 }
 
+const WORLD_VIEW_MAX = { width: 1120, height: 630 }
+const WORLD_ZOOMS = [0.25, 0.5, 1, 2] as const
+
 /**
- * Any pack's own map, painted through the kit — the hub's world preview. The
- * game itself calls the same `paintGrounds`, so a pack previewed here is the
- * pack the game renders.
+ * Any pack's own map, painted through the kit — the hub's world preview.
+ *
+ * Chunked exactly like the game (`createChunkedGround`): only the chunks around
+ * the view are painted and kept, so a 10240×5760 world previews in a canvas of
+ * one screen. Drag to pan, wheel to zoom; the scene keeps 1:1 pixel art at every
+ * zoom step.
  */
 export function buildPackWorld(pack: GroundPack, map: GroundMap): StageBuilder {
   return (app: Application): StageScene => {
     const painter = new TilePainter(app.renderer, pack)
+    const chunked = createChunkedGround({
+      renderer: app.renderer,
+      painter,
+      paint: (target, ground, decor, window) => paintGrounds(pack, map, target, ground, decor, window),
+      world: { width: map.width, height: map.height },
+    })
     const root = new Container()
-    const decor = new Graphics()
-    paintGrounds(pack, map, painter, root, decor)
-    root.addChild(decor)
-    return { root, width: map.width, height: map.height }
+    root.addChild(chunked.ground, chunked.decor)
+
+    const viewW = Math.min(map.width, WORLD_VIEW_MAX.width)
+    const viewH = Math.min(map.height, WORLD_VIEW_MAX.height)
+    const fit = Math.min(viewW / map.width, viewH / map.height)
+    let zoomIndex = 0
+    for (let i = 0; i < WORLD_ZOOMS.length; i++) {
+      if ((WORLD_ZOOMS[i] ?? 1) <= fit) zoomIndex = i
+    }
+    let zoom: number = WORLD_ZOOMS[zoomIndex] ?? 1
+    const center = { x: map.width / 2, y: map.height / 2 }
+    const view = { x: 0, y: 0, width: viewW / zoom, height: viewH / zoom }
+
+    const clamp = (value: number, min: number, max: number): number => Math.min(Math.max(value, min), max)
+
+    const apply = (): void => {
+      view.width = viewW / zoom
+      view.height = viewH / zoom
+      const halfW = view.width / 2
+      const halfH = view.height / 2
+      // A world smaller than the view sits centred; otherwise the camera stays inside.
+      center.x = map.width <= view.width ? map.width / 2 : clamp(center.x, halfW, map.width - halfW)
+      center.y = map.height <= view.height ? map.height / 2 : clamp(center.y, halfH, map.height - halfH)
+      view.x = center.x - halfW
+      view.y = center.y - halfH
+      root.scale.set(zoom)
+      root.position.set(Math.round(-view.x * zoom), Math.round(-view.y * zoom))
+      chunked.update(view)
+    }
+
+    const canvas = app.canvas
+    canvas.style.cursor = 'grab'
+    let dragging = false
+    let lastX = 0
+    let lastY = 0
+    const onDown = (event: PointerEvent): void => {
+      if (event.button !== 0) return
+      dragging = true
+      lastX = event.clientX
+      lastY = event.clientY
+      canvas.classList.add('dragging')
+      canvas.setPointerCapture(event.pointerId)
+    }
+    const onMove = (event: PointerEvent): void => {
+      if (!dragging) return
+      center.x -= (event.clientX - lastX) / zoom
+      center.y -= (event.clientY - lastY) / zoom
+      lastX = event.clientX
+      lastY = event.clientY
+      apply()
+    }
+    const onUp = (event: PointerEvent): void => {
+      dragging = false
+      canvas.classList.remove('dragging')
+      if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId)
+    }
+    const onWheel = (event: WheelEvent): void => {
+      event.preventDefault()
+      const next = clamp(zoomIndex + (event.deltaY < 0 ? 1 : -1), 0, WORLD_ZOOMS.length - 1)
+      if (next === zoomIndex) return
+      zoomIndex = next
+      zoom = WORLD_ZOOMS[zoomIndex] ?? zoom
+      apply()
+    }
+    canvas.addEventListener('pointerdown', onDown)
+    canvas.addEventListener('pointermove', onMove)
+    canvas.addEventListener('pointerup', onUp)
+    canvas.addEventListener('pointercancel', onUp)
+    canvas.addEventListener('wheel', onWheel, { passive: false })
+
+    apply()
+    return { root, width: viewW, height: viewH, update: () => apply() }
   }
 }

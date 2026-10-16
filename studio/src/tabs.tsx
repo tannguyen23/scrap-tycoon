@@ -309,7 +309,7 @@ export function PacksTab() {
       {world ? (
         <StageFrame
           caption={`Map — ${entry.label} (${entry.map?.width ?? 0}×${entry.map?.height ?? 0})`}
-          note="Map của pack, vẽ bằng đúng các pass của kit (nền → rải → làn → sàn → mảng → vết → đường nối → ao). Đây là đường mà game đi."
+          note="Map của pack, vẽ bằng đúng các pass của kit (nền → rải → làn → sàn → mảng → vết → đường nối → ao) theo từng CHUNK như game chạy: chỉ vùng đang nhìn được vẽ và giữ. Kéo để pan, lăn chuột để zoom (0.25×–2×) — đây chính là đường mà game đi."
           build={world}
         />
       ) : null}

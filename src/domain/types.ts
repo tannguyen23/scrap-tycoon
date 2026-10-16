@@ -8,6 +8,24 @@ export type WeatherKind = string
 
 export type WorkerAction = 'pick' | 'drive' | 'work' | 'haul'
 
+/**
+ * Pose a humanoid plays while working by hand — the shared `WorkAction`s in
+ * `ui/scene/focus/poses.ts` (the same ones zone workers animate with).
+ */
+export type WorkPose = 'pick' | 'poke' | 'hammer'
+
+/**
+ * A progression condition — pure content data evaluated against the live state
+ * (`domain/conditions.ts`). Conditions must stay monotonic (their progress never
+ * decreases), so unlocks can never re-lock an existing save and milestones never
+ * need a persisted "reached" flag.
+ */
+export type Condition =
+  | { readonly kind: 'workers'; readonly branch: BranchId; readonly worker: string; readonly count: number }
+  | { readonly kind: 'upgrade'; readonly branch: BranchId; readonly upgrade: string }
+  | { readonly kind: 'totalEarned'; readonly amount: Decimal }
+  | { readonly kind: 'playTime'; readonly seconds: number }
+
 export interface WorkerVisual {
   /** Zone the worker operates in; the scene layout is keyed by this id. */
   readonly zone: ZoneId
@@ -31,6 +49,8 @@ export interface ZoneDef {
   readonly name: L10n
   /** One-line description of what happens in this zone (shown on the HUD zone card). */
   readonly actionDesc: L10n
+  /** Progression gate: the zone — and every worker living in it — stays locked until met. */
+  readonly requires?: Condition
 }
 
 export interface WorkerDef {
@@ -47,6 +67,8 @@ export interface WorkerDef {
   readonly output: { readonly item: ItemId; readonly ratePerUnit: Decimal }
   /** Presentation data: which zone it lives in and what it does there. */
   readonly visual: WorkerVisual
+  /** Extra progression gate on top of the zone's own `requires`. */
+  readonly requires?: Condition
 }
 
 export interface RecipeDef {
@@ -59,6 +81,30 @@ export interface RecipeDef {
   readonly input: { readonly item: ItemId; readonly rate: Decimal | null }
   /** Output produced per one unit of input consumed. */
   readonly output: { readonly item: ItemId; readonly perInputUnit: Decimal }
+}
+
+/**
+ * A job the player does by hand, in one place: hold the key for `workSeconds`
+ * and the chain takes one stroke's worth. Unlike a worker this is an EVENT, not
+ * a rate — the HUD owns the timer and calls the command when it fills, so the
+ * simulation never has to know about it (no save field, no migration).
+ */
+export interface ManualActionDef {
+  readonly id: string
+  readonly name: L10n
+  readonly desc: L10n
+  /** The yard this job sits in — the player must be standing inside it. */
+  readonly zone: ZoneId
+  /** Animation the body plays while working. */
+  readonly pose: WorkPose
+  /** How long the key must be held for one stroke. */
+  readonly workSeconds: number
+  /** Consumed by one stroke (absent = pure gathering, like poking cans). */
+  readonly input?: { readonly item: ItemId; readonly amount: Decimal }
+  /** Produced by one stroke. */
+  readonly output: { readonly item: ItemId; readonly amount: Decimal }
+  /** Extra progression gate on top of the zone's own `requires`. */
+  readonly requires?: Condition
 }
 
 export interface StatEffect {
@@ -82,6 +128,8 @@ export interface UpgradeDef {
   readonly cost: Decimal
   readonly effects: readonly StatEffect[]
   readonly visual?: UpgradeVisual
+  /** Progression gate: the upgrade stays locked until met. */
+  readonly requires?: Condition
 }
 
 export interface BranchDef {
@@ -90,6 +138,22 @@ export interface BranchDef {
   readonly workers: readonly WorkerDef[]
   readonly recipes: readonly RecipeDef[]
   readonly upgrades: readonly UpgradeDef[]
+  /** Progression gate: the whole branch stays locked until met. */
+  readonly requires?: Condition
+}
+
+/**
+ * A progression goal: a condition plus an optional permanent reward. Reaching a
+ * milestone is DERIVED from the state — no save field exists, and because
+ * conditions are monotonic a reached milestone can never un-reach. The reward
+ * feeds the modifier pipeline while the condition holds, like weather does.
+ */
+export interface MilestoneDef {
+  readonly id: string
+  readonly name: L10n
+  readonly desc: L10n
+  readonly requires: Condition
+  readonly reward?: readonly StatEffect[]
 }
 
 /** Presentation parameters of one weather kind — consumed by the scene weather layer. */
@@ -132,6 +196,10 @@ export interface GameContent {
   readonly items: Record<ItemId, ItemDef>
   readonly zones: Record<ZoneId, ZoneDef>
   readonly branches: Record<BranchId, BranchDef>
+  /** Optional progression goals; absent content means no milestones at all. */
+  readonly milestones?: readonly MilestoneDef[]
+  /** Optional hand-work jobs the player can do on the map. */
+  readonly actions?: readonly ManualActionDef[]
   /** Optional weather schedule; absent content means no weather at all. */
   readonly weather?: WeatherProfile
   readonly simulation?: SimulationTuning

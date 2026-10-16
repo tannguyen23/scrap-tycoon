@@ -1,4 +1,5 @@
 import { Container, Graphics } from 'pixi.js'
+import { intersectsRect, type ViewRect } from './view'
 
 /** Real seconds for one full day. */
 export const DAY_LENGTH_SECONDS = 480
@@ -70,13 +71,18 @@ export interface LightingOptions {
 
 export interface Lighting {
   readonly container: Container
-  update(dt: number): void
+  /**
+   * `view` (the world rect on screen) keeps the colour grade tied to the screen —
+   * a quad the size of a 10240px world would be a full-map fill every frame — and
+   * culls the light pools that are off camera.
+   */
+  update(dt: number, view?: ViewRect): void
   setTime(time: number): void
   getTime(): number
 }
 
 /**
- * Day/night lighting: a multiply colour grade over the whole map plus stepped
+ * Day/night lighting: a multiply colour grade over the visible area plus stepped
  * additive light pools around lamps, windows and fires. The grade curve is kit
  * behaviour; the pools come from the project's `SceneryPack`. Purely visual —
  * driven by the scene clock, never by game state.
@@ -91,9 +97,21 @@ export function createLighting(
   let clock = 0
 
   const container = new Container()
-  const ambient = new Graphics().rect(0, 0, world.width, world.height).fill(0xffffff)
+  const ambient = new Graphics()
   ambient.blendMode = 'multiply'
   container.addChild(ambient)
+
+  // The grade quad matches the viewport, not the world: resized only when the
+  // view size changes, repositioned as the camera pans.
+  let ambientWidth = -1
+  let ambientHeight = -1
+  const resizeAmbient = (width: number, height: number): void => {
+    if (width === ambientWidth && height === ambientHeight) return
+    ambientWidth = width
+    ambientHeight = height
+    ambient.clear().rect(0, 0, width, height).fill(0xffffff)
+  }
+  resizeAmbient(world.width, world.height)
 
   const lightNodes = lights.map((light) => {
     const node = new Container()
@@ -112,21 +130,33 @@ export function createLighting(
     return { node, light }
   })
 
-  const apply = (): void => {
+  const apply = (view?: ViewRect): void => {
+    if (view) {
+      resizeAmbient(view.width, view.height)
+      ambient.position.set(Math.round(view.x), Math.round(view.y))
+    }
     const sample = sampleAmbient(time)
     ambient.tint = sample.color
     ambient.alpha = sample.alpha
     const night = Math.min(1, sample.alpha / NIGHT_ALPHA)
     for (const { node, light } of lightNodes) {
+      if (view) {
+        node.visible = intersectsRect(view, {
+          x: light.x - light.radius,
+          y: light.y - light.radius,
+          width: light.radius * 2,
+          height: light.radius * 2,
+        })
+      }
       const flicker = light.flicker ? 1 + Math.sin(clock * 9 + light.x) * light.flicker : 1
       node.alpha = night * flicker
     }
   }
 
-  const update = (dt: number): void => {
+  const update = (dt: number, view?: ViewRect): void => {
     clock += dt
     if (auto) time = (time + dt / DAY_LENGTH_SECONDS) % 1
-    apply()
+    apply(view)
   }
 
   apply()

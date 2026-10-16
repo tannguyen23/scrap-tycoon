@@ -1,17 +1,32 @@
 import type { ObservableStore } from '@core/store'
-import type { GameContent, GameState } from '@domain/types'
+import type { Rect } from '@ground/core/metrics'
+import type { GameContent, GameState, WorkPose } from '@domain/types'
 import type { LocaleStore } from '@i18n/locale'
 import type { Locale } from '@i18n/types'
 import { mountScene, type SceneHandle } from '@scene/core/scene'
 import { DEFAULT_SERVICES, type SceneServices } from '@scene/core/services'
 import { buildSceneFeed } from './feed'
-import { createScrapScenePack } from './scrapPack'
+import type { PlayerReadout } from './player'
+import { createScrapScene } from './scrapPack'
 
 export type { SceneHandle }
+
+/**
+ * The scene the game actually talks to: the kit's handle plus the two things only
+ * the project knows — where the player is (the HUD's work bar polls it) and how to
+ * bring the camera back to them after a look-around.
+ */
+export interface GameScene extends SceneHandle {
+  player(): PlayerReadout | null
+  focusPlayer(): void
+  setWorking(pose: WorkPose | null): void
+}
 
 export interface SceneOptions {
   /** Fired when a user gesture (wheel) changes the zoom level. */
   onZoomLevelChange?: (level: number) => void
+  /** Fired when the visible world rect changes (the minimap reads it). */
+  onViewChange?: (view: Rect) => void
   /** Live locale for scene text (popups). Missing in dev tools — defaults to Vietnamese. */
   localeStore?: LocaleStore
   /** Sound + randomness ports. Defaults to silence and the kit's own PRNG. */
@@ -29,13 +44,20 @@ export async function mountGameScene(
   store: ObservableStore<GameState>,
   content: GameContent,
   options: SceneOptions = {},
-): Promise<SceneHandle> {
+): Promise<GameScene> {
   const localeStore = options.localeStore
   let locale: Locale = localeStore?.get() ?? 'vi'
 
-  const handle = await mountScene(host, createScrapScenePack(content), options.services ?? DEFAULT_SERVICES, {
+  const scene = createScrapScene(content)
+  const handle = await mountScene(host, scene.pack, options.services ?? DEFAULT_SERVICES, {
     onZoomLevelChange: options.onZoomLevelChange,
+    onViewChange: options.onViewChange,
   })
+
+  // The camera rides the player by default; a manual drag pauses it and
+  // `focusPlayer` (the HUD's "back to the player" chip) resumes it.
+  const player = scene.player()
+  if (player) handle.setFollow(player.position)
 
   const push = (): void => {
     handle.setFeed(buildSceneFeed(content, store.getSnapshot(), locale))
@@ -59,5 +81,12 @@ export async function mountGameScene(
     panTo: handle.panTo,
     setHighlight: handle.setHighlight,
     setFeed: handle.setFeed,
+    focusOn: handle.focusOn,
+    setFollow: handle.setFollow,
+    player: () => player?.readout() ?? null,
+    focusPlayer: () => {
+      if (player) handle.focusOn(player.position.x, player.position.y)
+    },
+    setWorking: (pose) => player?.setWorking(pose),
   }
 }

@@ -10,66 +10,98 @@ import { WATER_AREAS, WORLD_HEIGHT, WORLD_WIDTH, ZONE_LAYOUTS } from '@ground/pa
 export { DAY_LENGTH_SECONDS, createDetailLayer }
 export type { DetailDrawer, DetailProp, LightSource, SceneryPack }
 
-/** Warm light pools: burning barrel, depot lamp + window, gate booth, street lamps, forge mouth. */
-const SCRAP_LIGHTS: readonly LightSource[] = [
-  { x: 280, y: 94, radius: 46, color: 0xffa54d, flicker: 0.16 },
-  { x: 196, y: 576, radius: 42, color: 0xffd88a },
-  { x: 187, y: 597, radius: 34, color: 0xffd27f },
-  { x: 882, y: 579, radius: 34, color: 0xffe0a0 },
-  { x: 240, y: 386, radius: 48, color: 0xffd9a0 },
-  { x: 930, y: 386, radius: 48, color: 0xffd9a0 },
-  // Cửa lò xưởng tái chế (world = zone rect 608,8 + local 150,56) — nhấp nháy mạnh.
-  { x: 758, y: 64, radius: 54, color: 0xffb45a, flicker: 0.22 },
-]
-
 /**
- * Smoke stacks and the birds that live on the ground. One chimney on a map of
- * five worked zones read as a diorama; every place that burns something now
- * smoulders, and the open ground has its own residents.
+ * Warm light pools: burning barrel, depot lamp + window, gate booth, street lamps, forge mouth.
+ * Coordinates follow the core district (zones moved onto the avenue, world 10240×5760).
  */
-const SCRAP_AMBIENCE: AmbienceSpec = {
-  smoke: [
-    { x: 164, y: 564 }, // ống khói nhà kho
-    { x: 758, y: 52 }, // ống khói lò xưởng tái chế (ngay trên miệng lò)
-    { x: 280, y: 86 }, // thùng phuy đốt ở khu ve chai
-    { x: 700, y: 320 }, // đống sắt vụn âm ỉ
-  ],
-  birds: [
-    { x: -60, y: 88, speed: 44 },
-    { x: -300, y: 164, speed: 52 },
-    { x: -560, y: 128, speed: 38 },
-  ],
-  // Open ground only: nothing on a zone floor (its scene has its own cast) or on water.
-  groundBirds: [
-    { x: 470, y: 300 },
-    { x: 980, y: 250 },
-    { x: 640, y: 560 },
-    { x: 380, y: 650 },
-    { x: 1160, y: 480 },
-  ],
-  worldWidth: WORLD_WIDTH,
-  seed: 90210,
-}
+const SCRAP_LIGHTS: readonly LightSource[] = [
+  { x: 4136, y: 2190, radius: 46, color: 0xffa54d, flicker: 0.16 }, // thùng phuy đốt khu ve chai
+  { x: 4052, y: 3044, radius: 42, color: 0xffd88a }, // đèn kho
+  { x: 4043, y: 3065, radius: 34, color: 0xffd27f }, // cửa sổ kho
+  { x: 6282, y: 3047, radius: 34, color: 0xffe0a0 }, // chòi gác cổng xuất
+  // Cửa lò xưởng tái chế (world = zone rect 5120,2104 + local 150,56) — nhấp nháy mạnh.
+  { x: 5270, y: 2160, radius: 54, color: 0xffb45a, flicker: 0.22 },
+  // Đèn đường dọc đại lộ (khu route tự có đèn riêng trong scene, nên bỏ khoảng đó).
+  ...Array.from({ length: 10 }, (_, index) => {
+    const x = 600 + index * 800 < 4512 ? 600 + index * 800 : 600 + index * 800 + 1600
+    return { x, y: 2854, radius: 48, color: 0xffd9a0 }
+  }),
+]
 
 const MICRO_PER_ZONE = 14
 const NANO_PER_ZONE = 24
 
 /**
  * …and the same again over the open ground between the zones. Zooming into the
- * middle of the map used to reveal nothing at all, because the props stopped at
- * the zone borders — which are invisible to the player.
+ * middle of the world must reveal something everywhere, not just inside yards —
+ * so the open field is scaled with the map (about 64× the old area).
  */
-const MICRO_OPEN = 100
-const NANO_OPEN = 160
+const MICRO_OPEN = 6400
+const NANO_OPEN = 9600
 
 /**
  * Nothing is dropped inside a zone (that zone's own scene dresses it) or onto a
- * pond, where litter would read as floating.
+ * pond, where litter would read as floating. The water margin also absorbs the
+ * prop quantisation, so a prop can never round onto the waterline.
  */
 const OPEN_SKIP = [
   ...Object.values(ZONE_LAYOUTS).map((layout) => layout.rect),
-  ...WATER_AREAS.map((area) => area.rect),
+  ...inflateRects(
+    WATER_AREAS.map((area) => area.rect),
+    6,
+  ),
 ]
+
+function inflateRects(rects: readonly { x: number; y: number; width: number; height: number }[], pad: number) {
+  return rects.map((rect) => ({
+    x: rect.x - pad,
+    y: rect.y - pad,
+    width: rect.width + pad * 2,
+    height: rect.height + pad * 2,
+  }))
+}
+
+/** Ground-bird patches: open ground and wilderness, never a yard or a pond. */
+function scrapGroundBirds(): { x: number; y: number }[] {
+  const rnd = makeRandom(20261015)
+  const birds: { x: number; y: number }[] = []
+  const nearWater = inflateRects(WATER_AREAS.map((area) => area.rect), 40)
+  for (let tries = 0; tries < 4000 && birds.length < 42; tries++) {
+    const x = 60 + rnd() * (WORLD_WIDTH - 120)
+    const y = 60 + rnd() * (WORLD_HEIGHT - 120)
+    if (insideAnyRect(OPEN_SKIP, x, y)) continue
+    // A margin, so the peck radius can never hop onto a bank.
+    if (insideAnyRect(nearWater, x, y)) continue
+    birds.push({ x: Math.round(x), y: Math.round(y) })
+  }
+  return birds
+}
+
+/**
+ * Smoke stacks and the birds that live on the ground. One chimney on a map this
+ * big would read as a diorama; every place that burns something smoulders, and
+ * the wilderness has its own campfires and residents.
+ */
+const SCRAP_AMBIENCE: AmbienceSpec = {
+  smoke: [
+    { x: 4020, y: 3032 }, // ống khói nhà kho
+    { x: 5270, y: 2148 }, // ống khói lò xưởng tái chế (ngay trên miệng lò)
+    { x: 4136, y: 2182 }, // thùng phuy đốt ở khu ve chai
+    { x: 6400, y: 3480 }, // đống sắt vụn âm ỉ ở bãi đông-nam
+    { x: 1500, y: 3900 }, // lửa trại ven hồ
+    { x: 8300, y: 3500 }, // lửa trại trong rừng đông
+    { x: 3300, y: 800 }, // lửa trại bãi bắc
+    { x: 9400, y: 4800 }, // lửa trại góc đông-nam
+  ],
+  birds: [
+    { x: -60, y: 88, speed: 44 },
+    { x: -300, y: 164, speed: 52 },
+    { x: -560, y: 128, speed: 38 },
+  ],
+  groundBirds: scrapGroundBirds(),
+  worldWidth: WORLD_WIDTH,
+  seed: 90210,
+}
 
 function quantize(value: number, step: number): number {
   return Math.round(value * step) / step

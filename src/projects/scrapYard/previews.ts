@@ -39,6 +39,16 @@ import {
 /** Popup wording for studio previews — the real labels come localized from content. */
 const STUDIO_LABELS = { produced: 'Sắt vụn', money: 'Tiền' }
 
+/**
+ * The studio previews one district, not the whole world: the ground is painted
+ * with a window (the exact mechanism the scene chunks by), so a preview stays a
+ * few screens of real art instead of allocating a 58-million-pixel canvas.
+ */
+const CORE_WINDOW = { x: 3712, y: 1888, width: 3008, height: 1408 }
+
+/** The map schematic is drawn to scale — the world is 16:9, so it fits one screen. */
+const LAYOUT_SCALE = 0.1
+
 const DECOR_SCALE = 2
 
 /**
@@ -455,7 +465,14 @@ export function buildLayout(): StageScene {
       kind: 'label',
     })
   }
-  return { root, width: WORLD_WIDTH, height: WORLD_HEIGHT, cells }
+  // Mọi ô nhãn sống ở toạ độ world; sơ đồ vẽ ở tỉ lệ thu nhỏ nên ô cũng thu theo.
+  root.scale.set(LAYOUT_SCALE)
+  return {
+    root,
+    width: Math.round(WORLD_WIDTH * LAYOUT_SCALE),
+    height: Math.round(WORLD_HEIGHT * LAYOUT_SCALE),
+    cells: cells.map((cell) => ({ ...cell, x: cell.x * LAYOUT_SCALE, y: cell.y * LAYOUT_SCALE })),
+  }
 }
 
 /**
@@ -530,19 +547,20 @@ function zoneDetails(painter: TilePainter): DetailScene[] {
   return details
 }
 
-/** The whole yard as the game paints it, with the shared lighting layer on top. */
+/** The core district as the game paints it, with the shared lighting layer on top. */
 export function buildLightingWorld(initialTime: number): StageBuilder {
   return (app: Application): StageScene => {
     const painter = new TilePainter(app.renderer, SCRAP_YARD_PACK)
     const root = new Container()
     const decor = new Graphics()
-    paintWorldGrounds(painter, root, decor)
+    paintWorldGrounds(painter, root, decor, CORE_WINDOW)
     root.addChild(decor)
+    root.position.set(-CORE_WINDOW.x, -CORE_WINDOW.y)
 
     const details = zoneDetails(painter)
     for (const detail of details) root.addChild(detail.root)
 
-    const lighting = createLighting({ width: WORLD_WIDTH, height: WORLD_HEIGHT }, SCRAP_SCENERY.lights, {
+    const lighting = createLighting({ width: CORE_WINDOW.width, height: CORE_WINDOW.height }, SCRAP_SCENERY.lights, {
       auto: false,
       time: initialTime,
     })
@@ -550,12 +568,12 @@ export function buildLightingWorld(initialTime: number): StageBuilder {
 
     return {
       root,
-      width: WORLD_WIDTH,
-      height: WORLD_HEIGHT,
+      width: CORE_WINDOW.width,
+      height: CORE_WINDOW.height,
       api: { setTime: (time: number) => lighting.setTime(time) },
       update: (dt, elapsed) => {
         for (const detail of details) detail.update(dt, elapsed)
-        lighting.update(dt)
+        lighting.update(dt, CORE_WINDOW)
       },
     }
   }
@@ -567,8 +585,9 @@ export function buildWeatherWorld(initialTime: number): StageBuilder {
     const painter = new TilePainter(app.renderer, SCRAP_YARD_PACK)
     const root = new Container()
     const decor = new Graphics()
-    paintWorldGrounds(painter, root, decor)
+    paintWorldGrounds(painter, root, decor, CORE_WINDOW)
     root.addChild(decor)
+    root.position.set(-CORE_WINDOW.x, -CORE_WINDOW.y)
 
     const details = zoneDetails(painter)
     for (const detail of details) root.addChild(detail.root)
@@ -588,7 +607,7 @@ export function buildWeatherWorld(initialTime: number): StageBuilder {
       workers: Object.fromEntries(courierLegs.map((leg) => [leg.workerId, 1])),
     })
     const weather = createWeather({ profile: STUDIO_WEATHER_PROFILE })
-    const lighting = createLighting({ width: WORLD_WIDTH, height: WORLD_HEIGHT }, SCRAP_SCENERY.lights, {
+    const lighting = createLighting({ width: CORE_WINDOW.width, height: CORE_WINDOW.height }, SCRAP_SCENERY.lights, {
       auto: false,
       time: initialTime,
     })
@@ -596,8 +615,8 @@ export function buildWeatherWorld(initialTime: number): StageBuilder {
 
     return {
       root,
-      width: WORLD_WIDTH,
-      height: WORLD_HEIGHT,
+      width: CORE_WINDOW.width,
+      height: CORE_WINDOW.height,
       api: {
         setTime: (time: number) => lighting.setTime(time),
         setWeather: (kindId: string | null) =>
@@ -606,10 +625,10 @@ export function buildWeatherWorld(initialTime: number): StageBuilder {
       },
       update: (dt, elapsed) => {
         for (const detail of details) detail.update(dt, elapsed)
-        couriers.update(dt, { x: 0, y: 0, width: WORLD_WIDTH, height: WORLD_HEIGHT })
-        ambience.update(dt, weather.wind())
-        weather.update(dt, elapsed * STUDIO_SCHEDULE_SPEED)
-        lighting.update(dt)
+        couriers.update(dt, CORE_WINDOW)
+        ambience.update(dt, weather.wind(), CORE_WINDOW)
+        weather.update(dt, elapsed * STUDIO_SCHEDULE_SPEED, CORE_WINDOW)
+        lighting.update(dt, CORE_WINDOW)
       },
     }
   }

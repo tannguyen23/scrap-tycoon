@@ -22,9 +22,18 @@ describe('scenery kit', () => {
     expect(ambience.container.children.length).toBe(3)
 
     const micro = createDetailLayer(SCRAP_SCENERY.microProps, SCRAP_SCENERY.drawMicro)
-    expect(micro.children.length).toBe(1)
+    // Props are bucketed for view culling: at least one bucket, each with art.
+    expect(micro.container.children.length).toBeGreaterThan(0)
     expect(SCRAP_SCENERY.microProps.length).toBeGreaterThan(0)
     expect(SCRAP_SCENERY.nanoProps.length).toBeGreaterThan(0)
+
+    // A view sees the buckets that reach into it and nothing else: centred on one
+    // prop, its bucket is visible while the far side of the map stays hidden.
+    const probe = SCRAP_SCENERY.microProps[0]
+    if (!probe) throw new Error('the scenery pack has no micro props')
+    micro.update({ x: probe.x - 16, y: probe.y - 16, width: 32, height: 32 })
+    expect(micro.container.children.some((bucket) => bucket.visible)).toBe(true)
+    expect(micro.container.children.some((bucket) => !bucket.visible)).toBe(true)
   })
 
   it('dresses the open ground too, and never floats litter on a pond', () => {

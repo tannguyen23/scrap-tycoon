@@ -1,8 +1,10 @@
 import { formatShort } from '@core/format'
+import { isBranchUnlocked } from '@domain/conditions'
 import { recipeOutputPerSecond } from '@domain/selectors'
 import type { BranchDef, GameState, WorkerDef } from '@domain/types'
 import { UI } from '@i18n/text'
-import { useContent, useText } from '@ui/hooks'
+import { useContent, useLocale, useText } from '@ui/hooks'
+import { describeCondition } from '@ui/progression'
 import { UpgradeCard } from './UpgradeCard'
 import { ZoneCard } from './ZoneCard'
 
@@ -13,7 +15,10 @@ export interface BranchPanelProps {
 
 export function BranchPanel({ branch, state }: BranchPanelProps) {
   const text = useText()
+  const locale = useLocale()
   const content = useContent()
+
+  const locked = !isBranchUnlocked(state, content, branch.id)
 
   const workersByZone = new Map<string, WorkerDef[]>()
   for (const worker of branch.workers) {
@@ -24,7 +29,13 @@ export function BranchPanel({ branch, state }: BranchPanelProps) {
 
   return (
     <section className="panel">
-      <h2>{text(branch.name)}</h2>
+      <h2>
+        {text(branch.name)}
+        {locked && <span className="lock-chip">{text(UI.locked)}</span>}
+      </h2>
+      {locked && branch.requires && (
+        <p className="zone-req">{describeCondition(text, locale, content, branch.requires)}</p>
+      )}
 
       <div className="zone-grid">
         {[...workersByZone.entries()].map(([zoneId, workers]) => (

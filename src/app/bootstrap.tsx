@@ -116,6 +116,7 @@ export function bootstrap(): void {
     content: GAME_CONTENT,
     store,
     saveManager,
+    startMoney: BALANCE.startMoney,
     offlineCapSeconds: BALANCE.offlineCapHours * 3600,
     offlineModalThresholdSeconds: BALANCE.offlineModalThresholdSeconds,
   })

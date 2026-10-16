@@ -56,6 +56,8 @@ describe('terrain transition pairs', () => {
     expect(has('gravel', 'dirt')).toBe(true)
     // worn concrete apron fading into the depot's dirt
     expect(has('concrete', 'dirt')).toBe(true)
+    // the avenue's grass shoulders (painted as a lane, so it has edge tiles)
+    expect(has('asphalt', 'grass')).toBe(true)
     // A floor of the same terrain as its surroundings is NOT a pair: transition
     // tiles there would draw a lip + occlusion ring between two stretches of one
     // material, which reads as a pasted-on floor (see `paintTiles`).

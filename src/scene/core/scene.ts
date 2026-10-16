@@ -5,6 +5,7 @@ import { createAmbience } from '@scenery/core/ambience'
 import { createDetailLayer } from '@scenery/core/details'
 import { createLighting } from '@scenery/core/lighting'
 import { Application, Container, Graphics, TextureSource } from 'pixi.js'
+import { createChunkedGround } from './chunks'
 import type { SceneFeed } from './feed'
 import type { ScenePack } from './pack'
 import type { SceneServices } from './services'
@@ -13,7 +14,9 @@ import { createWaterLife } from './water'
 
 /**
  * The canvas maps the design grid 1:1; the browser scales it through CSS, so the
- * art is never resampled on screen.
+ * art is never resampled on screen. The canvas covers the pack's **viewport**, not
+ * the world: a world bigger than the viewport is painted in chunks and panned by
+ * the camera.
  */
 export const CANVAS_SCALE = 1
 
@@ -34,15 +37,52 @@ export interface SceneHandle {
   setHighlight(zoneId: string | null): void
   /** Push the game's readout in. Called on every store/locale change, never per frame. */
   setFeed(feed: SceneFeed): void
+  /** Move the camera to a world point (minimap jump, "back to the player"). */
+  focusOn(x: number, y: number): void
+  /**
+   * Follow a moving spot every frame — the player's camera. The spot object is
+   * read live, so the owner can keep mutating it. A manual drag pauses the
+   * follow; `focusOn` resumes it. Null stops following.
+   */
+  setFollow(spot: { x: number; y: number } | null): void
 }
 
 export interface SceneOptions {
   /** Fired when a user gesture (wheel) changes the zoom level. */
   onZoomLevelChange?: (level: number) => void
+  /**
+   * Fired when the visible world rect changes (pan/zoom). The HUD's minimap reads
+   * it to draw the viewport box; never fired twice for the same rect.
+   */
+  onViewChange?: (view: Rect) => void
 }
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max)
+}
+
+/**
+ * Keeps a camera centre inside the world for one zoom step. The visible extent is
+ * the **viewport** divided by the camera scale — *not* the world — so a world
+ * bigger than the canvas pans all the way to its edges. A world that fits inside
+ * the view stays centred (the small-map look).
+ *
+ * Pure, so the pan limits are unit-tested: getting this wrong pins the camera at
+ * 1× (a world-sized view) or lets it drift off the map.
+ */
+export function clampCameraCenter(
+  world: { readonly width: number; readonly height: number },
+  view: { readonly width: number; readonly height: number },
+  scale: number,
+  x: number,
+  y: number,
+): { x: number; y: number } {
+  const halfW = view.width / (2 * scale)
+  const halfH = view.height / (2 * scale)
+  return {
+    x: world.width <= halfW * 2 ? world.width / 2 : clamp(x, halfW, world.width - halfW),
+    y: world.height <= halfH * 2 ? world.height / 2 : clamp(y, halfH, world.height - halfH),
+  }
 }
 
 function intersects(a: Rect, b: Rect): boolean {
@@ -64,8 +104,8 @@ export async function mountScene(
 ): Promise<SceneHandle> {
   const worldWidth = pack.world.width
   const worldHeight = pack.world.height
-  const viewWidth = worldWidth * CANVAS_SCALE
-  const viewHeight = worldHeight * CANVAS_SCALE
+  const viewWidth = (pack.viewport?.width ?? worldWidth) * CANVAS_SCALE
+  const viewHeight = (pack.viewport?.height ?? worldHeight) * CANVAS_SCALE
   const centerX = viewWidth / 2
   const centerY = viewHeight / 2
 
@@ -90,11 +130,17 @@ export async function mountScene(
   const world = new Container()
   app.stage.addChild(world)
 
-  // ---- ground, painted from the pack's tileset ------------------------------
+  // ---- ground, painted chunk by chunk ---------------------------------------
+  // The kit bakes each chunk into its own texture and keeps only the chunks near
+  // the view, so the world may be far bigger than the canvas. Decor is painted by
+  // the same chunk pass but stays its own layer, above the water life.
   const painter = new TilePainter(app.renderer, pack.ground.pack)
-  const groundLayer = new Container()
-  const decorArt = new Graphics()
-  pack.ground.paint(painter, groundLayer, decorArt)
+  const chunked = createChunkedGround({
+    renderer: app.renderer,
+    painter,
+    paint: pack.ground.paint,
+    world: pack.world,
+  })
 
   const water = pack.water && pack.water.bodies.length > 0 ? createWaterLife(pack.water, services) : null
 
@@ -110,10 +156,13 @@ export async function mountScene(
   }
 
   // ---- the kits' layers -----------------------------------------------------
+  const player = pack.makePlayer?.(services) ?? null
   const couriers = pack.makeCouriers?.(services) ?? null
-  const microLayer = createDetailLayer(pack.scenery.microProps, pack.scenery.drawMicro)
+  const micro = createDetailLayer(pack.scenery.microProps, pack.scenery.drawMicro)
+  const microLayer = micro.container
   microLayer.visible = false
-  const nanoLayer = createDetailLayer(pack.scenery.nanoProps, pack.scenery.drawNano)
+  const nano = createDetailLayer(pack.scenery.nanoProps, pack.scenery.drawNano)
+  const nanoLayer = nano.container
   nanoLayer.visible = false
   const ambience = createAmbience(pack.scenery.ambience)
   const lighting = createLighting({ width: worldWidth, height: worldHeight }, pack.scenery.lights)
@@ -122,11 +171,13 @@ export async function mountScene(
 
   // Couriers walk the links between zones — they sit right above the zone scenes
   // and shade/tint with the weather + lighting layers like every actor.
-  world.addChild(groundLayer)
+  world.addChild(chunked.ground)
   // Water life rides on the ground but under the hand-placed decor, so a tree by
   // a pond still occludes the glints on the water.
   if (water) world.addChild(water.container)
-  world.addChild(decorArt, detailLayer)
+  world.addChild(chunked.decor, detailLayer)
+  // The player walks the map too; couriers pass in front of everyone.
+  if (player) world.addChild(player.root)
   if (couriers) world.addChild(couriers.root)
   world.addChild(microLayer, nanoLayer, ambience.container)
   if (weather) {
@@ -143,13 +194,13 @@ export async function mountScene(
   let cssScale = 1
   const cam = { scale: 1, cx: worldWidth / 2, cy: worldHeight / 2 }
   const camTarget = { scale: 1, cx: cam.cx, cy: cam.cy }
+  /** A spot the camera chases every frame (the player); paused while dragging. */
+  let follow: { x: number; y: number } | null = null
+  let followPaused = false
 
   /** Keeps the camera centre inside the world for the given zoom. */
-  const clampCenter = (cx: number, cy: number, scale: number): { x: number; y: number } => {
-    const halfW = worldWidth / (2 * scale)
-    const halfH = worldHeight / (2 * scale)
-    return { x: clamp(cx, halfW, worldWidth - halfW), y: clamp(cy, halfH, worldHeight - halfH) }
-  }
+  const clampCenter = (cx: number, cy: number, scale: number): { x: number; y: number } =>
+    clampCameraCenter({ width: worldWidth, height: worldHeight }, { width: viewWidth, height: viewHeight }, scale, cx, cy)
 
   const applyCamera = (): void => {
     const total = cam.scale * CANVAS_SCALE
@@ -202,6 +253,8 @@ export async function mountScene(
   const onPointerDown = (event: PointerEvent): void => {
     if (event.button !== 0) return
     dragging = true
+    // A manual look-around takes the camera off the follow target until focusOn.
+    followPaused = true
     dragX = event.clientX
     dragY = event.clientY
     canvas.classList.add('dragging')
@@ -279,9 +332,31 @@ export async function mountScene(
   }
 
   let elapsed = 0
+  // Reports the view to the HUD only when it really moved (a world pixel).
+  let reportedView: Rect | null = null
+  const changedView = (view: Rect): boolean => {
+    const last = reportedView
+    if (
+      last &&
+      Math.abs(last.x - view.x) < 1 &&
+      Math.abs(last.y - view.y) < 1 &&
+      Math.abs(last.width - view.width) < 1 &&
+      Math.abs(last.height - view.height) < 1
+    ) {
+      return false
+    }
+    reportedView = { ...view }
+    return true
+  }
   app.ticker.add((ticker) => {
     const dt = Math.min(ticker.deltaMS / 1000, 0.1)
     elapsed += dt
+
+    if (follow && !followPaused) {
+      const centered = clampCenter(follow.x, follow.y, camTarget.scale)
+      camTarget.cx = centered.x
+      camTarget.cy = centered.y
+    }
 
     const k = 1 - Math.exp(-dt * 9)
     cam.scale += (camTarget.scale - cam.scale) * k
@@ -298,34 +373,43 @@ export async function mountScene(
     }
     applyCamera()
 
-    microLayer.visible = cam.scale >= LOD_THRESHOLDS[0]
-    nanoLayer.visible = cam.scale >= LOD_THRESHOLDS[1]
-
-    let wind = CALM_WIND
-    if (weather && feed) {
-      weather.update(dt, feed.playTimeS)
-      wind = weather.wind()
-      for (const detail of details.values()) detail.setAmbient?.(wind)
-    }
-
-    // Update only what is actually on screen.
-    const viewWidthNow = worldWidth / cam.scale
-    const viewHeightNow = worldHeight / cam.scale
+    // The world rect currently on screen: everything culls and grades against it,
+    // so a world far bigger than the canvas costs per view, not per map.
+    const viewWidthNow = viewWidth / cam.scale
+    const viewHeightNow = viewHeight / cam.scale
     const view: Rect = {
       x: cam.cx - viewWidthNow / 2,
       y: cam.cy - viewHeightNow / 2,
       width: viewWidthNow,
       height: viewHeightNow,
     }
+    if (options.onViewChange && changedView(view)) options.onViewChange(view)
+
+    chunked.update(view)
+
+    microLayer.visible = cam.scale >= LOD_THRESHOLDS[0]
+    nanoLayer.visible = cam.scale >= LOD_THRESHOLDS[1]
+    micro.update(view)
+    nano.update(view)
+
+    let wind = CALM_WIND
+    if (weather && feed) {
+      weather.update(dt, feed.playTimeS, view)
+      wind = weather.wind()
+      for (const detail of details.values()) detail.setAmbient?.(wind)
+    }
+
+    // Update only what is actually on screen.
     for (const [zoneId, detail] of details) {
       const zone = pack.zones[zoneId]
       if (!zone || !intersects(view, zone.rect)) continue
       detail.update(dt, elapsed)
     }
+    player?.update(dt, view)
     couriers?.update(dt, view)
-    water?.update(dt, wind)
-    ambience.update(dt, wind)
-    lighting.update(dt)
+    water?.update(dt, wind, view)
+    ambience.update(dt, wind, view)
+    lighting.update(dt, view)
   })
 
   // The canvas sits inside the paper "map mat" (.scene-frame). Its available
@@ -370,11 +454,23 @@ export async function mountScene(
       canvas.removeEventListener('pointerup', onPointerUp)
       canvas.removeEventListener('pointercancel', onPointerUp)
       canvas.removeEventListener('wheel', onWheel)
+      player?.destroy?.()
+      chunked.destroy()
       app.destroy(true, { children: true, texture: true })
     },
     setZoomLevel: (level) => setZoomIndex(level, false),
     panTo,
     setHighlight,
     setFeed,
+    focusOn: (x, y) => {
+      followPaused = false
+      const centered = clampCenter(x, y, camTarget.scale)
+      camTarget.cx = centered.x
+      camTarget.cy = centered.y
+    },
+    setFollow: (spot) => {
+      follow = spot
+      followPaused = false
+    },
   }
 }

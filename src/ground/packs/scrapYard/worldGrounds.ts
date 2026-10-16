@@ -5,6 +5,8 @@ import type { Rect } from '@ground/core/metrics'
 import { drawDecor } from './decorPlacements'
 import { SCRAP_YARD_PACK } from './pack'
 import {
+  AVENUE_HEIGHT,
+  AVENUE_Y,
   CLEARINGS,
   CONNECTORS,
   WATER_AREAS,
@@ -34,10 +36,19 @@ export const SCRAP_MAP: GroundMap = {
   patchworkSeed: 31,
   floraSeed: 41,
   lanes: [
-    // Đường đất nối khu ve chai xuống đường ba gác: làn 72px rộng ĐỀU, chỉ loe ở
-    // ĐẦU BÃI (`mouths: 'top'`); đầu dưới kết thúc ĐÚNG mép đường (y 380).
+    // Đại lộ chạy hết map: xương sống của thế giới, hai mép thẳng (đường trong
+    // pixel art vốn thẳng). Khu `route` là một đoạn của chính dải này — scene của
+    // khu vẽ mặt nhựa riêng đè lên, nên ở đây cứ phủ liền một mạch.
     {
-      rect: { x: 206, y: 150, width: 72, height: 230 },
+      rect: { x: 0, y: AVENUE_Y, width: WORLD_WIDTH, height: AVENUE_HEIGHT },
+      kind: 'asphalt',
+      seed: 15,
+      outside: 'grass',
+    },
+    // Đường đất nối khu ve chai xuống đại lộ: làn 72px rộng ĐỀU, chỉ loe ở ĐẦU BÃI
+    // (`mouths: 'top'`); đầu dưới kết thúc ĐÚNG mép đại lộ (y 2848).
+    {
+      rect: { x: 4062, y: 2246, width: 72, height: 602 },
       kind: 'dirt',
       seed: 12,
       outside: 'grass',
@@ -46,10 +57,10 @@ export const SCRAP_MAP: GroundMap = {
       mouths: 'top',
       jitter: 6,
     },
-    // Lối mòn đất khu ve chai → xưởng tái chế: làn 48px từ mép đông khu (x 384)
-    // sang mép tây xưởng (x 608), không loe vì hai đầu cắm vào sàn khu. Wobble 8px
+    // Lối mòn đất khu ve chai → xưởng tái chế: làn 48px từ mép đông khu (x 4240)
+    // sang mép tây xưởng (x 5120), không loe vì hai đầu cắm vào sàn khu. Wobble 8px
     // cho hai mép dài bước theo lưới ô như mọi mảng đất khác.
-    { rect: { x: 384, y: 100, width: 224, height: 48 }, kind: 'dirt', seed: 17, outside: 'grass', jitter: 8 },
+    { rect: { x: 4240, y: 2196, width: 880, height: 48 }, kind: 'dirt', seed: 17, outside: 'grass', jitter: 8 },
   ],
   floors: [
     { rect: zoneRect('alley'), kind: 'dirt', seed: 11, pad: 24 },
@@ -66,19 +77,19 @@ export const SCRAP_MAP: GroundMap = {
   })),
   traces: [
     // Vết sử dụng trên hai làn đất: porter/courier đi dọc làn ve chai→xưởng suốt
-    // ngày nên giữa làn mòn thành vệt + vết chân; làn xuống đường là lối người/ba
+    // ngày nên giữa làn mòn thành vệt + vết chân; làn xuống đại lộ là lối người/ba
     // gác nên có vệt mòn + rãnh bánh.
-    { kind: 'wear', points: [{ x: 392, y: 124 }, { x: 600, y: 124 }], seed: 137, strength: 0.85 },
-    { kind: 'footprints', points: [{ x: 396, y: 123 }, { x: 596, y: 125 }], seed: 138, strength: 0.9 },
-    { kind: 'wear', points: [{ x: 242, y: 158 }, { x: 242, y: 372 }], seed: 139, strength: 0.7 },
-    { kind: 'ruts', points: [{ x: 234, y: 166 }, { x: 234, y: 366 }], seed: 140, strength: 0.55 },
+    { kind: 'wear', points: [{ x: 4248, y: 2220 }, { x: 5112, y: 2220 }], seed: 137, strength: 0.85 },
+    { kind: 'footprints', points: [{ x: 4252, y: 2219 }, { x: 5108, y: 2221 }], seed: 138, strength: 0.9 },
+    { kind: 'wear', points: [{ x: 4098, y: 2254 }, { x: 4098, y: 2842 }], seed: 139, strength: 0.7 },
+    { kind: 'ruts', points: [{ x: 4090, y: 2262 }, { x: 4090, y: 2836 }], seed: 140, strength: 0.55 },
   ],
   connectors: { rects: CONNECTORS, kind: 'asphalt', seedBase: 15 },
   links: [
     // CHỖ NỐI: `outside` phải là nền THẬT xung quanh (a) lối vào kho nằm trong bãi
     // đất của kho nên môi là ĐẤT; (b)(c) hai lối vào sân cổng nằm trong bãi sỏi.
     {
-      rect: { x: 196, y: 498, width: 76, height: 88 },
+      rect: { x: 4052, y: 2966, width: 76, height: 88 },
       kind: 'dirt',
       seed: 33,
       outside: 'dirt',
@@ -86,8 +97,8 @@ export const SCRAP_MAP: GroundMap = {
       ramp: 34,
       jitter: 5,
     },
-    { rect: { x: 900, y: 498, width: 84, height: 84 }, kind: 'gravel', seed: 34, outside: 'gravel', flare: 30, ramp: 32 },
-    { rect: { x: 1086, y: 568, width: 72, height: 50 }, kind: 'gravel', seed: 35, outside: 'gravel', flare: 24, ramp: 22 },
+    { rect: { x: 6300, y: 2966, width: 84, height: 84 }, kind: 'gravel', seed: 34, outside: 'gravel', flare: 30, ramp: 32 },
+    { rect: { x: 6486, y: 3036, width: 72, height: 50 }, kind: 'gravel', seed: 35, outside: 'gravel', flare: 24, ramp: 22 },
   ],
   debrisSeed: 42,
   water: WATER_AREAS.map((area, index) => ({
@@ -103,10 +114,16 @@ export const SCRAP_MAP: GroundMap = {
 
 /**
  * Paints the scrap-yard map with its own pack. Shared by the game scene and the
- * asset studio so both always show the same world.
+ * asset studio so both always show the same world. `window` restricts the pass to
+ * a rect (the scene chunks by it; the studio previews one district at a time).
  */
-export function paintWorldGrounds(painter: TilePainter, ground: Container, decor: Graphics): void {
-  paintGrounds(SCRAP_YARD_PACK, SCRAP_MAP, painter, ground, decor)
+export function paintWorldGrounds(
+  painter: TilePainter,
+  ground: Container,
+  decor: Graphics,
+  window?: Rect,
+): void {
+  paintGrounds(SCRAP_YARD_PACK, SCRAP_MAP, painter, ground, decor, window)
 }
 
 /**

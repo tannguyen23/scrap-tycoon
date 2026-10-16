@@ -23,6 +23,7 @@ export type SoundId =
   | 'buy'
   | 'deny'
   | 'upgrade'
+  | 'milestone'
   | 'offline'
   | 'cash'
   | 'truck-arrive'
@@ -37,6 +38,7 @@ export type SoundId =
   | 'gull'
   | 'cat'
   | 'thunder'
+  | 'footstep'
 
 interface LayerBase {
   durationMs: number
@@ -152,6 +154,23 @@ export const SOUND_LIBRARY: Record<SoundId, SoundSpec> = {
       tone({ type: 'sine', freqFrom: 523, durationMs: 600, gain: 0.22, attackMs: 40, releaseMs: 480 }),
       tone({ type: 'sine', freqFrom: 784, durationMs: 500, delayMs: 120, gain: 0.16, attackMs: 40, releaseMs: 400 }),
       tone({ type: 'sine', freqFrom: 1046, durationMs: 420, delayMs: 260, gain: 0.1, attackMs: 20, releaseMs: 380 }),
+    ],
+  },
+  milestone: {
+    id: 'milestone',
+    group: 'ui',
+    label: { vi: 'Đạt mốc', en: 'Milestone' },
+    description: {
+      vi: 'Chuông báo vừa đạt một mốc tiến trình mới.',
+      en: 'Chime when a new progression milestone is reached.',
+    },
+    volume: 0.5,
+    cooldownMs: 400,
+    layers: [
+      tone({ type: 'triangle', freqFrom: 659, durationMs: 120, gain: 0.28, attackMs: 3, releaseMs: 100 }),
+      tone({ type: 'triangle', freqFrom: 880, durationMs: 120, delayMs: 90, gain: 0.28, attackMs: 3, releaseMs: 100 }),
+      tone({ type: 'triangle', freqFrom: 1175, durationMs: 240, delayMs: 180, gain: 0.3, attackMs: 3, releaseMs: 220 }),
+      tone({ type: 'sine', freqFrom: 1760, durationMs: 280, delayMs: 180, gain: 0.08, attackMs: 12, releaseMs: 250 }),
     ],
   },
   cash: {
@@ -337,6 +356,21 @@ export const SOUND_LIBRARY: Record<SoundId, SoundSpec> = {
       tone({ type: 'triangle', freqFrom: 1860, freqTo: 1240, durationMs: 260, gain: 0.22, attackMs: 1, releaseMs: 250 }),
       tone({ type: 'square', freqFrom: 940, freqTo: 720, durationMs: 180, gain: 0.1, attackMs: 1, releaseMs: 170 }),
       tone({ type: 'sine', freqFrom: 260, freqTo: 180, durationMs: 200, gain: 0.16, attackMs: 2, releaseMs: 190 }),
+    ],
+  },
+  footstep: {
+    id: 'footstep',
+    group: 'ambient',
+    label: { vi: 'Bước chân', en: 'Footstep' },
+    description: {
+      vi: 'Một bước chân của nhân vật trên nền đất — phát mỗi nhịp bước.',
+      en: 'One player footstep on the ground — played once per stride.',
+    },
+    volume: 0.22,
+    cooldownMs: 90,
+    layers: [
+      noise({ durationMs: 70, gain: 0.16, attackMs: 2, releaseMs: 60, filter: { type: 'bandpass', freq: 850, q: 0.9 } }),
+      noise({ durationMs: 40, gain: 0.06, attackMs: 1, releaseMs: 34, filter: { type: 'highpass', freq: 2400 } }),
     ],
   },
   thunder: {

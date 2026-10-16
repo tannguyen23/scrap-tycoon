@@ -2,6 +2,7 @@ import { BALANCE } from '@content/balance'
 import { GAME_CONTENT } from '@content/index'
 import { createFreshState } from '@domain/state'
 import { SCRAP_YARD_PACK } from '@ground/packs/scrapYard/pack'
+import { WORLD_HEIGHT, WORLD_WIDTH } from '@ground/packs/scrapYard/worldLayout'
 import { validateScenePack, type ScenePack } from '@scene/core/pack'
 import { DEFAULT_SERVICES } from '@scene/core/services'
 import { chordsAt, createWaterLife, crestDashes, crestLift, swellStrength, type WaterLayer } from '@scene/core/water'
@@ -232,9 +233,9 @@ describe('scene water life', () => {
       expect(body.contour.length).toBeGreaterThanOrEqual(6)
       for (let i = 0; i < body.contour.length; i += 2) {
         expect(body.contour[i]).toBeGreaterThan(0)
-        expect(body.contour[i]).toBeLessThan(1280)
+        expect(body.contour[i]).toBeLessThan(WORLD_WIDTH)
         expect(body.contour[i + 1]).toBeGreaterThan(0)
-        expect(body.contour[i + 1]).toBeLessThan(720)
+        expect(body.contour[i + 1]).toBeLessThan(WORLD_HEIGHT)
       }
     }
   })
@@ -257,8 +258,11 @@ describe('scene water life', () => {
       for (const node of life.container.children) {
         const box = node.getBounds()
         if (box.width === 0 && box.height === 0) continue
-        expect(box.minY, `crest at row ${extent(node)} drew up at ${box.minY}`).toBeGreaterThanOrEqual(waterTop)
-        expect(box.maxY, `crest at row ${extent(node)} drew down at ${box.maxY}`).toBeLessThanOrEqual(waterBottom)
+        // 1px dung sai: bounds là hình học — một rect 1px tại hàng `y` chiếm
+        // [y, y+1], còn đỉnh contour có thể lẻ 0.25px. Từng dash vẫn được kiểm
+        // chính xác bằng point-in-polygon ở test bên dưới.
+        expect(box.minY, `crest at row ${extent(node)} drew up at ${box.minY}`).toBeGreaterThanOrEqual(waterTop - 1)
+        expect(box.maxY, `crest at row ${extent(node)} drew down at ${box.maxY}`).toBeLessThanOrEqual(waterBottom + 1)
       }
     }
     expect(waterBottom - waterTop).toBeGreaterThan(100)

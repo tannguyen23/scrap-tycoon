@@ -218,11 +218,12 @@ export const PRIMARY_TERRAINS: readonly TileKind[] = SCRAP_TERRAINS.filter((terr
  */
 export const TERRAIN_PAIRS: readonly TerrainPair[] = [
   { inside: 'dirt', outside: 'grass', label: 'đất ↔ cỏ (mảng đất, sàn khu)' },
-  { inside: 'water', outside: 'grass', label: 'nước ↔ cỏ (bờ ao)' },
+  { inside: 'water', outside: 'grass', label: 'nước ↔ cỏ (bờ ao, bờ hồ)' },
   { inside: 'water', outside: 'dirt', label: 'nước ↔ đất (vũng bùn)' },
   { inside: 'gravel', outside: 'grass', label: 'sỏi ↔ cỏ (sàn khu cổng)' },
   { inside: 'gravel', outside: 'dirt', label: 'sỏi ↔ đất (bãi sỏi trong bãi đất)' },
   { inside: 'concrete', outside: 'dirt', label: 'bê tông ↔ đất (sân trước kho mòn vào đất)' },
+  { inside: 'asphalt', outside: 'grass', label: 'nhựa ↔ cỏ (đại lộ xuyên map)' },
 ]
 
 /** Tones of one scrap terrain (exhaustive now that tones live on the defs). */

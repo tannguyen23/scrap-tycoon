@@ -1,5 +1,6 @@
 import { Container, Graphics } from 'pixi.js'
 import { makeRandom } from './random'
+import { intersectsRect, inflateRect, type ViewRect } from './view'
 
 /**
  * Gió toàn cục mà mọi thứ phản ứng theo (mây, mưa, cờ, khói, chim). Là hình
@@ -98,7 +99,12 @@ const GROUND_BIRD_BEAK = 0x9a8a5c
 
 export interface Ambience {
   readonly container: Container
-  update(dt: number, wind?: SceneWind): void
+  /**
+   * `view` (the world rect on screen) lets a big map skip work: smoke only spawns
+   * from sources on camera, birds wrap around the visible band, ground birds far
+   * away hold still. Without it the old whole-world behaviour stands.
+   */
+  update(dt: number, wind?: SceneWind, view?: ViewRect): void
 }
 
 /**
@@ -193,7 +199,7 @@ export function createAmbience(spec: AmbienceSpec = {}): Ambience {
   let clock = 0
   let smokeTimer = 0.4
 
-  const update = (dt: number, wind: SceneWind = CALM_WIND): void => {
+  const update = (dt: number, wind: SceneWind = CALM_WIND, view?: ViewRect): void => {
     clock += dt
 
     for (const bird of birds) {
@@ -202,12 +208,23 @@ export function createAmbience(spec: AmbienceSpec = {}): Ambience {
       const flap = Math.floor((clock + bird.phase) * 5.5) % 2 === 0
       bird.wingA.visible = flap
       bird.wingB.visible = !flap
-      if (bird.node.x > worldWidth + 48) {
-        bird.node.x = -48 - rnd() * 160
+      // With a view the lane wraps around the camera; without one, around the map.
+      const wrapRight = view ? view.x + view.width + 48 : worldWidth + 48
+      const wrapLeft = view ? view.x - 48 - rnd() * 160 : -48 - rnd() * 160
+      if (bird.node.x > wrapRight) {
+        bird.node.x = wrapLeft
       }
     }
 
     for (const bird of groundBirds) {
+      // A bird off camera holds its pose: no walking, no timers, no cost.
+      if (view) {
+        const patch = inflateRect(
+          { x: bird.homeX - bird.radius, y: bird.homeY - bird.radius, width: bird.radius * 2, height: bird.radius * 2 },
+          32,
+        )
+        if (!intersectsRect(view, patch)) continue
+      }
       bird.timer -= dt
       if (bird.flying) {
         bird.progress = Math.min(1, bird.progress + dt / FLY_SECONDS)
@@ -252,8 +269,17 @@ export function createAmbience(spec: AmbienceSpec = {}): Ambience {
       if (smokeTimer <= 0) {
         smokeTimer = 1.15
         const point = smokePoints[smokeCursor % smokePoints.length]
-        if (point) spawnPuff(point, wind)
         smokeCursor += 1
+        if (point) {
+          // Off-camera chimneys still take their turn, they just do not puff.
+          const onCamera =
+            !view ||
+            (point.x >= view.x - 32 &&
+              point.x <= view.x + view.width + 32 &&
+              point.y >= view.y - 32 &&
+              point.y <= view.y + view.height + 32)
+          if (onCamera) spawnPuff(point, wind)
+        }
       }
     }
     for (let i = puffs.length - 1; i >= 0; i--) {

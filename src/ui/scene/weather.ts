@@ -5,6 +5,7 @@ import { Container, Graphics } from 'pixi.js'
 import { makeRandom } from './random'
 import { WATER_AREAS, WORLD_HEIGHT, WORLD_WIDTH } from '@ground/packs/scrapYard/worldLayout'
 import type { SceneWind } from '@scenery/core/ambience'
+import { intersectsRect, type ViewRect } from '@scenery/core/view'
 
 /** Mỗi "pixel" của mây vẽ trên lưới 2px cho ra dáng pixel-art chắc. */
 const CLOUD_PIXEL = 2
@@ -23,7 +24,8 @@ const WIND_DIRECTION = { x: 0.92, y: 0.2 }
 
 interface CloudDef {
   x: number
-  y: number
+  /** 0..1 — where the cloud band sits inside the visible height (view-anchored). */
+  relY: number
   width: number
   height: number
   seed: number
@@ -34,12 +36,12 @@ interface CloudDef {
 
 /** Đội mây nền tảng: hai tầng độ cao (nhỏ/chậm/mờ ↔ lớn/nhanh/rõ hơn). */
 const CLOUDS: readonly CloudDef[] = [
-  { x: -80, y: 104, width: 72, height: 26, seed: 11, speed: 6.2, alpha: 0.16, shadowAlpha: 0.05 },
-  { x: 340, y: 236, width: 104, height: 32, seed: 33, speed: 5.2, alpha: 0.13, shadowAlpha: 0.04 },
-  { x: 720, y: 150, width: 44, height: 20, seed: 55, speed: 7.4, alpha: 0.14, shadowAlpha: 0.045 },
-  { x: 180, y: 392, width: 88, height: 30, seed: 77, speed: 4.4, alpha: 0.11, shadowAlpha: 0.035 },
-  { x: 640, y: 470, width: 64, height: 24, seed: 99, speed: 5.6, alpha: 0.12, shadowAlpha: 0.04 },
-  { x: 900, y: 300, width: 50, height: 22, seed: 121, speed: 6.8, alpha: 0.13, shadowAlpha: 0.04 },
+  { x: -80, relY: 0.144, width: 72, height: 26, seed: 11, speed: 6.2, alpha: 0.16, shadowAlpha: 0.05 },
+  { x: 340, relY: 0.328, width: 104, height: 32, seed: 33, speed: 5.2, alpha: 0.13, shadowAlpha: 0.04 },
+  { x: 720, relY: 0.208, width: 44, height: 20, seed: 55, speed: 7.4, alpha: 0.14, shadowAlpha: 0.045 },
+  { x: 180, relY: 0.544, width: 88, height: 30, seed: 77, speed: 4.4, alpha: 0.11, shadowAlpha: 0.035 },
+  { x: 640, relY: 0.653, width: 64, height: 24, seed: 99, speed: 5.6, alpha: 0.12, shadowAlpha: 0.04 },
+  { x: 900, relY: 0.417, width: 50, height: 22, seed: 121, speed: 6.8, alpha: 0.13, shadowAlpha: 0.04 },
 ]
 
 export interface CloudRun {
@@ -130,8 +132,11 @@ export function mixWeatherVisual(from: WeatherVisual, to: WeatherVisual, mix: nu
 }
 
 /** Một điểm ngẫu nhiên nằm trong lòng các ao (đã co lề theo cỡ ao) — cho gợn mưa. */
-export function pickPondSpot(rand: () => number): { x: number; y: number } | null {
-  const area = WATER_AREAS[Math.floor(rand() * WATER_AREAS.length)] ?? WATER_AREAS[0]
+export function pickPondSpot(rand: () => number, view?: ViewRect): { x: number; y: number } | null {
+  // With a view, only the ponds on camera are candidates — off-screen rings would
+  // just burn updates on a map with dozens of ponds.
+  const ponds = view ? WATER_AREAS.filter((candidate) => intersectsRect(view, candidate.rect)) : WATER_AREAS
+  const area = ponds[Math.floor(rand() * ponds.length)] ?? ponds[0]
   if (!area) return null
   const margin = Math.min(area.rect.width, area.rect.height) * 0.25
   return {
@@ -160,7 +165,12 @@ export interface Weather {
   readonly container: Container
   /** Chớp sét — đặt SAU `lighting.container` để không bị grade làm tối. */
   readonly flash: Container
-  update(dt: number, playTimeS: number): void
+  /**
+   * `view` là rect thế giới đang hiện trên màn hình: quad grade, mây, mưa và
+   * splash đều bám viewport, nên map to cỡ nào chi phí cũng theo màn hình.
+   * Không truyền view (studio) thì giữ hành vi phủ toàn world cũ.
+   */
+  update(dt: number, playTimeS: number, view?: ViewRect): void
   wind(): SceneWind
   /** Studio: ghim một loại thời tiết (null = chạy lại theo lịch). */
   setOverride(kind: WeatherKindDef | null): void
@@ -202,16 +212,41 @@ export function createWeather(options: WeatherOptions): Weather {
   const rainLayer = new Container()
   const splashLayer = new Container()
   const rippleLayer = new Container()
-  const gloom = new Graphics().rect(0, 0, WORLD_WIDTH, WORLD_HEIGHT).fill(GLOOM_COLOR)
+  const gloom = new Graphics()
   gloom.blendMode = 'multiply'
   gloom.alpha = 0
   container.addChild(cloudShadowLayer, cloudLayer, gloom, rainLayer, splashLayer, rippleLayer)
 
   const flash = new Container()
-  const flashRect = new Graphics().rect(0, 0, WORLD_WIDTH, WORLD_HEIGHT).fill(0xffffff)
+  const flashRect = new Graphics()
   flashRect.blendMode = 'add'
   flashRect.alpha = 0
   flash.addChild(flashRect)
+
+  // Grade + flash quads cover the VIEW, not the world: with the map far bigger
+  // than the canvas, a world-sized quad would be a full-map fill every frame.
+  // Geometry is redrawn only when the view size changes; the position follows pan.
+  let coverWidth = WORLD_WIDTH
+  let coverHeight = WORLD_HEIGHT
+  const drawCover = (): void => {
+    gloom.clear().rect(0, 0, coverWidth, coverHeight).fill(GLOOM_COLOR)
+    flashRect.clear().rect(0, 0, coverWidth, coverHeight).fill(0xffffff)
+  }
+  drawCover()
+  const placeCover = (view?: ViewRect): void => {
+    if (!view) {
+      gloom.position.set(0, 0)
+      flashRect.position.set(0, 0)
+      return
+    }
+    if (view.width !== coverWidth || view.height !== coverHeight) {
+      coverWidth = view.width
+      coverHeight = view.height
+      drawCover()
+    }
+    gloom.position.set(Math.round(view.x), Math.round(view.y))
+    flashRect.position.set(Math.round(view.x), Math.round(view.y))
+  }
 
   // ---- mây + bóng ghép cặp (bóng lệch theo nắng trên-trái) -------------------
   const clouds = CLOUDS.map((def) => {
@@ -222,8 +257,8 @@ export function createWeather(options: WeatherOptions): Weather {
       shadow.rect(run.x, run.y, run.width, run.height).fill(CLOUD_SHADOW)
       body.rect(run.x, run.y, run.width, run.height).fill(CLOUD_TONES[run.tone])
     }
-    shadow.position.set(def.x + SUN_OFFSET.x, def.y + SUN_OFFSET.y)
-    body.position.set(def.x, def.y)
+    shadow.position.set(def.x + SUN_OFFSET.x, def.relY * WORLD_HEIGHT + SUN_OFFSET.y)
+    body.position.set(def.x, def.relY * WORLD_HEIGHT)
     cloudShadowLayer.addChild(shadow)
     cloudLayer.addChild(body)
     return { def, shadow, body, x: def.x }
@@ -287,23 +322,34 @@ export function createWeather(options: WeatherOptions): Weather {
     if (audio) sound.setLoop(id, clamped)
   }
 
-  const updateClouds = (dt: number): void => {
+  const updateClouds = (dt: number, view?: ViewRect): void => {
     const cover = current.cloudCover
+    const bandTop = view ? view.y : 0
+    const bandHeight = view ? view.height : WORLD_HEIGHT
+    const wrapLeft = view ? view.x - 280 : -280
+    const wrapRight = view ? view.x + view.width + 120 : WORLD_WIDTH + 8
     for (const cloud of clouds) {
       cloud.x += (cloud.def.speed + current.wind * 16 * (cloud.def.height / 32)) * dt
-      if (cloud.x > WORLD_WIDTH + 8) cloud.x = -cloud.def.width - 60
-      cloud.body.position.set(Math.round(cloud.x), cloud.def.y)
-      cloud.shadow.position.set(Math.round(cloud.x) + SUN_OFFSET.x, cloud.def.y + SUN_OFFSET.y)
+      // Cloud lanes follow the camera: they enter from the far side of the view.
+      if (cloud.x > wrapRight) cloud.x = view ? view.x - cloud.def.width - 60 : -cloud.def.width - 60
+      else if (cloud.x < wrapLeft) cloud.x = view ? view.x + view.width + 40 : WORLD_WIDTH + 8
+      const baseY = Math.round(bandTop + cloud.def.relY * bandHeight)
+      cloud.body.position.set(Math.round(cloud.x), baseY)
+      cloud.shadow.position.set(Math.round(cloud.x) + SUN_OFFSET.x, baseY + SUN_OFFSET.y)
       cloud.body.alpha = cloud.def.alpha * (0.3 + 1.2 * cover)
       cloud.shadow.alpha = cloud.def.shadowAlpha * (0.3 + 1.2 * cover)
     }
   }
 
-  const updateRain = (dt: number): void => {
+  const updateRain = (dt: number, view?: ViewRect): void => {
     const intensity = current.rain
     const visibleCount = Math.round(RAIN_COUNT * Math.min(1, intensity * 1.2))
     const vx = current.wind * RAIN_DRIFT
     const angle = Math.atan2(vx, RAIN_FALL)
+    const spanY = view ? view.height : WORLD_HEIGHT
+    const spanX = view ? view.width : WORLD_WIDTH
+    const originX = view ? view.x : 0
+    const originY = view ? view.y : 0
     for (let i = 0; i < streaks.length; i++) {
       const streak = streaks[i]
       if (!streak) continue
@@ -314,16 +360,17 @@ export function createWeather(options: WeatherOptions): Weather {
       const vy = RAIN_FALL * streak.factor
       streak.node.x += vx * streak.factor * dt
       streak.node.y += vy * dt
-      if (streak.node.y > WORLD_HEIGHT + 6) {
-        streak.node.y -= WORLD_HEIGHT + 12
-        streak.node.x = rng() * (WORLD_WIDTH + 24) - 12
+      // Streaks live inside the view band and recycle to its top / far side.
+      if (streak.node.y > originY + spanY + 6) {
+        streak.node.y -= spanY + 12
+        streak.node.x = originX + rng() * (spanX + 24) - 12
       }
-      if (streak.node.x > WORLD_WIDTH + 8) streak.node.x -= WORLD_WIDTH + 16
-      else if (streak.node.x < -8) streak.node.x += WORLD_WIDTH + 16
+      if (streak.node.x > originX + spanX + 8) streak.node.x -= spanX + 16
+      else if (streak.node.x < originX - 8) streak.node.x += spanX + 16
     }
   }
 
-  const updateSplashes = (dt: number): void => {
+  const updateSplashes = (dt: number, view?: ViewRect): void => {
     const intensity = current.rain
     if (intensity > 0.08) {
       splashTimer -= dt
@@ -333,7 +380,14 @@ export function createWeather(options: WeatherOptions): Weather {
         if (free) {
           free.life = SPLASH_LIFE
           free.node.visible = true
-          free.node.position.set(Math.round(rng() * WORLD_WIDTH), Math.round(40 + rng() * (WORLD_HEIGHT - 80)))
+          if (view) {
+            free.node.position.set(
+              Math.round(view.x + rng() * view.width),
+              Math.round(view.y + 40 + rng() * Math.max(40, view.height - 80)),
+            )
+          } else {
+            free.node.position.set(Math.round(rng() * WORLD_WIDTH), Math.round(40 + rng() * (WORLD_HEIGHT - 80)))
+          }
         }
       }
     }
@@ -348,14 +402,14 @@ export function createWeather(options: WeatherOptions): Weather {
     }
   }
 
-  const updateRipples = (dt: number): void => {
+  const updateRipples = (dt: number, view?: ViewRect): void => {
     const intensity = current.rain
     if (intensity > 0.15) {
       rippleTimer -= dt
       if (rippleTimer <= 0) {
         rippleTimer = (0.4 + rng() * 0.9) / (0.5 + 2 * intensity)
         const free = ripples.find((ripple) => ripple.life <= 0)
-        const spot = pickPondSpot(rng)
+        const spot = pickPondSpot(rng, view)
         if (free && spot) {
           free.life = RIPPLE_LIFE
           free.node.visible = true
@@ -423,8 +477,9 @@ export function createWeather(options: WeatherOptions): Weather {
   return {
     container,
     flash,
-    update: (dt, playTimeS) => {
+    update: (dt, playTimeS, view) => {
       elapsed += dt
+      placeCover(view)
       if (override) {
         current = mixWeatherVisual(current, override.visual, 1 - Math.exp(-dt / 0.45))
       } else {
@@ -432,10 +487,10 @@ export function createWeather(options: WeatherOptions): Weather {
         if (mix) current = mixWeatherVisual(mix.from, mix.to, smoothstep(mix.mix))
       }
       gloom.alpha = 0.03 + 0.12 * current.rain
-      updateClouds(dt)
-      updateRain(dt)
-      updateSplashes(dt)
-      updateRipples(dt)
+      updateClouds(dt, view)
+      updateRain(dt, view)
+      updateSplashes(dt, view)
+      updateRipples(dt, view)
       updateFlash(dt)
       updateStrikes(dt)
       updateAudio(dt)

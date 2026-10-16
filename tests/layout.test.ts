@@ -5,6 +5,8 @@ import { PRIMARY_TERRAINS } from '@ground/packs/scrapYard/terrains'
 import { paintWorldGrounds, SCATTER_SKIP_RECTS } from '@ground/packs/scrapYard/worldGrounds'
 import type { TilePainter } from '@ground/core/painter'
 import {
+  AVENUE_HEIGHT,
+  AVENUE_Y,
   CLEARINGS,
   CONNECTORS,
   WATER_AREAS,
@@ -46,6 +48,7 @@ describe('lane dressing', () => {
     // lay usage traces over it (a bare strip of tiles reads as flat).
     const calls: unknown[][] = []
     const painter = {
+      setClip: () => {},
       paint: () => {},
       patchwork: () => {},
       scatter: () => {},
@@ -70,9 +73,26 @@ describe('lane dressing', () => {
 })
 
 describe('map layout', () => {
-  it('is roomy enough for four zones plus open ground', () => {
-    expect(WORLD_WIDTH).toBeGreaterThanOrEqual(1280)
-    expect(WORLD_HEIGHT).toBeGreaterThanOrEqual(720)
+  it('is a genuinely big world, with the work core kept compact', () => {
+    // The world is many times the old yard; the five chain zones stay a short walk
+    // apart inside a compact core (the rest is wilderness to explore).
+    expect(WORLD_WIDTH).toBeGreaterThanOrEqual(8192)
+    expect(WORLD_HEIGHT).toBeGreaterThanOrEqual(4608)
+    const minX = Math.min(...zones.map((zone) => zone.rect.x))
+    const minY = Math.min(...zones.map((zone) => zone.rect.y))
+    const maxX = Math.max(...zones.map((zone) => zone.rect.x + zone.rect.width))
+    const maxY = Math.max(...zones.map((zone) => zone.rect.y + zone.rect.height))
+    expect(maxX - minX).toBeLessThanOrEqual(3200)
+    expect(maxY - minY).toBeLessThanOrEqual(1600)
+  })
+
+  it('runs the avenue the whole width, with the route zone on it', () => {
+    const route = ZONE_LAYOUTS.route?.rect
+    expect(route).toBeDefined()
+    expect(route?.y).toBe(AVENUE_Y)
+    expect(route?.height).toBe(AVENUE_HEIGHT)
+    expect(route?.x).toBeGreaterThan(0)
+    expect((route?.x ?? 0) + (route?.width ?? 0)).toBeLessThan(WORLD_WIDTH)
   })
 
   it('keeps every zone, connector, clearing and pond inside the world', () => {
@@ -93,10 +113,12 @@ describe('map layout', () => {
     }
   })
 
-  it('keeps ponds out of the zones and off the connectors', () => {
+  it('keeps ponds out of the zones, off the connectors and off the avenue', () => {
+    const avenue: ZoneRect = { x: 0, y: AVENUE_Y, width: WORLD_WIDTH, height: AVENUE_HEIGHT }
     for (const rect of ponds) {
       for (const { id, rect: zone } of zones) expect(overlaps(rect, zone), id).toBe(false)
       for (const connector of CONNECTORS) expect(overlaps(rect, connector)).toBe(false)
+      expect(overlaps(rect, avenue), 'pond on the avenue').toBe(false)
     }
   })
 
@@ -233,16 +255,17 @@ describe('map layout', () => {
   })
 
   it('opens each yard fence exactly where a lane crosses the edge', () => {
-    // Lane/lối đi thật trên map: làn đất khu ve chai→đường (worldGrounds) và hai làn nhựa
-    // của `CONNECTORS`. `slack` = số px cho phép mở rộng thêm mỗi phía.
+    // Lane/lối đi thật trên map: làn đất khu ve chai→đại lộ (worldGrounds), đường
+    // đất ve chai→xưởng và các làn nhựa của `CONNECTORS`. `slack` = số px cho phép
+    // mở rộng thêm mỗi phía.
     const cases = [
-      { zone: 'alley', edge: 'south', lane: [206, 278], slack: 0 },
-      { zone: 'alley', edge: 'east', lane: [100, 148], slack: 0 },
-      { zone: 'recycle', edge: 'west', lane: [100, 148], slack: 0 },
-      { zone: 'recycle', edge: 'south', lane: [700, 748], slack: 0 },
-      { zone: 'depot', edge: 'north', lane: [196, 272], slack: 0 },
-      { zone: 'gate', edge: 'north', lane: [924, 960], slack: 0 },
-      { zone: 'gate', edge: 'east', lane: [576, 608], slack: 4 },
+      { zone: 'alley', edge: 'south', lane: [4062, 4134], slack: 0 },
+      { zone: 'alley', edge: 'east', lane: [2196, 2244], slack: 0 },
+      { zone: 'recycle', edge: 'west', lane: [2196, 2244], slack: 0 },
+      { zone: 'recycle', edge: 'south', lane: [5212, 5260], slack: 0 },
+      { zone: 'depot', edge: 'north', lane: [4052, 4128], slack: 0 },
+      { zone: 'gate', edge: 'north', lane: [6324, 6360], slack: 0 },
+      { zone: 'gate', edge: 'east', lane: [3044, 3080], slack: 4 },
     ] as const
     for (const entry of cases) {
       const layout = ZONE_LAYOUTS[entry.zone]

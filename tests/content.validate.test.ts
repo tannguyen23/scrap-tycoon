@@ -138,4 +138,115 @@ describe('content validation', () => {
     expect(errors.some((error) => error.includes('consumes unknown item'))).toBe(true)
     expect(errors.some((error) => error.includes('input ratePerUnit must be > 0'))).toBe(true)
   })
+
+  it('catches hand-work jobs that break their yard', () => {
+    const broken: GameContent = {
+      ...TEST_CONTENT,
+      // A second yard so a job can point at the wrong warehouse.
+      zones: {
+        ...TEST_CONTENT.zones,
+        hut: { id: 'hut', name: { vi: 'Chòi', en: 'Hut' }, actionDesc: { vi: 'x', en: 'x' } },
+      },
+      actions: [
+        {
+          id: 'in-the-void',
+          name: { vi: 'x', en: 'x' },
+          desc: { vi: 'x', en: 'x' },
+          zone: 'ghost-zone',
+          pose: 'poke',
+          workSeconds: 1,
+          output: { item: 'ore', amount: new Decimal(1) },
+          requires: { kind: 'workers', branch: 'ghost-branch', worker: 'ghost', count: 1 },
+        },
+        {
+          id: 'nonsense',
+          name: { vi: 'x', en: 'x' },
+          desc: { vi: 'x', en: 'x' },
+          zone: 'mine',
+          pose: 'pick',
+          workSeconds: 0,
+          output: { item: 'ghost-item', amount: new Decimal(1) },
+        },
+        {
+          id: 'empty-input',
+          name: { vi: 'x', en: 'x' },
+          desc: { vi: 'x', en: 'x' },
+          zone: 'mine',
+          pose: 'hammer',
+          workSeconds: 1,
+          input: { item: 'ore', amount: new Decimal(0) },
+          output: { item: 'money', amount: new Decimal(1) },
+        },
+        {
+          // Duplicate id, and it draws ore (a mine item) while standing in the hut.
+          id: 'nonsense',
+          name: { vi: 'x', en: 'x' },
+          desc: { vi: 'x', en: 'x' },
+          zone: 'hut',
+          pose: 'pick',
+          workSeconds: 1,
+          input: { item: 'ore', amount: new Decimal(1) },
+          output: { item: 'money', amount: new Decimal(1) },
+        },
+      ],
+    }
+
+    const errors = validateContent(broken)
+    expect(errors.some((error) => error.includes('unknown zone'))).toBe(true)
+    expect(errors.some((error) => error.includes('gathers into zone "mine"'))).toBe(true)
+    expect(errors.some((error) => error.includes('unknown branch'))).toBe(true)
+    expect(errors.some((error) => error.includes('outputs unknown item'))).toBe(true)
+    expect(errors.some((error) => error.includes('workSeconds must be > 0'))).toBe(true)
+    expect(errors.some((error) => error.includes('input amount must be > 0'))).toBe(true)
+    expect(errors.some((error) => error.includes('duplicate id'))).toBe(true)
+    expect(errors.some((error) => error.includes('draws "ore" from zone "mine"'))).toBe(true)
+  })
+
+  it('catches dangling progression conditions and broken milestones', () => {
+    const branch = TEST_CONTENT.branches['mine']
+    const zone = TEST_CONTENT.zones['mine']
+    if (!branch || !zone) throw new Error('fixture is missing the mine branch/zone')
+
+    const broken: GameContent = {
+      ...TEST_CONTENT,
+      zones: {
+        mine: { ...zone, requires: { kind: 'workers', branch: 'mine', worker: 'ghost-worker', count: 0 } },
+      },
+      branches: {
+        mine: {
+          ...branch,
+          requires: { kind: 'upgrade', branch: 'ghost-branch', upgrade: 'ghost' },
+          upgrades: branch.upgrades.map((upgrade) =>
+            upgrade.id === 'boots'
+              ? { ...upgrade, requires: { kind: 'playTime', seconds: 0 } }
+              : upgrade,
+          ),
+        },
+      },
+      milestones: [
+        {
+          id: 'dup',
+          name: { vi: 'x', en: 'x' },
+          desc: { vi: 'x', en: 'x' },
+          requires: { kind: 'totalEarned', amount: new Decimal(0) },
+          reward: [{ target: '', kind: 'mult', value: new Decimal(1) }],
+        },
+        {
+          id: 'dup',
+          name: { vi: 'x', en: 'x' },
+          desc: { vi: 'x', en: 'x' },
+          requires: { kind: 'workers', branch: 'ghost-branch', worker: 'ghost', count: 1 },
+        },
+      ],
+    }
+
+    const errors = validateContent(broken)
+    expect(errors.some((error) => error.includes('unknown worker'))).toBe(true)
+    expect(errors.some((error) => error.includes('count must be an integer >= 1'))).toBe(true)
+    expect(errors.some((error) => error.includes('unknown branch'))).toBe(true)
+    expect(errors.some((error) => error.includes('seconds must be > 0'))).toBe(true)
+    expect(errors.some((error) => error.includes('amount must be > 0'))).toBe(true)
+    expect(errors.some((error) => error.includes('milestone duplicate id'))).toBe(true)
+    expect(errors.some((error) => error.includes('empty target'))).toBe(true)
+  })
 })

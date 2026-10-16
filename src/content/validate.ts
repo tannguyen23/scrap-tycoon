@@ -1,4 +1,5 @@
-import type { BranchDef, GameContent, WeatherProfile, WeatherVisual } from '@domain/types'
+import type { BranchDef, Condition, GameContent, WeatherProfile, WeatherVisual } from '@domain/types'
+import { itemZoneMap } from '@domain/zones'
 import { BALANCE } from './balance'
 
 /** Boot-time content checks (dev + tests). Returns human-readable errors. */
@@ -26,6 +27,9 @@ export function validateContent(content: GameContent): string[] {
     if (zone.id !== key) {
       errors.push(`zone key "${key}" does not match id "${zone.id}"`)
     }
+    if (zone.requires) {
+      validateCondition(zone.requires, content, `zone "${key}"`, errors)
+    }
   }
 
   for (const [key, branch] of Object.entries(content.branches)) {
@@ -35,11 +39,129 @@ export function validateContent(content: GameContent): string[] {
     validateBranch(branch, content, errors)
   }
 
+  if (content.milestones) {
+    const seen = new Set<string>()
+    for (const milestone of content.milestones) {
+      if (seen.has(milestone.id)) {
+        errors.push(`milestone duplicate id "${milestone.id}"`)
+      }
+      seen.add(milestone.id)
+      validateCondition(milestone.requires, content, `milestone "${milestone.id}"`, errors)
+      for (const effect of milestone.reward ?? []) {
+        if (effect.target.length === 0) {
+          errors.push(`milestone "${milestone.id}" reward effect has an empty target`)
+        }
+      }
+    }
+  }
+
   if (content.weather) {
     validateWeather(content.weather, errors)
   }
 
+  if (content.actions) {
+    validateManualActions(content, errors)
+  }
+
   return errors
+}
+
+/**
+ * Hand-work jobs. The zone of an action is the yard the player stands in, which
+ * must be the yard whose bin the stroke draws from (an item's warehouse follows
+ * the worker that consumes it — `domain/zones.ts`); a pure gathering job instead
+ * has to produce an item that lives in that same yard, or the two rows of the job
+ * would sit in different warehouses.
+ */
+function validateManualActions(content: GameContent, errors: string[]): void {
+  const zones = itemZoneMap(content)
+  const seen = new Set<string>()
+  for (const action of content.actions ?? []) {
+    const where = `action "${action.id}"`
+    if (seen.has(action.id)) errors.push(`${where}: duplicate id`)
+    seen.add(action.id)
+    if (!(action.zone in content.zones)) {
+      errors.push(`${where}: unknown zone "${action.zone}"`)
+    }
+    if (!(action.output.item in content.items)) {
+      errors.push(`${where}: outputs unknown item "${action.output.item}"`)
+    }
+    if (action.output.amount.lte(0)) errors.push(`${where}: output amount must be > 0`)
+    if (!(action.workSeconds > 0)) errors.push(`${where}: workSeconds must be > 0`)
+
+    if (action.input) {
+      if (!(action.input.item in content.items)) {
+        errors.push(`${where}: consumes unknown item "${action.input.item}"`)
+      }
+      if (action.input.amount.lte(0)) errors.push(`${where}: input amount must be > 0`)
+      if (action.input.item === action.output.item) {
+        errors.push(`${where}: input and output must differ (same item is a no-op)`)
+      }
+      const drawn = zones.get(action.input.item)
+      if (drawn && drawn !== action.zone) {
+        errors.push(`${where}: draws "${action.input.item}" from zone "${drawn}", not "${action.zone}"`)
+      }
+    } else {
+      const produced = zones.get(action.output.item)
+      if (produced && produced !== action.zone) {
+        errors.push(`${where}: gathers into zone "${produced}", not "${action.zone}"`)
+      }
+    }
+
+    if (action.requires) {
+      validateCondition(action.requires, content, where, errors)
+    }
+  }
+}
+
+/** Conditions may only reference ids that exist — a dangling gate would soft-lock content. */
+function validateCondition(
+  condition: Condition,
+  content: GameContent,
+  where: string,
+  errors: string[],
+): void {
+  switch (condition.kind) {
+    case 'workers': {
+      const branch = content.branches[condition.branch]
+      if (!branch) {
+        errors.push(`${where}: condition references unknown branch "${condition.branch}"`)
+        return
+      }
+      if (!branch.workers.some((worker) => worker.id === condition.worker)) {
+        errors.push(
+          `${where}: condition references unknown worker "${condition.worker}" in branch "${condition.branch}"`,
+        )
+      }
+      if (!Number.isInteger(condition.count) || condition.count < 1) {
+        errors.push(`${where}: condition worker count must be an integer >= 1`)
+      }
+      break
+    }
+    case 'upgrade': {
+      const branch = content.branches[condition.branch]
+      if (!branch) {
+        errors.push(`${where}: condition references unknown branch "${condition.branch}"`)
+        return
+      }
+      if (!branch.upgrades.some((upgrade) => upgrade.id === condition.upgrade)) {
+        errors.push(
+          `${where}: condition references unknown upgrade "${condition.upgrade}" in branch "${condition.branch}"`,
+        )
+      }
+      break
+    }
+    case 'totalEarned':
+      if (condition.amount.lte(0)) {
+        errors.push(`${where}: condition amount must be > 0`)
+      }
+      break
+    case 'playTime':
+      if (!(condition.seconds > 0)) {
+        errors.push(`${where}: condition seconds must be > 0`)
+      }
+      break
+  }
 }
 
 function validateWeather(profile: WeatherProfile, errors: string[]): void {
@@ -89,6 +211,9 @@ function isMultipleOfTick(seconds: number): boolean {
 
 function validateBranch(branch: BranchDef, content: GameContent, errors: string[]): void {
   const where = `branch "${branch.id}"`
+  if (branch.requires) {
+    validateCondition(branch.requires, content, where, errors)
+  }
   const seen = new Set<string>()
   const unique = (kind: string, id: string): void => {
     const composite = `${kind}:${id}`
@@ -120,6 +245,9 @@ function validateBranch(branch: BranchDef, content: GameContent, errors: string[
         errors.push(`${where}: worker "${worker.id}" input and output must differ (same item is a no-op)`)
       }
     }
+    if (worker.requires) {
+      validateCondition(worker.requires, content, `${where} worker "${worker.id}"`, errors)
+    }
   }
 
   for (const recipe of branch.recipes) {
@@ -149,6 +277,9 @@ function validateBranch(branch: BranchDef, content: GameContent, errors: string[
       if (!Number.isInteger(upgrade.visual.tier) || upgrade.visual.tier < 1) {
         errors.push(`${where}: upgrade "${upgrade.id}" visual tier must be an integer >= 1`)
       }
+    }
+    if (upgrade.requires) {
+      validateCondition(upgrade.requires, content, `${where} upgrade "${upgrade.id}"`, errors)
     }
   }
 }

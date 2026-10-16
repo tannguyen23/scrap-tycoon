@@ -1,8 +1,10 @@
 import { formatShort } from '@core/format'
+import { isZoneUnlocked } from '@domain/conditions'
 import { zoneStock } from '@domain/selectors'
 import type { GameState, WorkerDef } from '@domain/types'
 import { UI } from '@i18n/text'
-import { useContent, useSceneBridge, useText } from '@ui/hooks'
+import { useContent, useLocale, useSceneBridge, useText } from '@ui/hooks'
+import { describeCondition } from '@ui/progression'
 import { zoneStyle } from '@ground/packs/scrapYard/worldLayout'
 import { playSound } from '@ui/sound/player'
 import type { CSSProperties } from 'react'
@@ -19,6 +21,7 @@ export interface ZoneCardProps {
 export function ZoneCard({ zoneId, branchId, workers, state }: ZoneCardProps) {
   const content = useContent()
   const text = useText()
+  const locale = useLocale()
   const bridge = useSceneBridge()
 
   const zone = content.zones[zoneId]
@@ -26,10 +29,11 @@ export function ZoneCard({ zoneId, branchId, workers, state }: ZoneCardProps) {
 
   const rows = zoneStock(state, content, zoneId)
   const isFull = rows.some((row) => row.ratio !== null && row.ratio >= 0.99)
+  const locked = !isZoneUnlocked(state, content, zoneId)
 
   return (
     <article
-      className="zone-card"
+      className={locked ? 'zone-card is-locked' : 'zone-card'}
       style={style}
       title={text(UI.zoneJump)}
       onMouseEnter={() => bridge.highlight(zoneId)}
@@ -42,9 +46,13 @@ export function ZoneCard({ zoneId, branchId, workers, state }: ZoneCardProps) {
       <header className="zone-header">
         <span className="zone-dot" />
         <h4 className="zone-name">{zone ? text(zone.name) : zoneId}</h4>
+        {locked && <span className="zone-lock">{text(UI.locked)}</span>}
         {isFull && <span className="zone-full">{text(UI.full)}</span>}
       </header>
       {zone && <p className="zone-desc">{text(zone.actionDesc)}</p>}
+      {locked && zone?.requires && (
+        <p className="zone-req">{describeCondition(text, locale, content, zone.requires)}</p>
+      )}
       {rows.map((row) => {
         const item = content.items[row.itemId]
         if (!item) return null

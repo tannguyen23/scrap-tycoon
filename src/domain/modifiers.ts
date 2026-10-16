@@ -1,5 +1,6 @@
 import { Decimal } from '@core/num'
 import type { GameContent, GameState, StatEffect } from './types'
+import { milestoneEffects } from './milestones'
 import { GLOBAL_WORKER_OUTPUT } from './statKeys'
 import { weatherWorkMultiplier } from './weather'
 
@@ -61,6 +62,12 @@ export function collectModifiers(state: GameState, content: GameContent): Map<st
     if (multiplier !== 1) {
       addEffect(result, { target: GLOBAL_WORKER_OUTPUT, kind: 'global', value: new Decimal(multiplier) })
     }
+  }
+
+  // Milestone rewards are derived the same way: idempotent effects while the goal
+  // holds, no save flags, and every consumer sees them for free.
+  for (const effect of milestoneEffects(state, content)) {
+    addEffect(result, effect)
   }
   return result
 }

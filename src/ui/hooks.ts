@@ -1,9 +1,10 @@
 import type { Decimal } from '@core/num'
 import type { EngineApi } from '@domain/engine-api'
-import type { GameContent, GameState } from '@domain/types'
+import type { GameContent, GameState, WorkPose } from '@domain/types'
 import type { LocaleStore } from '@i18n/locale'
 import { t, type L10n, type Locale } from '@i18n/types'
 import { createContext, useContext, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import type { PlayerReadout } from './scene/player'
 import type { SoundSettings, SoundStore } from './sound/settings'
 import type { ThemeMode, ThemeStore } from './theme'
 
@@ -18,11 +19,24 @@ export interface SceneBridge {
   highlight: (zoneId: string | null) => void
   /** Move the camera to a zone (HUD card click). */
   panTo: (zoneId: string) => void
+  /**
+   * Live player readout (where they stand, whether they move/work). Polled by the
+   * work bar on its own clock — pushing it through React state would re-render the
+   * sidebar at frame rate.
+   */
+  player: () => PlayerReadout | null
+  /** Bring the camera back to the player after a manual look-around. */
+  focusPlayer: () => void
+  /** Start/stop the hand-work animation on the player's body (the bar owns the timer). */
+  setWorking: (pose: WorkPose | null) => void
 }
 
 export const SceneBridgeContext = createContext<SceneBridge>({
   highlight: () => {},
   panTo: () => {},
+  player: () => null,
+  focusPlayer: () => {},
+  setWorking: () => {},
 })
 
 export type TranslateFn = (text: L10n, params?: Record<string, string>) => string
